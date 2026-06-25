@@ -1,0 +1,52 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>UsbForensicAudit</AssemblyName>
+    <RootNamespace>UsbForensicAudit</RootNamespace>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Authors>UsbForensicAudit</Authors>
+    <Product>UsbForensicAudit</Product>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <Description>Windows USB forensic audit and monitoring tool</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+    <PackageReference Include="QuestPDF" Version="2026.6.0" />
+    <PackageReference Include="System.Diagnostics.EventLog" Version="10.0.9" />
+    <PackageReference Include="System.Management" Version="10.0.9" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\app.ico" />
+    <Resource Include="Assets\app-icon.png" />
+    <EmbeddedResource Include="Assets\app.ico" LogicalName="UsbForensicAudit.Assets.app.ico" />
+    <EmbeddedResource Include="Assets\app-icon.png" LogicalName="UsbForensicAudit.Assets.app-icon.png" />
+    <Content Include="Assets\app.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Assets\app-icon.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Assets\Logo2.jpg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('Assets\Logo2.jpg')" />
+    <EmbeddedResource Include="Assets\USBVendors.txt" LogicalName="UsbForensicAudit.Assets.USBVendors.txt" Condition="Exists('Assets\USBVendors.txt')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="tools\**" />
+    <None Include="tools\**" />
+    <Compile Remove="tests\**" />
+    <None Include="tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="UsbForensicAudit.Tests" />
+    <InternalsVisibleTo Include="ExternalUtilityHarness" />
+  </ItemGroup>
+
+</Project>
