@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>UsbForensicAudit.Tools</RootNamespace>
+    <AssemblyName>GenerateManual</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="QuestPDF" Version="2026.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\ManualPdfGenerator.cs" Link="ManualPdfGenerator.cs" />
+    <Compile Include="..\..\PdfFontHelper.cs" Link="PdfFontHelper.cs" />
+  </ItemGroup>
+
+</Project>
