@@ -1,0 +1,536 @@
+﻿<Window x:Class="UsbForensicAudit.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:UsbForensicAudit"
+        mc:Ignorable="d"
+        Title="Аудит USB — форензика"
+        Height="820"
+        Width="1320"
+        MinHeight="720"
+        MinWidth="1120"
+        FontFamily="Segoe UI"
+        Background="#07111F">
+    <Window.Resources>
+        <SolidColorBrush x:Key="Bg" Color="#07111F"/>
+        <SolidColorBrush x:Key="Panel" Color="#0B1728"/>
+        <SolidColorBrush x:Key="Panel2" Color="#101F33"/>
+        <SolidColorBrush x:Key="Stroke" Color="#1F3B59"/>
+        <SolidColorBrush x:Key="TextMain" Color="#E5F2FF"/>
+        <SolidColorBrush x:Key="TextMuted" Color="#8EA7BF"/>
+        <SolidColorBrush x:Key="Accent" Color="#38D996"/>
+        <SolidColorBrush x:Key="Accent2" Color="#38BDF8"/>
+        <SolidColorBrush x:Key="Warn" Color="#FBBF24"/>
+        <SolidColorBrush x:Key="Danger" Color="#FB7185"/>
+
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="#E5F2FF"/>
+            <Setter Property="Background" Value="#11243A"/>
+            <Setter Property="BorderBrush" Value="#2B4C6F"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14,9"/>
+            <Setter Property="Margin" Value="6,0,0,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#173456"/>
+                                <Setter Property="BorderBrush" Value="#38BDF8"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="#8EA7BF"/>
+            <Setter Property="Padding" Value="16,9"/>
+            <Setter Property="Margin" Value="0,0,4,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder"
+                                Background="#0B1728"
+                                BorderBrush="#1F3B59"
+                                BorderThickness="1"
+                                CornerRadius="8,8,0,0"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#132A44"/>
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#38BDF8"/>
+                                <Setter Property="Foreground" Value="#E5F2FF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="DataGrid">
+            <Setter Property="Background" Value="#081320"/>
+            <Setter Property="Foreground" Value="#D9E8F5"/>
+            <Setter Property="BorderBrush" Value="#1F3B59"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#1A2F49"/>
+            <Setter Property="VerticalGridLinesBrush" Value="#1A2F49"/>
+            <Setter Property="RowBackground" Value="#0B1728"/>
+            <Setter Property="AlternatingRowBackground" Value="#0E1D30"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="CanUserAddRows" Value="False"/>
+            <Setter Property="CanUserDeleteRows" Value="False"/>
+            <Setter Property="SelectionMode" Value="Single"/>
+            <Setter Property="SelectionUnit" Value="FullRow"/>
+        </Style>
+
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#122840"/>
+            <Setter Property="Foreground" Value="#BFE7FF"/>
+            <Setter Property="BorderBrush" Value="#1F3B59"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="8,7"/>
+        </Style>
+
+        <Style TargetType="DataGridCell">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="Foreground" Value="#D9E8F5"/>
+        </Style>
+
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="#0B1728"/>
+            <Setter Property="BorderBrush" Value="#1F3B59"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="16"/>
+            <Setter Property="Margin" Value="0,0,12,0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Background="{StaticResource Bg}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" BorderBrush="#12304A" BorderThickness="0,0,0,1">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#08111F" Offset="0"/>
+                    <GradientStop Color="#0D2136" Offset="0.55"/>
+                    <GradientStop Color="#07111F" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <Grid Margin="22,18">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="88"
+                            Height="88"
+                            Margin="0,0,18,0"
+                            CornerRadius="18"
+                            Background="#0B1728"
+                            BorderBrush="#38BDF8"
+                            BorderThickness="1.5"
+                            Padding="6">
+                        <Image x:Name="HeaderLogoImage"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Border>
+                    <StackPanel>
+                        <TextBlock FontSize="30" FontWeight="SemiBold" Margin="0,0,0,2">
+                            <Run Text="Аудит " Foreground="{StaticResource TextMain}"/>
+                            <Run Text="USB" Foreground="{StaticResource Accent2}" FontWeight="Bold" FontSize="32"/>
+                            <Run Text="  ·  " Foreground="#3D5A73" FontSize="22"/>
+                            <Run Text="форензика" Foreground="{StaticResource Accent}" FontSize="22" FontWeight="Medium"/>
+                        </TextBlock>
+                        <TextBlock Text="Мониторинг подключений, история устройств и поиск следов очистки"
+                                   Foreground="{StaticResource TextMuted}"
+                                   FontSize="13"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="ElevateButton" Content="Запуск от администратора" Click="ElevateButton_Click" Background="#1E3A5F" BorderBrush="#38BDF8"/>
+                    <Button x:Name="ScanButton" Content="Полное сканирование" Click="ScanButton_Click" Background="#14532D" BorderBrush="#38D996"/>
+                    <Button x:Name="MonitorButton" Content="Старт мониторинга" Click="MonitorButton_Click"/>
+                    <Button x:Name="ShowActiveDevicesButton" Content="Окно USB" IsEnabled="False" Click="ShowActiveDevicesButton_Click"/>
+                    <Button x:Name="StopMonitorButton" Content="Стоп" IsEnabled="False" Click="StopMonitorButton_Click" Background="#3F1D2B" BorderBrush="#FB7185"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <TabControl Grid.Row="1" Margin="18">
+            <TabItem Header="Обзор">
+                <Grid Margin="4,14,4,4">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Border Grid.Row="0" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,14">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Установка Windows: " Foreground="{StaticResource TextMuted}"/>
+                                <TextBlock x:Name="OsInstallDateText" Text="не определена" Foreground="{StaticResource Accent2}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                            <TextBlock x:Name="OsInstallGraceText"
+                                       Foreground="{StaticResource TextMuted}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0"/>
+                        </StackPanel>
+                    </Border>
+                    <UniformGrid Grid.Row="1" Columns="4" Margin="0,0,0,14">
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Устройства" Foreground="{StaticResource TextMuted}"/>
+                                <TextBlock x:Name="DevicesCountText" Text="0" Foreground="{StaticResource Accent}" FontSize="32" FontWeight="SemiBold"/>
+                                <TextBlock Text="Все USB/Type-C, которые Windows когда-либо видела" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Доказательства" Foreground="{StaticResource TextMuted}"/>
+                                <TextBlock x:Name="EvidenceCountText" Text="0" Foreground="{StaticResource Accent2}" FontSize="32" FontWeight="SemiBold"/>
+                                <TextBlock Text="События и записи, по которым строится история" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Признаки очистки" Foreground="{StaticResource TextMuted}"/>
+                                <TextBlock x:Name="FindingsCountText" Text="0" Foreground="{StaticResource Warn}" FontSize="32" FontWeight="SemiBold"/>
+                                <TextBlock x:Name="FindingsSubText" Text="Подозрительных записей; все находки — на вкладке «Следы очистки»" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Margin="0">
+                            <StackPanel>
+                                <TextBlock Text="Статус" Foreground="{StaticResource TextMuted}"/>
+                                <TextBlock x:Name="AdminStatusText" Text="Проверка..." Foreground="{StaticResource TextMain}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                    </UniformGrid>
+                    <Border Grid.Row="2" Background="#081320" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="14" Padding="12">
+                        <TextBox x:Name="ActivityLogTextBox"
+                                 IsReadOnly="True"
+                                 Background="Transparent"
+                                 Foreground="#BFE7FF"
+                                 BorderThickness="0"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 FontFamily="Cascadia Mono, Consolas"
+                                 FontSize="12"/>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="USB устройства">
+                <DockPanel Margin="4,14,4,4">
+                    <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Здесь список USB и Type-C устройств, которые Windows когда-либо видела на этом компьютере."
+                                       Foreground="{StaticResource TextMain}"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Text="Цвет строк: зелёный — реальное устройство; жёлтый — связанный диск/память; серый — служебная запись Windows, не само устройство."
+                                       Foreground="{StaticResource TextMuted}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0"/>
+                            <TextBlock Text="«Когда отключали»: точная дата из журнала Windows, либо оценка по последней активности, либо «Подключено сейчас». VID и PID — технические коды, не названия производителя."
+                                       Foreground="{StaticResource TextMuted}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+                    <DataGrid x:Name="DevicesGrid" AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding Devices}">
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Setter Property="Background" Value="#0B1728"/>
+                                <Setter Property="Foreground" Value="#D9E8F5"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding VisualCategory}" Value="RealUsb">
+                                        <Setter Property="Background" Value="#0D3328"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding VisualCategory}" Value="RelatedStorage">
+                                        <Setter Property="Background" Value="#3B3213"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding VisualCategory}" Value="SupportArtifact">
+                                        <Setter Property="Background" Value="#162033"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Что это за запись" Binding="{Binding UserMeaning}" Width="250"/>
+                            <DataGridTextColumn Header="Имя устройства" Binding="{Binding DisplayName}" Width="220"/>
+                            <DataGridTextColumn Header="Тип" Binding="{Binding CategoryText}" Width="170"/>
+                            <DataGridTextColumn Header="Когда подключали" Binding="{Binding FirstConnectedText}" Width="170"/>
+                            <DataGridTextColumn Header="Когда отключали" Binding="{Binding LastDisconnectedText}" Width="220"/>
+                            <DataGridTextColumn Header="Последняя активность" Binding="{Binding LastSeenText}" Width="170"/>
+                            <DataGridTextColumn Header="Пояснение по датам" Binding="{Binding DateConfidenceText}" Width="320"/>
+                            <DataGridTextColumn Header="Производитель" Binding="{Binding ManufacturerText}" Width="140"/>
+                            <DataGridTextColumn Header="Модель" Binding="{Binding ModelText}" Width="160"/>
+                            <DataGridTextColumn Header="VID / PID" Binding="{Binding VidPidText}" Width="120"/>
+                            <DataGridTextColumn Header="Серийный номер" Binding="{Binding SerialText}" Width="160"/>
+                            <DataGridTextColumn Header="Расположение в USB" Binding="{Binding LocationDisplayText}" Width="180"/>
+                            <DataGridTextColumn Header="Откуда взята информация" Binding="{Binding SourceText}" Width="220"/>
+                            <DataGridTextColumn Header="Системный ID" Binding="{Binding DeviceInstanceId}" Width="300"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Доказательства">
+                <DockPanel Margin="4,14,4,4">
+                    <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
+                        <TextBlock Foreground="{StaticResource TextMain}"
+                                   TextWrapping="Wrap"
+                                   Text="Здесь все найденные следы: записи Windows, события подключения, ярлыки пользователя, запуск программ и признаки очистки. Это «сырые данные», по которым программа понимает историю USB."/>
+                    </Border>
+                    <DataGrid x:Name="EvidenceGrid" AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding Evidence}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampText}" Width="180"/>
+                            <DataGridTextColumn Header="Что произошло" Binding="{Binding EvidenceCategoryText}" Width="Auto"/>
+                            <DataGridTextColumn Header="Откуда взято" Binding="{Binding SourceText}" Width="Auto"/>
+                            <DataGridTextColumn Header="Номер события" Binding="{Binding EventId}" Width="Auto"/>
+                            <DataGridTextColumn Header="Связанное устройство" Binding="{Binding DeviceHintText}" Width="Auto"/>
+                            <DataGridTextColumn Header="Простыми словами" Binding="{Binding UserExplanationText}" Width="Auto"/>
+                            <DataGridTextColumn Header="Подробности" Binding="{Binding SummaryText}" Width="Auto"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Следы очистки">
+                <DockPanel Margin="4,14,4,4">
+                    <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Здесь все найденные признаки очистки — и подозрительные, и нормальные после переустановки Windows (полный аудит)."
+                                       Foreground="{StaticResource TextMain}"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Text="Колонки «Инициатор», «Инструмент» и «Уверенность» помогают отличить Windows, пользователя и утилиты вроде USBDeview/USBDetector. Prefetch сам по себе не доказывает очистку в ту же секунду."
+                                       Foreground="{StaticResource TextMuted}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0"/>
+                            <TextBlock Text="«Где искали» — это не название устройства, а место проверки: журналы Windows, файл setupapi.dev.log, программы очистки или противоречия между источниками."
+                                       Foreground="{StaticResource TextMuted}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0"/>
+                            <TextBlock Text="Риск: Высокий — серьёзный повод насторожиться; Средний — подозрительно; Низкий — слабый сигнал; Информация — зафиксировано, но это норма после установки Windows."
+                                       Foreground="{StaticResource TextMuted}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,0"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <TextBlock Text="Установка Windows: " Foreground="{StaticResource TextMuted}"/>
+                                <TextBlock x:Name="CleanupOsInstallDateText" Text="не определена" Foreground="{StaticResource Accent2}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                            <TextBlock x:Name="CleanupGraceText"
+                                       Foreground="{StaticResource TextMuted}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,0"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <TextBlock Text="Фильтр:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <ComboBox x:Name="CleanupFilterCombo" Width="260" SelectionChanged="CleanupFilterCombo_SelectionChanged">
+                                    <ComboBoxItem Content="Все записи" IsSelected="True"/>
+                                    <ComboBoxItem Content="Только USB-утилиты"/>
+                                    <ComboBoxItem Content="Только запуск утилит"/>
+                                    <ComboBoxItem Content="Вероятная очистка"/>
+                                    <ComboBoxItem Content="Только подозрительные"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <DataGrid x:Name="FindingsGrid" AutoGenerateColumns="False" IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampText}" Width="150"/>
+                            <DataGridTextColumn Header="Тип действия" Binding="{Binding ActionKindText}" Width="150"/>
+                            <DataGridTextColumn Header="Статус" Binding="{Binding AssessmentText}" Width="170"/>
+                            <DataGridTextColumn Header="Инициатор" Binding="{Binding InitiatorText}" Width="200"/>
+                            <DataGridTextColumn Header="Инструмент" Binding="{Binding PossibleToolText}" Width="170"/>
+                            <DataGridTextColumn Header="Уверенность" Binding="{Binding ConfidenceText}" Width="130"/>
+                            <DataGridTextColumn Header="Риск" Binding="{Binding SeverityText}" Width="90"/>
+                            <DataGridTextColumn Header="Где искали" Binding="{Binding AreaText}" Width="170"/>
+                            <DataGridTextColumn Header="Что найдено" Binding="{Binding Finding}" Width="250"/>
+                            <DataGridTextColumn Header="Подробности" Binding="{Binding Details}" Width="420"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Сторонние утилиты">
+                <Grid Margin="4,14,4,4">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,10">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="FindExternalUtilitiesButton" Content="Найти утилиты" Click="FindExternalUtilitiesButton_Click"/>
+                                <Button x:Name="CaptureExternalUtilityButton" Content="Считать из окна" Click="CaptureExternalUtilityButton_Click" IsEnabled="False" Margin="8,0,0,0"/>
+                                <Button x:Name="OpenExternalUtilityAnalysisTabButton" Content="Разбор строки →" Click="OpenExternalUtilityAnalysisTabButton_Click" Margin="8,0,0,0"/>
+                            </StackPanel>
+                            <TextBlock x:Name="ExternalUtilityStatusText" Foreground="{StaticResource TextMuted}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <TabControl Grid.Row="1" x:Name="ExternalUtilityInnerTabs" Background="Transparent" BorderThickness="0">
+                        <TabItem Header="Утилиты">
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" MinWidth="220"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*" MinWidth="280"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="10">
+                                    <DockPanel LastChildFill="True">
+                                        <TextBlock DockPanel.Dock="Top" Text="Запущенные сейчас" Foreground="{StaticResource TextMain}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                        <ListBox x:Name="RunningExternalUtilitiesList" DisplayMemberPath="ListDisplay" SelectionChanged="RunningExternalUtilitiesList_SelectionChanged" Background="#081320" BorderThickness="0" Foreground="#D9E8F5"/>
+                                    </DockPanel>
+                                </Border>
+                                <GridSplitter Grid.Column="1" Width="6" Background="#1F3B59" ShowsPreview="True"/>
+                                <Border Grid.Column="2" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="10">
+                                    <DockPanel LastChildFill="True">
+                                        <TextBlock DockPanel.Dock="Top" Text="Ранее запускались (по сканированию)" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                        <ListBox x:Name="HistoricalUtilityLaunchesList" DisplayMemberPath="ListDisplay" Background="#081320" BorderThickness="0" Foreground="#D9E8F5"/>
+                                    </DockPanel>
+                                </Border>
+                            </Grid>
+                        </TabItem>
+                        <TabItem Header="Данные">
+                            <Grid Margin="0,10,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock Text="Раздел:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <ComboBox x:Name="ExternalUtilitySectionFilterCombo" Width="340" SelectionChanged="ExternalUtilitySectionFilterCombo_SelectionChanged"/>
+                                    <Button x:Name="CopyExternalUtilityRowButton" Content="Копировать" Click="CopyExternalUtilityRowButton_Click" Margin="12,0,0,0" Padding="10,4"/>
+                                    <Button x:Name="FillManualFromRowButton" Content="В поле ввода" Click="FillManualFromRowButton_Click" Margin="8,0,0,0" Padding="10,4"/>
+                                </StackPanel>
+                                <Border Grid.Row="1" Background="#101E30" BorderBrush="#264A70" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock x:Name="ExternalUtilitySectionInfoTitle" Text="Выберите раздел или считайте данные из утилиты" Foreground="{StaticResource Accent2}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                        <TextBlock x:Name="ExternalUtilitySectionInfoSummary" Foreground="{StaticResource TextMain}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                        <TextBlock x:Name="ExternalUtilitySectionInfoReliability" Foreground="#FBBF24" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                                <DataGrid Grid.Row="2" x:Name="ExternalUtilityRowsGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserResizeColumns="True" SelectionMode="Single" SelectionUnit="FullRow" ClipboardCopyMode="IncludeHeader" SelectionChanged="ExternalUtilityRowsGrid_SelectionChanged">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Запись" Binding="{Binding PrimaryText}" Width="220" MinWidth="140"/>
+                                        <DataGridTextColumn Header="VID / PID" Binding="{Binding VidPidText}" Width="100" MinWidth="80"/>
+                                        <DataGridTextColumn Header="Производитель / модель" Binding="{Binding VendorProductText}" Width="200" MinWidth="140">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="TextWrapping" Value="Wrap"/>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                        <DataGridTextColumn Header="Вердикт" Binding="{Binding VerdictDisplayText}" Width="240" MinWidth="160">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="TextWrapping" Value="Wrap"/>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                        <DataGridTextColumn Header="Ключевые поля" Binding="{Binding KeyFieldsText}" Width="*" MinWidth="180">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="TextWrapping" Value="Wrap"/>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </TabItem>
+                        <TabItem Header="Разбор" x:Name="ExternalUtilityAnalysisTab">
+                            <Grid Margin="0,10,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Border Grid.Row="0" Background="#101E30" BorderBrush="#264A70" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock x:Name="ExternalUtilityVerdictTitleText" Text="Выберите строку на вкладке «Данные»" Foreground="#38D996" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                        <TextBlock x:Name="ExternalUtilityReportConclusionText" Foreground="#F5D98A" FontSize="13" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                                        <TextBlock x:Name="ExternalUtilityVidPidText" Foreground="#B8D4F0" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                        <TextBlock x:Name="ExternalUtilityOriginText" Foreground="{StaticResource TextMain}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                                        <TextBlock x:Name="ExternalUtilityAuditMatchText" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                        <Button x:Name="CopyExternalUtilityAnalysisButton" Content="Копировать разбор" Click="CopyExternalUtilityAnalysisButton_Click" Padding="10,4" HorizontalAlignment="Left" Margin="0,10,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Row="1" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,0,10">
+                                    <TextBlock x:Name="ExternalUtilitySelectedRowSummaryText" Text="—" Foreground="#D9E8F5" FontFamily="Consolas, Segoe UI" FontSize="12" TextWrapping="Wrap"/>
+                                </Border>
+                                <TextBox Grid.Row="2" x:Name="ExternalUtilityAnalysisText" Text="Полный разбор появится после выбора строки." IsReadOnly="True" IsReadOnlyCaretVisible="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Background="#081320" Foreground="#D9E8F5" BorderBrush="#1F3B59" BorderThickness="1" Padding="10"/>
+                            </Grid>
+                        </TabItem>
+                        <TabItem Header="Ручной ввод">
+                            <Border Margin="0,10,0,0" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="14">
+                                <StackPanel>
+                                    <TextBlock Text="Вставьте одну строку из USBDetector/USBDeview или скопируйте её с вкладки «Данные»." Foreground="{StaticResource TextMuted}" TextWrapping="Wrap"/>
+                                    <TextBox x:Name="ExternalUtilityManualInput" MinHeight="100" AcceptsReturn="True" TextWrapping="Wrap" Background="#081320" Foreground="#D9E8F5" BorderBrush="#1F3B59" Margin="0,10,0,0"/>
+                                    <Button x:Name="AnalyzeManualUtilityButton" Content="Разобрать вставку" Click="AnalyzeManualUtilityButton_Click" HorizontalAlignment="Left" Margin="0,10,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Отчет">
+                <Border Margin="4,14,4,4" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="14" Padding="22">
+                    <StackPanel>
+                        <TextBlock Text="Полный PDF — все данные для расследования. Сводный PDF — основные выводы и цифры на 2–3 страницы."
+                                   Foreground="{StaticResource TextMain}"
+                                   FontSize="16"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="PdfReportButton" Content="Полный PDF" Click="PdfReportButton_Click" IsEnabled="False" Background="#14532D" BorderBrush="#38D996"/>
+                            <Button x:Name="BriefPdfReportButton" Content="Сводный PDF" Click="BriefPdfReportButton_Click" IsEnabled="False" Background="#1E3A5F" BorderBrush="#38BDF8"/>
+                            <Button Content="Открыть папку данных" Click="OpenDataFolderButton_Click"/>
+                        </StackPanel>
+                        <TextBlock x:Name="ReportStatusText" Foreground="{StaticResource TextMuted}" Margin="0,16,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </TabItem>
+        </TabControl>
+
+        <StatusBar Grid.Row="2" Background="#081320" Foreground="#8EA7BF" BorderBrush="#1F3B59" BorderThickness="0,1,0,0">
+            <StatusBarItem>
+                <TextBlock x:Name="StatusText" Text="Готово"/>
+            </StatusBarItem>
+        </StatusBar>
+    </Grid>
+</Window>
