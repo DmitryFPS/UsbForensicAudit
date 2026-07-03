@@ -82,7 +82,7 @@ public static class TextSanitizer
             }
             catch
             {
-                // Try the next code page.
+                // Пробуем следующую кодовую страницу.
             }
         }
 
@@ -176,7 +176,7 @@ public static class TextSanitizer
         }
         catch
         {
-            // Ignore conversion failures.
+            // Игнорируем ошибки преобразования.
         }
 
         return candidates

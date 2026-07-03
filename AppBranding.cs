@@ -102,7 +102,7 @@ public static class AppBranding
             }
             catch
             {
-                // Try the next pack URI.
+                // Пробуем следующий pack-URI.
             }
         }
 
@@ -131,7 +131,7 @@ public static class AppBranding
             }
             catch
             {
-                // Try the next embedded resource.
+                // Пробуем следующий встроенный ресурс.
             }
         }
 
@@ -160,7 +160,7 @@ public static class AppBranding
             }
             catch
             {
-                // Try the next embedded resource.
+                // Пробуем следующий встроенный ресурс.
             }
         }
 

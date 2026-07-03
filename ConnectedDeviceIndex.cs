@@ -53,7 +53,7 @@ public sealed class ConnectedDeviceIndex
         }
         catch
         {
-            // If WMI is unavailable, enrichment falls back to event-based logic only.
+            // Если WMI недоступен, обогащение работает только на основе событий.
         }
 
         return new ConnectedDeviceIndex(keys, vidPidPairs);

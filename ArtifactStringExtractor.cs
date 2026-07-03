@@ -30,7 +30,7 @@ public static class ArtifactStringExtractor
         }
         catch
         {
-            // Callers report file-level metadata separately; unreadable files are expected on live systems.
+            // Метаданные уровня файла вызывающий код фиксирует отдельно; нечитаемые файлы на работающей системе — это ожидаемо.
         }
 
         return results.Distinct(StringComparer.OrdinalIgnoreCase).Take(maxResults).ToArray();

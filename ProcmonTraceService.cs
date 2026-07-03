@@ -115,7 +115,7 @@ public static class ProcmonTraceService
             }
             catch
             {
-                // Fall back to name lookup.
+                // Запасной вариант — поиск по имени.
             }
         }
 
@@ -211,7 +211,7 @@ public static class ProcmonTraceService
             }
             catch
             {
-                // Ignore shutdown races.
+                // Игнорируем гонки при завершении работы.
             }
         }
 

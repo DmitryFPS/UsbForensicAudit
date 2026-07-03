@@ -52,7 +52,7 @@ public static class PdfFontHelper
         }
         catch
         {
-            // Ignore duplicate registration or unreadable font files.
+            // Игнорируем повторную регистрацию или нечитаемые файлы шрифтов.
         }
     }
 }

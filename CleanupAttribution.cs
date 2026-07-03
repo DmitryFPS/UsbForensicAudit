@@ -36,7 +36,7 @@ public static class CleanupAttribution
         }
         catch
         {
-            // Fallback to regex below.
+            // Ниже — запасной вариант через регулярное выражение.
         }
 
         if (string.IsNullOrWhiteSpace(userName) && string.IsNullOrWhiteSpace(sid))
@@ -249,7 +249,7 @@ public static class CleanupAttribution
         }
         catch
         {
-            // Regex fallback below.
+            // Ниже — запасной вариант через регулярное выражение.
         }
 
         var match = Regex.Match(rawText, @"New Process Name:\s*(.+)", RegexOptions.IgnoreCase);

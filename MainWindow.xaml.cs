@@ -82,7 +82,7 @@ public partial class MainWindow : Window
         }
         catch
         {
-            // Icon is optional.
+            // Иконка необязательна.
         }
     }
 

@@ -38,7 +38,7 @@ internal static class Win32ListViewClipboardReader
         }
         catch
         {
-            // Clipboard may be locked by another app.
+            // Буфер обмена может быть заблокирован другим приложением.
         }
 
         try
@@ -87,7 +87,7 @@ internal static class Win32ListViewClipboardReader
             }
             catch
             {
-                // Best effort restore.
+                // Восстановление по возможности (без гарантий).
             }
 
             if (options.RestorePreviousForeground
@@ -100,7 +100,7 @@ internal static class Win32ListViewClipboardReader
                 }
                 catch
                 {
-                    // Ignore focus restore failures.
+                    // Игнорируем ошибки восстановления фокуса.
                 }
             }
         }
