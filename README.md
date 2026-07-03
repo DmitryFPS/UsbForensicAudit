@@ -35,6 +35,9 @@ GUI-first Windows forensic-аудитор USB/Type-C устройств для W
 - PDF отчет с summary, source coverage, timeline, устройствами, рисками и warnings.
 - Локальный `app.log` для ошибок приложения.
 - Отдельное окно `Сейчас подключено USB/Type-C` при запуске мониторинга. Список обновляется автоматически; устройство исчезает после отключения, история остаётся в основных вкладках. Закрытое окно можно открыть снова кнопкой `Окно USB`.
+- Вкладка «Сторонние утилиты»: захват таблиц из USBDetector, USBDeview, USB Oblivion; разбор каждой строки и сопоставление с аудитом.
+- **Жёсткая трассировка (Procmon)**: встроенный Procmon64 фиксирует, какие ключи реестра читала утилита во время сканирования. Сессии сохраняются в `data\procmon\`.
+- **Portable-режим**: при запуске с записываемой папки (флешка, `bin\publish\`) все данные лежат в `data\` рядом с exe — после удаления папки на хосте не остаётся следов в `%LOCALAPPDATA%`.
 - Понятный интерфейс для обычного пользователя: русские названия столбцов, пояснения на вкладках, без лишнего технического жаргона.
 - PDF/HTML отчёты полностью на русском языке с корректной кириллицей.
 - Файл `UsbForensicAudit-Instrukciya.pdf` лежит рядом с exe и создаётся автоматически при сборке.
@@ -89,17 +92,27 @@ C:\Users\adm\UsbForensicAudit\UsbForensicAudit.sln
 
 ## Где лежат данные
 
+**Portable-сборка** (рекомендуется — один exe на флешке или из `bin\publish\`):
+
+```text
+{папка с UsbForensicAudit.exe}\data\
+```
+
+**Fallback**, если рядом с exe нельзя писать (например, `Program Files`):
+
 ```text
 %LOCALAPPDATA%\UsbForensicAudit\
 ```
 
-Файлы:
+Файлы и папки:
 
-- `audit.sqlite` - база для поиска и анализа.
-- `evidence.jsonl` - forensic-журнал с hash-chain.
-- `app.log` - технический журнал ошибок приложения.
-- `UsbForensicAudit_*.html` - HTML отчеты.
-- `UsbForensicAudit_*.pdf` - PDF отчеты.
+- `audit.sqlite` — база для поиска и анализа.
+- `evidence.jsonl` — forensic-журнал с hash-chain.
+- `app.log` — технический журнал ошибок приложения.
+- `external_utility_snapshot.json` — снимок сторонней утилиты.
+- `tools\Procmon64.exe` — распакованный Procmon (встроен в exe при сборке).
+- `procmon\yyyyMMdd-HHmmss\` — сессии жёсткой трассировки (`capture.csv`, `README.txt`).
+- `UsbForensicAudit_*.html` / `UsbForensicAudit_*.pdf` — отчёты.
 
 ## Сборка одного exe
 
@@ -114,7 +127,18 @@ powershell -ExecutionPolicy Bypass -File .\build-exe.ps1
 ```text
 bin\publish\UsbForensicAudit.exe
 bin\publish\UsbForensicAudit-Instrukciya.pdf
+bin\publish\PORTABLE.txt
 ```
+
+Скрипт скачивает Procmon64 и встраивает его в exe — для работы трассировки интернет нужен только **на этапе сборки**, не на целевом ПК.
+
+## Тесты и покрытие
+
+```powershell
+dotnet test tests/UsbForensicAudit.Tests/UsbForensicAudit.Tests.csproj --collect:"XPlat Code Coverage"
+```
+
+Unit-тесты покрывают бизнес-логику (разбор утилит, Procmon CSV, корреляции, нормализацию текста) **не менее чем на 90%** измеряемого ядра. UI, сборщики реестра/Event Log, PDF-генераторы и слой отображения (`UserDisplayText`) в метрику не входят — они требуют интерактивной Windows-среды. Конфигурация: `tests/UsbForensicAudit.Tests/coverlet.runsettings`.
 
 ## Важные ограничения
 

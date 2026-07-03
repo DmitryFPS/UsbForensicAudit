@@ -16,6 +16,10 @@ publish/
 
 # Downloads / generated at build time
 tools/usb.ids.download
+tools/Procmon64.exe
+tools/ProcessMonitor.zip
+tools/pmextract/
+tools/ProcessMonitorExtract/
 bin/publish/
 
 # OS
@@ -25,5 +29,8 @@ Desktop.ini
 
 # Logs and local audit data (not part of source)
 *.log
+data/
+TestResults/
+tests/**/TestResults/
 *-exit.txt
 build-exit.txt

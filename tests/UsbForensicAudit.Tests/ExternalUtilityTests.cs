@@ -276,7 +276,8 @@ public class ExternalUtilityRowExplainerTests
         };
 
         var text = ExternalUtilityRowExplainer.Explain(row, audit);
-        Assert.Contains("Сопоставление с нашим аудитом", text);
+        Assert.Contains("ГДЕ ИСКАЛИ В WINDOWS", text);
+        Assert.Contains("ФОРМУЛИРОВКА ПО ДЕЛУ", text);
         Assert.Contains("VMware USB Device", text);
     }
 
@@ -294,7 +295,8 @@ public class ExternalUtilityRowExplainerTests
         var assessment = ExternalUtilityRowExplainer.Assess(row, new AuditResult());
         Assert.Equal(ExternalUtilityVerdictLevel.Indirect, assessment.Level);
         Assert.Contains("косвен", assessment.VerdictTitle, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Другие следы", assessment.FullExplanation, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ГДЕ ИСКАЛИ В WINDOWS", assessment.SourceChecksText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ФОРМУЛИРОВКА ПО ДЕЛУ", assessment.FullExplanation, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -394,8 +396,56 @@ public class ExternalUtilityRowExplainerTests
         Assert.Equal(ExternalUtilityVerdictLevel.Virtual, assessment.Level);
         Assert.Equal("0E0F", assessment.Identifier.Vid);
         Assert.Contains("VMware, Inc.", assessment.Identifier.VendorLookup.VendorName!, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("ФОРМУЛИРОВКА ДЛЯ ОТЧЁТА", assessment.FullExplanation, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("не физический накопитель", assessment.ReportConclusion, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ФОРМУЛИРОВКА ПО СТРОКЕ", assessment.FullExplanation, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("не физический накопитель", assessment.ReportConclusionRow, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("VMware", assessment.ReportConclusionCase, StringComparison.OrdinalIgnoreCase);
+    }
+}
+
+public class ExternalUtilitySourceCorrelatorTests
+{
+    [Fact]
+    public void Correlate_finds_audit_device_path()
+    {
+        var audit = new AuditResult();
+        audit.Devices.Add(new UsbDeviceRecord
+        {
+            FriendlyName = "Kingston",
+            Vid = "0951",
+            Pid = "1666",
+            DeviceInstanceId = @"USB\VID_0951&PID_1666\001",
+            Source = "Registry: USB"
+        });
+
+        var identifier = ExternalUtilityIdentifierParser.Parse(new ExternalUtilityRow
+        {
+            Values = new Dictionary<string, string> { ["Vendor ID"] = "0951", ["Product ID"] = "1666" },
+            PrimaryText = "Kingston",
+            UtilityName = "USBDeview",
+            SectionTitle = "Список устройств"
+        });
+
+        var hits = ExternalUtilitySourceCorrelator.Correlate(identifier, audit);
+        Assert.Contains(hits, x => x.Found && x.RegistryPath.Contains("VID_0951", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void FormatSourceChecks_mentions_usbdetector_tracing()
+    {
+        var hits = new[]
+        {
+            new ExternalUtilitySourceHit
+            {
+                Title = "Enum\\USB",
+                RegistryPath = @"HKLM\SYSTEM\CurrentControlSet\Enum\USB",
+                Found = false,
+                ResultText = "нет ключа"
+            }
+        };
+
+        var text = ExternalUtilitySourceCorrelator.FormatSourceChecks(hits, isUsbDetector: true, isOtherTraces: true);
+        Assert.Contains("USBDetector", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Procmon", text, StringComparison.OrdinalIgnoreCase);
     }
 }
 

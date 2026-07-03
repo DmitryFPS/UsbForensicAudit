@@ -33,14 +33,28 @@ public static class ExternalUtilityWindowCaptureService
                     $"Окно «{utility.DisplayName}» не найдено. Разверните окно утилиты на экране и повторите считывание.");
             }
 
-        var listViews = Win32ControlEnumerator.FindListViews(hwnd)
-            .Select(handle => Win32ListViewReader.Read(handle, utility.ProcessId, hwnd, utility.UtilityId))
-                .Where(IsRelevantListViewSnapshot)
-                .OrderBy(snapshot => snapshot.Top)
-                .ThenBy(snapshot => snapshot.Left)
+            if (utility.UtilityId == "usbdetector")
+            {
+                Win32WindowHelper.PrepareUsbDetectorCapture(hwnd);
+            }
+
+            var handles = Win32ControlEnumerator.FindListViews(hwnd)
+                .OrderBy(Win32WindowHelper.GetWindowTop)
+                .ThenBy(handle => handle.ToInt64())
                 .ToArray();
 
-            if (listViews.Length == 0)
+            var snapshots = ReadSnapshots(handles, hwnd, utility, allowClipboard: false);
+
+            if (utility.UtilityId == "usbdetector"
+                && !snapshots.Any(x => Win32ListViewReader.IsOtherTracesTable(x)))
+            {
+                Win32WindowHelper.PrepareUsbDetectorCapture(hwnd);
+                snapshots = MergeWithClipboardFallback(handles, hwnd, utility, snapshots);
+            }
+
+            snapshots = snapshots.Where(IsRelevantListViewSnapshot).ToList();
+
+            if (snapshots.Count == 0)
             {
                 if (process.HasExited)
                 {
@@ -53,14 +67,15 @@ public static class ExternalUtilityWindowCaptureService
             }
 
             var sections = new List<ExternalUtilitySection>();
-            for (var index = 0; index < listViews.Length; index++)
+            for (var index = 0; index < snapshots.Count; index++)
             {
-                var snapshot = listViews[index];
+                var snapshot = snapshots[index];
+                var title = ResolveSectionTitle(utility.UtilityId, index, snapshots.Count, snapshot);
                 sections.Add(new ExternalUtilitySection
                 {
-                    Title = ResolveSectionTitle(utility.UtilityId, index, listViews.Length, snapshot),
+                    Title = title,
                     ColumnHeaders = snapshot.Headers,
-                    Rows = BuildRows(utility.DisplayName, ResolveSectionTitle(utility.UtilityId, index, listViews.Length, snapshot), snapshot)
+                    Rows = BuildRows(utility.DisplayName, title, snapshot)
                 });
             }
 
@@ -80,6 +95,71 @@ public static class ExternalUtilityWindowCaptureService
         }
     }
 
+    private static List<Win32ListViewReader.ListViewSnapshot> ReadSnapshots(
+        IReadOnlyList<IntPtr> handles,
+        IntPtr mainWindow,
+        RunningExternalUtility utility,
+        bool allowClipboard)
+    {
+        return handles
+            .Select(handle => Win32ListViewReader.ReadForCapture(
+                handle,
+                utility.ProcessId,
+                mainWindow,
+                utility.UtilityId,
+                allowClipboard))
+            .Where(IsRelevantListViewSnapshot)
+            .ToList();
+    }
+
+    private static List<Win32ListViewReader.ListViewSnapshot> MergeWithClipboardFallback(
+        IReadOnlyList<IntPtr> handles,
+        IntPtr mainWindow,
+        RunningExternalUtility utility,
+        IReadOnlyList<Win32ListViewReader.ListViewSnapshot> silentSnapshots)
+    {
+        var merged = silentSnapshots.ToList();
+
+        foreach (var handle in handles.OrderByDescending(Win32WindowHelper.GetWindowTop))
+        {
+            var silent = silentSnapshots.FirstOrDefault(x => x.Handle == handle);
+            if (silent is not null && Win32ListViewReader.IsOtherTracesTable(silent))
+            {
+                continue;
+            }
+
+            var withClipboard = Win32ListViewReader.ReadForCapture(
+                handle,
+                utility.ProcessId,
+                mainWindow,
+                utility.UtilityId,
+                allowClipboard: true);
+
+            if (!IsRelevantListViewSnapshot(withClipboard))
+            {
+                continue;
+            }
+
+            if (silent is null)
+            {
+                merged.Add(withClipboard);
+                continue;
+            }
+
+            if (Win32ListViewReader.IsOtherTracesTable(withClipboard)
+                || withClipboard.Rows.Count > silent.Rows.Count)
+            {
+                merged.Remove(silent);
+                merged.Add(withClipboard);
+            }
+        }
+
+        return merged
+            .OrderBy(x => x.Top)
+            .ThenBy(x => x.Handle.ToInt64())
+            .ToList();
+    }
+
     private static string ResolveSectionTitle(
         string utilityId,
         int index,
@@ -88,15 +168,27 @@ public static class ExternalUtilityWindowCaptureService
     {
         if (utilityId == "usbdetector")
         {
+            if (Win32ListViewReader.IsOtherTracesTable(snapshot))
+            {
+                return ExternalUtilitySectionCatalog.OtherTracesSection;
+            }
+
+            if (Win32ListViewReader.IsMainRegistryTable(snapshot))
+            {
+                return ExternalUtilitySectionCatalog.MainRegistrySection;
+            }
+
             if (total >= 2 && index == 0)
             {
-                return "Основной список (реестр)";
+                return ExternalUtilitySectionCatalog.MainRegistrySection;
             }
 
             if (total >= 2 && index == 1)
             {
-                return "Другие следы подключения устройств";
+                return ExternalUtilitySectionCatalog.OtherTracesSection;
             }
+
+            return ExternalUtilitySectionCatalog.MainRegistrySection;
         }
 
         if (total == 1)
@@ -120,6 +212,11 @@ public static class ExternalUtilityWindowCaptureService
             return false;
         }
 
+        if (Win32ListViewReader.IsOtherTracesTable(snapshot))
+        {
+            return true;
+        }
+
         var headerText = string.Join(' ', snapshot.Headers);
         string[] usbHeaders =
         [
@@ -134,6 +231,12 @@ public static class ExternalUtilityWindowCaptureService
 
         var sample = string.Join(' ', snapshot.Rows.Take(5).SelectMany(x => x)).ToUpperInvariant();
         if (sample.Contains("VID") || sample.Contains("PID") || sample.Contains("USB\\"))
+        {
+            return true;
+        }
+
+        if (snapshot.Rows.Any(row => row.Any(cell =>
+                ExternalUtilityIdentifierParser.TryParseHexId(cell, out _))))
         {
             return true;
         }

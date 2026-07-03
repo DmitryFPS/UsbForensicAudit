@@ -100,7 +100,7 @@ public sealed class EvidenceRecord
     public string EvidenceCategoryText => ReportText.ForDisplay(EvidenceCategory, 220);
 
     [JsonIgnore]
-    public string UserExplanationText => ReportText.ForDisplay(UserExplanation, 800);
+    public string UserExplanationText => ReportText.ForDisplayOrClean(UserExplanation, 800);
 
     [JsonIgnore]
     public string SourceText => UserDisplayText.Source(Source);

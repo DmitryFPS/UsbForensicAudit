@@ -26,49 +26,139 @@ internal static class Win32ListViewReader
 
     public static ListViewSnapshot Read(IntPtr listViewHandle, int ownerProcessId, IntPtr? mainWindowHandle = null, string? utilityId = null)
     {
-        var uiAutomationSnapshot = Win32ListViewUiAutomationReader.Read(listViewHandle);
-        if (IsSnapshotUsable(uiAutomationSnapshot, requireMultipleColumns: true)
-            && !IsSnapshotMisaligned(uiAutomationSnapshot))
-        {
-            return uiAutomationSnapshot;
-        }
+        return ReadForCapture(listViewHandle, ownerProcessId, mainWindowHandle, utilityId);
+    }
 
-        if (mainWindowHandle is IntPtr mainWindow && mainWindow != IntPtr.Zero)
-        {
-            var clipboardSnapshot = Win32ListViewClipboardReader.TryRead(mainWindow, listViewHandle);
-            if (clipboardSnapshot is not null
-                && IsSnapshotUsable(clipboardSnapshot, requireMultipleColumns: false)
-                && !IsSnapshotMisaligned(clipboardSnapshot))
-            {
-                return clipboardSnapshot;
-            }
-        }
+    internal static ListViewSnapshot ReadForCapture(
+        IntPtr listViewHandle,
+        int ownerProcessId,
+        IntPtr? mainWindowHandle = null,
+        string? utilityId = null,
+        bool allowClipboard = true)
+    {
+        var mainWindow = mainWindowHandle.GetValueOrDefault();
+        var candidates = new List<ListViewSnapshot>();
+
+        var uiAutomationSnapshot = Win32ListViewUiAutomationReader.Read(listViewHandle);
+        candidates.Add(uiAutomationSnapshot);
 
         if (!ProcessBitnessHelper.RequiresUiAutomationForWindowMessages(ownerProcessId))
         {
-            var directSnapshot = ReadDirect(listViewHandle);
-            if (IsSnapshotUsable(directSnapshot, requireMultipleColumns: false)
-                && !IsSnapshotMisaligned(directSnapshot))
+            candidates.Add(ReadDirect(listViewHandle));
+        }
+
+        var best = PickBestSnapshot(candidates);
+
+        if (!allowClipboard || mainWindow == IntPtr.Zero || !NeedsClipboardFallback(best, utilityId))
+        {
+            return best;
+        }
+
+        var clipboardSnapshot = Win32ListViewClipboardReader.TryRead(
+            mainWindow,
+            listViewHandle,
+            new ClipboardReadOptions
             {
-                return directSnapshot;
+                BringTargetToForeground = true,
+                RestorePreviousForeground = true
+            });
+
+        if (clipboardSnapshot is null)
+        {
+            return best;
+        }
+
+        return PickBestSnapshot([best, clipboardSnapshot]);
+    }
+
+    private static bool NeedsClipboardFallback(ListViewSnapshot snapshot, string? utilityId)
+    {
+        if (!IsSnapshotUsable(snapshot, requireMultipleColumns: false))
+        {
+            return true;
+        }
+
+        if (IsSnapshotMisaligned(snapshot))
+        {
+            return true;
+        }
+
+        if (utilityId == "usbdetector"
+            && snapshot.Rows.Count > 0
+            && snapshot.Rows.Count <= 3
+            && !IsOtherTracesTable(snapshot)
+            && !IsMainRegistryTable(snapshot))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static ListViewSnapshot PickBestSnapshot(IReadOnlyList<ListViewSnapshot> candidates)
+    {
+        ListViewSnapshot? best = null;
+        var bestScore = int.MinValue;
+
+        foreach (var snapshot in candidates)
+        {
+            if (!IsSnapshotUsable(snapshot, requireMultipleColumns: false))
+            {
+                continue;
+            }
+
+            var score = ScoreSnapshot(snapshot);
+            if (IsSnapshotMisaligned(snapshot))
+            {
+                score -= 50;
+            }
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = snapshot;
             }
         }
 
-        if (mainWindowHandle is IntPtr retryWindow && retryWindow != IntPtr.Zero)
+        return best ?? candidates.FirstOrDefault() ?? new ListViewSnapshot(IntPtr.Zero, 0, 0, [], []);
+    }
+
+    internal static int ScoreSnapshot(ListViewSnapshot snapshot)
+    {
+        var score = snapshot.Rows.Count * 10 + snapshot.Headers.Count;
+        var headerText = string.Join(' ', snapshot.Headers).ToUpperInvariant();
+
+        if (headerText.Contains("UID"))
         {
-            var clipboardSnapshot = Win32ListViewClipboardReader.TryRead(retryWindow, listViewHandle);
-            if (clipboardSnapshot is not null && IsSnapshotUsable(clipboardSnapshot, requireMultipleColumns: false))
-            {
-                return clipboardSnapshot;
-            }
+            score += 30;
         }
 
-        if (IsSnapshotUsable(uiAutomationSnapshot, requireMultipleColumns: false))
+        if (headerText.Contains("VID") && headerText.Contains("PID"))
         {
-            return uiAutomationSnapshot;
+            score += 25;
         }
 
-        return uiAutomationSnapshot;
+        var maxCells = snapshot.Rows.Count == 0 ? 0 : snapshot.Rows.Max(row => row.Count);
+        score += maxCells;
+
+        return score;
+    }
+
+    internal static bool IsOtherTracesTable(ListViewSnapshot snapshot)
+    {
+        var headerText = string.Join(' ', snapshot.Headers).ToUpperInvariant();
+        return headerText.Contains("VID")
+               && headerText.Contains("PID")
+               && !headerText.Contains("UID");
+    }
+
+    internal static bool IsMainRegistryTable(ListViewSnapshot snapshot)
+    {
+        var headerText = string.Join(' ', snapshot.Headers).ToUpperInvariant();
+        return headerText.Contains("UID")
+               || headerText.Contains("НОСИТЕЛ")
+               || headerText.Contains("ПРЕДНАЗНА")
+               || headerText.Contains("УСТАНОВ");
     }
 
     internal static bool IsSnapshotMisaligned(ListViewSnapshot snapshot)
@@ -308,7 +398,26 @@ internal static class Win32ControlEnumerator
     {
         var handles = new List<IntPtr>();
         CollectListViews(rootWindow, handles);
+        CollectListViewsViaFindWindowEx(rootWindow, handles);
         return handles.Distinct().ToArray();
+    }
+
+    private static void CollectListViewsViaFindWindowEx(IntPtr parent, List<IntPtr> handles)
+    {
+        var child = IntPtr.Zero;
+        while (true)
+        {
+            child = FindWindowEx(parent, child, "SysListView32", null);
+            if (child == IntPtr.Zero)
+            {
+                break;
+            }
+
+            if (!handles.Contains(child))
+            {
+                handles.Add(child);
+            }
+        }
     }
 
     private static void CollectListViews(IntPtr parent, List<IntPtr> handles)
@@ -334,6 +443,9 @@ internal static class Win32ControlEnumerator
 
     [DllImport("user32.dll")]
     private static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr FindWindowEx(IntPtr hWndParent, IntPtr hWndChildAfter, string? lpszClass, string? lpszWindow);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);

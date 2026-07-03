@@ -1,8 +1,13 @@
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Windows;
 
 namespace UsbForensicAudit;
+
+internal sealed class ClipboardReadOptions
+{
+    public bool BringTargetToForeground { get; init; }
+    public bool RestorePreviousForeground { get; init; } = true;
+}
 
 internal static class Win32ListViewClipboardReader
 {
@@ -12,11 +17,16 @@ internal static class Win32ListViewClipboardReader
     private const int VkC = 0x43;
     private const int KeyeventfKeyup = 0x0002;
 
-    public static Win32ListViewReader.ListViewSnapshot? TryRead(IntPtr mainWindowHandle, IntPtr listViewHandle)
+    public static Win32ListViewReader.ListViewSnapshot? TryRead(
+        IntPtr mainWindowHandle,
+        IntPtr listViewHandle,
+        ClipboardReadOptions? options = null)
     {
+        options ??= new ClipboardReadOptions { BringTargetToForeground = true };
         GetWindowRect(listViewHandle, out var rect);
         string? backupText = null;
         var hadText = false;
+        var previousForeground = GetForegroundWindow();
 
         try
         {
@@ -33,15 +43,23 @@ internal static class Win32ListViewClipboardReader
 
         try
         {
-            ShowWindow(mainWindowHandle, SwRestore);
-            SetForegroundWindow(mainWindowHandle);
+            if (options.BringTargetToForeground)
+            {
+                if (IsIconic(mainWindowHandle))
+                {
+                    ShowWindow(mainWindowHandle, SwRestore);
+                }
+
+                SetForegroundWindow(mainWindowHandle);
+            }
+
             ActivateListView(listViewHandle);
-            Thread.Sleep(120);
+            Thread.Sleep(options.BringTargetToForeground ? 60 : 30);
 
             SendCtrlKey(VkA);
-            Thread.Sleep(80);
+            Thread.Sleep(40);
             SendCtrlKey(VkC);
-            Thread.Sleep(180);
+            Thread.Sleep(90);
 
             if (!Clipboard.ContainsText())
             {
@@ -70,6 +88,20 @@ internal static class Win32ListViewClipboardReader
             catch
             {
                 // Best effort restore.
+            }
+
+            if (options.RestorePreviousForeground
+                && previousForeground != IntPtr.Zero
+                && previousForeground != mainWindowHandle)
+            {
+                try
+                {
+                    SetForegroundWindow(previousForeground);
+                }
+                catch
+                {
+                    // Ignore focus restore failures.
+                }
             }
         }
     }
@@ -136,12 +168,16 @@ internal static class Win32ListViewClipboardReader
 
     private static void ActivateListView(IntPtr listViewHandle)
     {
-        var point = new Point { X = 12, Y = 12 };
+        GetClientRect(listViewHandle, out var rect);
+        var x = Math.Max(8, (rect.Right - rect.Left) / 2);
+        var y = Math.Max(8, (rect.Bottom - rect.Top) / 2);
+
+        var point = new Point { X = x, Y = y };
         ClientToScreen(listViewHandle, ref point);
         SetCursorPos(point.X, point.Y);
-        Thread.Sleep(40);
+        Thread.Sleep(20);
 
-        var lParam = (IntPtr)((12 << 16) | 12);
+        var lParam = (IntPtr)((y << 16) | (x & 0xFFFF));
         SendMessage(listViewHandle, WmLbuttondown, (IntPtr)1, lParam);
         SendMessage(listViewHandle, WmLbuttonup, IntPtr.Zero, lParam);
         SetFocus(listViewHandle);
@@ -175,6 +211,12 @@ internal static class Win32ListViewClipboardReader
     }
 
     [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
@@ -185,6 +227,9 @@ internal static class Win32ListViewClipboardReader
 
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr hWnd, out Rect lpRect);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetClientRect(IntPtr hWnd, out Rect lpRect);
 
     [DllImport("user32.dll")]
     private static extern bool ClientToScreen(IntPtr hWnd, ref Point lpPoint);

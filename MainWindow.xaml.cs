@@ -4,6 +4,7 @@ using System.Windows.Media.Imaging;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Windows.Data;
 
 namespace UsbForensicAudit;
@@ -25,7 +26,14 @@ public partial class MainWindow : Window
     private readonly ICollectionView _externalUtilityRowsView;
     private ExternalUtilityReportSnapshot _externalUtilitySnapshot = new();
     private AuditResult? _lastResult;
+    private string _lastExternalUtilityAnalysisCopyText = "";
     private bool _isScanning;
+    private bool _isProcmonTracing;
+    private ExternalUtilityRow? _activeExternalUtilityRow;
+    private RunningExternalUtility? _lastCapturedExternalUtility;
+    private readonly Dictionary<string, IReadOnlyList<ExternalUtilitySourceHit>> _procmonHitsByRowKey = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _procmonSessionByRowKey = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _procmonSummaryByRowKey = new(StringComparer.Ordinal);
     private DateTimeOffset _lastAutoScanUtc = DateTimeOffset.MinValue;
     private ActiveDevicesWindow? _activeDevicesWindow;
 
@@ -54,7 +62,7 @@ public partial class MainWindow : Window
         AdminStatusText.Text = AdminHelper.IsAdministrator() ? "Администратор" : "Нет прав администратора";
         ElevateButton.Visibility = AdminHelper.IsAdministrator() ? Visibility.Collapsed : Visibility.Visible;
         UpdateOsInstallDisplay(null);
-        AppendLog($"Запуск UsbForensicAudit. Администратор: {AdminHelper.IsAdministrator()}");
+        AppendLog($"Запуск UsbForensicAudit. Администратор: {AdminHelper.IsAdministrator()}. {AppPaths.LayoutDescription}");
         AppendLog($"База: {_orchestrator.Storage.DatabasePath}");
         UpdateExternalUtilityControls();
         _monitor.DeviceChanged += Monitor_DeviceChanged;
@@ -393,7 +401,7 @@ public partial class MainWindow : Window
                                                    && !_isScanning;
     }
 
-    private void CaptureExternalUtilityButton_Click(object sender, RoutedEventArgs e)
+    private async void CaptureExternalUtilityButton_Click(object sender, RoutedEventArgs e)
     {
         if (!EnsureAdministratorForExternalUtilities())
         {
@@ -409,8 +417,8 @@ public partial class MainWindow : Window
         try
         {
             SetBusy(true);
-            ExternalUtilityStatusText.Text = $"Считывание окна «{selected.DisplayName}»...";
-            var capture = ExternalUtilityWindowCaptureService.Capture(selected);
+            ExternalUtilityStatusText.Text = $"Считывание «{selected.DisplayName}» без переключения окон…";
+            var capture = await ExternalUtilityCaptureRunner.CaptureAsync(selected);
 
             _externalUtilityRows.Clear();
             foreach (var section in capture.Sections)
@@ -425,13 +433,30 @@ public partial class MainWindow : Window
             RefreshExternalUtilitySectionFilterCombo();
             _externalUtilityRowsView.Refresh();
 
-            ExternalUtilityStatusText.Text =
-                $"Считано из «{capture.DisplayName}»: {capture.Sections.Count} таблиц, {_externalUtilityRows.Count} строк. Откройте вкладку «Данные» и выберите раздел.";
-            ResetExternalUtilityAnalysisPanel();
             AppendLog($"Считан результат {capture.DisplayName}: {_externalUtilityRows.Count} строк.");
             SaveExternalUtilitySnapshot(capture.DisplayName);
+            _lastCapturedExternalUtility = selected;
             DataGridAutoSize.FitColumns(ExternalUtilityRowsGrid);
-            ExternalUtilityInnerTabs.SelectedIndex = 1;
+
+            var preferredRow = _externalUtilityRows.FirstOrDefault(r => r.IsOtherTracesSection)
+                               ?? _externalUtilityRows.FirstOrDefault();
+            if (preferredRow is not null)
+            {
+                ExternalUtilityRowsGrid.SelectedItem = preferredRow;
+                ApplyExternalUtilityRowAssessment(preferredRow);
+                ExternalUtilityInnerTabs.SelectedItem = ExternalUtilityAnalysisTab;
+                ExternalUtilityStatusText.Text =
+                    $"Считано из «{capture.DisplayName}»: {capture.Sections.Count} таблиц, {_externalUtilityRows.Count} строк. " +
+                    "Можно сразу нажать «Жёсткая трассировка (Procmon)» — USBDetector должен остаться открытым.";
+            }
+            else
+            {
+                ExternalUtilityInnerTabs.SelectedIndex = 1;
+                ExternalUtilityStatusText.Text =
+                    $"Считано из «{capture.DisplayName}»: {capture.Sections.Count} таблиц, {_externalUtilityRows.Count} строк.";
+            }
+
+            UpdateExternalUtilityControls();
         }
         catch (Exception ex)
         {
@@ -458,11 +483,13 @@ public partial class MainWindow : Window
         }
 
         ApplyExternalUtilityRowAssessment(row);
+        UpdateExternalUtilityControls();
     }
 
     private void OpenExternalUtilityAnalysisTabButton_Click(object sender, RoutedEventArgs e)
     {
-        if (ExternalUtilityRowsGrid.SelectedItem is not ExternalUtilityRow row)
+        var row = GetExternalUtilityRowForActions() ?? ExternalUtilityRowsGrid.SelectedItem as ExternalUtilityRow;
+        if (row is null)
         {
             ExternalUtilityStatusText.Text = "Сначала выберите строку на вкладке «Данные».";
             ExternalUtilityInnerTabs.SelectedIndex = 1;
@@ -471,6 +498,7 @@ public partial class MainWindow : Window
 
         ApplyExternalUtilityRowAssessment(row);
         ExternalUtilityInnerTabs.SelectedItem = ExternalUtilityAnalysisTab;
+        UpdateExternalUtilityControls();
     }
 
     private void ExternalUtilitySectionFilterCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -546,7 +574,7 @@ public partial class MainWindow : Window
     {
         foreach (var row in _externalUtilityRows)
         {
-            var assessment = ExternalUtilityRowExplainer.Assess(row, _lastResult);
+            var assessment = AssessExternalUtilityRow(row);
             row.AnalysisText = assessment.FullExplanation;
             row.VerdictDisplayText = assessment.VerdictTitle;
             row.VidPidText = assessment.Identifier.VidPidText;
@@ -554,36 +582,339 @@ public partial class MainWindow : Window
         }
     }
 
+    private ExternalUtilityRowAssessment AssessExternalUtilityRow(ExternalUtilityRow row)
+    {
+        var rowKey = ExternalUtilityRowKey.Build(row);
+        _procmonHitsByRowKey.TryGetValue(rowKey, out var procmonHits);
+        _procmonSessionByRowKey.TryGetValue(rowKey, out var procmonSession);
+        _procmonSummaryByRowKey.TryGetValue(rowKey, out var procmonSummary);
+        return ExternalUtilityRowExplainer.Assess(row, _lastResult, procmonHits, procmonSession, procmonSummary);
+    }
+
+    private ExternalUtilityRow? GetExternalUtilityRowForActions() =>
+        ExternalUtilityRowsGrid.SelectedItem as ExternalUtilityRow ?? _activeExternalUtilityRow;
+
     private void ApplyExternalUtilityRowAssessment(ExternalUtilityRow row)
     {
-        var assessment = ExternalUtilityRowExplainer.Assess(row, _lastResult);
+        _activeExternalUtilityRow = row;
+        var assessment = AssessExternalUtilityRow(row);
         row.AnalysisText = assessment.FullExplanation;
         row.VerdictDisplayText = assessment.VerdictTitle;
         row.VidPidText = assessment.Identifier.VidPidText;
         row.VendorProductText = assessment.Identifier.VendorProductText;
 
         ExternalUtilityVerdictTitleText.Text = assessment.VerdictTitle;
-        ExternalUtilityReportConclusionText.Text = assessment.ReportConclusion;
+        ExternalUtilityReportConclusionText.Text = assessment.ReportConclusionRow;
+        ExternalUtilityReportConclusionProcmonText.Text = assessment.ReportConclusionProcmon ?? "";
+        ExternalUtilityReportConclusionCaseText.Text = assessment.ReportConclusionCase;
+        ExternalUtilitySourceChecksText.Text = assessment.SourceChecksText;
+        ProcmonTraceStatusText.Text = assessment.HasProcmonEvidence
+            ? $"Procmon: сессия сохранена в {assessment.ProcmonSessionDirectory}"
+            : "Нажмите «Жёсткая трассировка (Procmon)». USBDetector должен быть открыт (как после «Считать из окна») — повторное сканирование запустится автоматически.";
+        OpenProcmonSessionFolderButton.IsEnabled = !string.IsNullOrWhiteSpace(assessment.ProcmonSessionDirectory)
+                                                   && Directory.Exists(assessment.ProcmonSessionDirectory);
         ExternalUtilityVidPidText.Text =
             $"VID/PID: {assessment.Identifier.VidPidText} · {assessment.Identifier.VendorProductText} ({assessment.Identifier.ParseMethod})";
         ExternalUtilityOriginText.Text = $"Откуда, скорее всего: {assessment.ProbableOrigin}";
         ExternalUtilityAuditMatchText.Text = $"Наш аудит: {assessment.AuditMatchSummary}";
+        ExternalUtilityBriefAnalysisText.Text = BuildExternalUtilityBriefAnalysis(assessment, row);
         ExternalUtilitySelectedRowSummaryText.Text =
             $"{row.SectionTitle}{Environment.NewLine}{row.FormattedDetailsText}";
-        ExternalUtilityAnalysisText.Text = assessment.FullExplanation;
+        _lastExternalUtilityAnalysisCopyText = assessment.FullExplanation;
         CopyExternalUtilityAnalysisButton.IsEnabled = true;
+        UpdateExternalUtilityControls();
+    }
+
+    private static string BuildExternalUtilityBriefAnalysis(ExternalUtilityRowAssessment assessment, ExternalUtilityRow row)
+    {
+        var lines = new List<string>
+        {
+            $"• Откуда строка: {assessment.ProbableOrigin}",
+            $"• Замечание: {assessment.UsbDetectorNote}",
+            $"• Аудит: {assessment.AuditMatchSummary}"
+        };
+
+        if (assessment.Identifier.HasVid)
+        {
+            lines.Add($"• VID/PID: {assessment.Identifier.VidPidText} · {assessment.Identifier.VendorProductText}");
+        }
+
+        if (assessment.HasProcmonEvidence)
+        {
+            lines.Insert(0, "• Procmon: жёстко зафиксировано чтение реестра процессом утилиты.");
+        }
+
+        if (ExternalUtilitySectionCatalog.IsOtherTracesSection(row.SectionTitle))
+        {
+            lines.Add("• Раздел «Другие следы»: косвенные ключи Windows; одна строка ≠ доказательство флешки.");
+        }
+
+        return string.Join(Environment.NewLine, lines);
     }
 
     private void ResetExternalUtilityAnalysisPanel()
     {
+        _activeExternalUtilityRow = null;
         ExternalUtilityVerdictTitleText.Text = "Выберите строку на вкладке «Данные»";
         ExternalUtilityReportConclusionText.Text = "";
+        ExternalUtilityReportConclusionProcmonText.Text = "";
+        ExternalUtilityReportConclusionCaseText.Text = "";
+        ExternalUtilitySourceChecksText.Text = "";
+        ProcmonTraceStatusText.Text = "";
+        OpenProcmonSessionFolderButton.IsEnabled = false;
         ExternalUtilityVidPidText.Text = "";
         ExternalUtilityOriginText.Text = "";
         ExternalUtilityAuditMatchText.Text = "";
+        ExternalUtilityBriefAnalysisText.Text = "";
         ExternalUtilitySelectedRowSummaryText.Text = "—";
-        ExternalUtilityAnalysisText.Text = "Полный разбор появится после выбора строки.";
+        _lastExternalUtilityAnalysisCopyText = "";
         CopyExternalUtilityAnalysisButton.IsEnabled = false;
+    }
+
+    private async void ProcmonTraceButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!EnsureAdministratorForExternalUtilities())
+        {
+            return;
+        }
+
+        if (GetExternalUtilityRowForActions() is not ExternalUtilityRow row)
+        {
+            ProcmonTraceStatusText.Text = "Сначала выберите строку на вкладке «Данные» или откройте «Разбор строки →».";
+            MessageBox.Show(
+                this,
+                "Выберите строку на вкладке «Данные» (таблица) или нажмите «Разбор строки →» для текущей записи.",
+                "Procmon",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        if (_isProcmonTracing)
+        {
+            return;
+        }
+
+        foreach (var utility in RunningExternalUtilityScanner.Scan())
+        {
+            if (_runningExternalUtilities.All(x => x.ProcessId != utility.ProcessId))
+            {
+                _runningExternalUtilities.Add(utility);
+            }
+        }
+
+        RunningExternalUtilitiesList.ItemsSource = _runningExternalUtilities;
+
+        var runningUtility = ResolveRunningUtilityForRow(row);
+        if (runningUtility is null)
+        {
+            const string message =
+                "USBDetector/USBDeview сейчас не запущен. Procmon записывает чтения реестра только от работающего процесса.\n\n" +
+                "Не закрывайте USBDetector после «Считать из окна» — затем снова нажмите «Жёсткая трассировка (Procmon)».";
+            ProcmonTraceStatusText.Text = message.Replace('\n', ' ');
+            ExternalUtilityStatusText.Text = "Процесс утилиты не найден — оставьте USBDetector открытым после считывания.";
+            MessageBox.Show(this, message, "Procmon — утилита не запущена", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        _isProcmonTracing = true;
+        UpdateExternalUtilityControls();
+
+        try
+        {
+            ProcmonTraceStatusText.Text = "Подготовка Procmon…";
+            ExternalUtilityStatusText.Text =
+                $"Procmon: запись для {runningUtility.DisplayName}. Повторное сканирование в утилите запустится автоматически (~20 сек)…";
+
+            var progress = new Progress<string>(message =>
+            {
+                ProcmonTraceStatusText.Text = message;
+                ExternalUtilityStatusText.Text = message;
+            });
+
+            var result = await ProcmonTraceRunner.TraceAsync(
+                new ProcmonTraceRequest
+                {
+                    Row = row,
+                    UtilityProcessName = runningUtility.ProcessName,
+                    UtilityProcessId = runningUtility.ProcessId,
+                    UtilityId = runningUtility.UtilityId,
+                    CaptureDuration = TimeSpan.FromSeconds(20)
+                },
+                progress);
+
+            var rowKey = ExternalUtilityRowKey.Build(row);
+            _procmonHitsByRowKey[rowKey] = result.Hits;
+            _procmonSessionByRowKey[rowKey] = result.SessionDirectory;
+            _procmonSummaryByRowKey[rowKey] = result.SummaryForReport;
+
+            RefreshExternalUtilityRowAssessments();
+            ApplyExternalUtilityRowAssessment(row);
+            ExternalUtilityStatusText.Text =
+                $"Procmon завершён: {result.Hits.Count} совпадений, событий в CSV: {result.ParsedEventCount}. Папка: {result.SessionDirectory}";
+            ProcmonTraceStatusText.Text = ExternalUtilityStatusText.Text;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error(ex, "Procmon trace failed");
+            ProcmonTraceStatusText.Text = ex.Message;
+            ExternalUtilityStatusText.Text = ex.Message;
+
+            var rowKey = ExternalUtilityRowKey.Build(row);
+            var failedSession = ExtractProcmonSessionDirectory(ex.Message);
+            if (!string.IsNullOrWhiteSpace(failedSession) && Directory.Exists(failedSession))
+            {
+                _procmonSessionByRowKey[rowKey] = failedSession;
+                OpenProcmonSessionFolderButton.IsEnabled = true;
+            }
+
+            MessageBox.Show(this, ex.Message, "Procmon — ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _isProcmonTracing = false;
+            UpdateExternalUtilityControls();
+        }
+    }
+
+    private void OpenProcmonSessionFolderButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetExternalUtilityRowForActions() is not ExternalUtilityRow row)
+        {
+            return;
+        }
+
+        var rowKey = ExternalUtilityRowKey.Build(row);
+        if (!_procmonSessionByRowKey.TryGetValue(rowKey, out var sessionDirectory)
+            || !Directory.Exists(sessionDirectory))
+        {
+            ProcmonTraceStatusText.Text = "Папка сессии Procmon для этой строки не найдена.";
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = sessionDirectory,
+            UseShellExecute = true
+        });
+    }
+
+    private RunningExternalUtility? ResolveRunningUtilityForRow(ExternalUtilityRow row)
+    {
+        if (RunningExternalUtilitiesList.SelectedItem is RunningExternalUtility selected
+            && UtilityNamesMatch(row.UtilityName, selected.DisplayName, selected.ProcessName))
+        {
+            return TryRefreshRunningUtility(selected);
+        }
+
+        var match = _runningExternalUtilities.FirstOrDefault(u =>
+            UtilityNamesMatch(row.UtilityName, u.DisplayName, u.ProcessName));
+        if (match is not null)
+        {
+            return TryRefreshRunningUtility(match);
+        }
+
+        if (_lastCapturedExternalUtility is not null
+            && UtilityNamesMatch(row.UtilityName, _lastCapturedExternalUtility.DisplayName, _lastCapturedExternalUtility.ProcessName))
+        {
+            var refreshed = TryRefreshRunningUtility(_lastCapturedExternalUtility);
+            if (refreshed is not null)
+            {
+                return refreshed;
+            }
+        }
+
+        var rowDefinition = ExternalUtilityCatalog.MatchProcess(row.UtilityName)
+                            ?? ExternalUtilityCatalog.Definitions.FirstOrDefault(def =>
+                                row.UtilityName.Contains(def.DisplayName, StringComparison.OrdinalIgnoreCase)
+                                || def.DisplayName.Contains(row.UtilityName, StringComparison.OrdinalIgnoreCase));
+
+        if (rowDefinition is null)
+        {
+            return null;
+        }
+
+        return _runningExternalUtilities
+            .Where(u => string.Equals(u.UtilityId, rowDefinition.Id, StringComparison.OrdinalIgnoreCase))
+            .Select(TryRefreshRunningUtility)
+            .FirstOrDefault(u => u is not null);
+    }
+
+    private static RunningExternalUtility? TryRefreshRunningUtility(RunningExternalUtility utility)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(utility.ProcessId);
+            if (process.HasExited)
+            {
+                return null;
+            }
+
+            process.Refresh();
+            return new RunningExternalUtility
+            {
+                UtilityId = utility.UtilityId,
+                DisplayName = utility.DisplayName,
+                ProcessId = process.Id,
+                ProcessName = process.ProcessName,
+                MainWindowTitle = process.MainWindowTitle,
+                HasMainWindow = process.MainWindowHandle != IntPtr.Zero
+            };
+        }
+        catch
+        {
+            var processName = Path.GetFileNameWithoutExtension(utility.ProcessName);
+            var live = Process.GetProcessesByName(processName).FirstOrDefault(x => !x.HasExited);
+            if (live is null)
+            {
+                return null;
+            }
+
+            try
+            {
+                live.Refresh();
+                return new RunningExternalUtility
+                {
+                    UtilityId = utility.UtilityId,
+                    DisplayName = utility.DisplayName,
+                    ProcessId = live.Id,
+                    ProcessName = live.ProcessName,
+                    MainWindowTitle = live.MainWindowTitle,
+                    HasMainWindow = live.MainWindowHandle != IntPtr.Zero
+                };
+            }
+            finally
+            {
+                live.Dispose();
+            }
+        }
+    }
+
+    private static string? ExtractProcmonSessionDirectory(string message)
+    {
+        const string marker = "Файлы:";
+        var index = message.LastIndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (index < 0)
+        {
+            return null;
+        }
+
+        return message[(index + marker.Length)..].Trim();
+    }
+
+    private static bool UtilityNamesMatch(string rowUtilityName, string displayName, string processName)
+    {
+        var rowName = rowUtilityName.Trim();
+        if (rowName.Contains(displayName, StringComparison.OrdinalIgnoreCase)
+            || displayName.Contains(rowName, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var processBase = Path.GetFileNameWithoutExtension(processName);
+        var rowBase = Path.GetFileNameWithoutExtension(rowName);
+        return rowName.Contains(processBase, StringComparison.OrdinalIgnoreCase)
+               || processBase.Contains(rowBase, StringComparison.OrdinalIgnoreCase);
     }
 
     private void CopyExternalUtilityRowButton_Click(object sender, RoutedEventArgs e)
@@ -608,14 +939,14 @@ public partial class MainWindow : Window
 
     private void CopyExternalUtilityAnalysisButton_Click(object sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(ExternalUtilityAnalysisText.Text))
+        if (string.IsNullOrWhiteSpace(_lastExternalUtilityAnalysisCopyText))
         {
             return;
         }
 
         try
         {
-            Clipboard.SetText(ExternalUtilityAnalysisText.Text);
+            Clipboard.SetText(_lastExternalUtilityAnalysisCopyText);
             ExternalUtilityStatusText.Text = "Текст разбора скопирован в буфер обмена.";
         }
         catch (Exception ex)
@@ -784,10 +1115,12 @@ public partial class MainWindow : Window
         FillManualFromRowButton.IsEnabled = isAdmin
                                               && !_isScanning
                                               && ExternalUtilityRowsGrid?.SelectedItem is ExternalUtilityRow;
-        CopyExternalUtilityAnalysisButton.IsEnabled = !string.IsNullOrWhiteSpace(ExternalUtilityAnalysisText?.Text)
-                                                      && ExternalUtilityAnalysisText.Text != "Полный разбор появится после выбора строки.";
-        OpenExternalUtilityAnalysisTabButton.IsEnabled = ExternalUtilityRowsGrid?.SelectedItem is ExternalUtilityRow;
-        if (!isAdmin && ExternalUtilityStatusText is not null)
+        CopyExternalUtilityAnalysisButton.IsEnabled = !string.IsNullOrWhiteSpace(_lastExternalUtilityAnalysisCopyText);
+        OpenExternalUtilityAnalysisTabButton.IsEnabled = GetExternalUtilityRowForActions() is ExternalUtilityRow
+                                                       || ExternalUtilityRowsGrid?.SelectedItem is ExternalUtilityRow;
+        ProcmonTraceButton.IsEnabled = !_isProcmonTracing
+                                       && GetExternalUtilityRowForActions() is ExternalUtilityRow;
+        if (!isAdmin && ExternalUtilityStatusText is not null && string.IsNullOrWhiteSpace(ExternalUtilityStatusText.Text))
         {
             ExternalUtilityStatusText.Text = "Для работы с USBDetector / USBDeview запустите программу от администратора.";
         }
