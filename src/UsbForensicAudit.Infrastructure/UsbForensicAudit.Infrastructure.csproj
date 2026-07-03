@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>UsbForensicAudit</RootNamespace>
+    <AssemblyName>UsbForensicAudit.Infrastructure</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+    <PackageReference Include="QuestPDF" Version="2026.6.0" />
+    <PackageReference Include="System.Diagnostics.EventLog" Version="10.0.9" />
+    <PackageReference Include="System.Management" Version="10.0.9" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UsbForensicAudit.Application\UsbForensicAudit.Application.csproj" />
+    <ProjectReference Include="..\UsbForensicAudit.Domain\UsbForensicAudit.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="UsbForensicAudit" />
+    <InternalsVisibleTo Include="UsbForensicAudit.Tests" />
+    <InternalsVisibleTo Include="ExternalUtilityHarness" />
+  </ItemGroup>
+
+</Project>

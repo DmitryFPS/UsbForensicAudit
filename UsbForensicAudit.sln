@@ -5,6 +5,14 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UsbForensicAudit", "UsbForensicAudit.csproj", "{F9B37F6A-2EC5-453E-9B19-30B2AAA9F369}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{BFEA281D-DE4D-4352-B9F8-06C3FB307DFF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UsbForensicAudit.Domain", "src\UsbForensicAudit.Domain\UsbForensicAudit.Domain.csproj", "{78D00CDD-9D5C-4BCC-9E5F-0F7B3D9C3B4C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UsbForensicAudit.Application", "src\UsbForensicAudit.Application\UsbForensicAudit.Application.csproj", "{9D51604C-7FED-4991-9B17-0F240E310983}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UsbForensicAudit.Infrastructure", "src\UsbForensicAudit.Infrastructure\UsbForensicAudit.Infrastructure.csproj", "{5BB16880-87AD-4035-849D-6878A0742A83}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +26,22 @@ Global
 		{F9B37F6A-2EC5-453E-9B19-30B2AAA9F369}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F9B37F6A-2EC5-453E-9B19-30B2AAA9F369}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F9B37F6A-2EC5-453E-9B19-30B2AAA9F369}.Release|Any CPU.Build.0 = Release|Any CPU
+		{78D00CDD-9D5C-4BCC-9E5F-0F7B3D9C3B4C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{78D00CDD-9D5C-4BCC-9E5F-0F7B3D9C3B4C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{78D00CDD-9D5C-4BCC-9E5F-0F7B3D9C3B4C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{78D00CDD-9D5C-4BCC-9E5F-0F7B3D9C3B4C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9D51604C-7FED-4991-9B17-0F240E310983}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9D51604C-7FED-4991-9B17-0F240E310983}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9D51604C-7FED-4991-9B17-0F240E310983}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9D51604C-7FED-4991-9B17-0F240E310983}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5BB16880-87AD-4035-849D-6878A0742A83}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5BB16880-87AD-4035-849D-6878A0742A83}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5BB16880-87AD-4035-849D-6878A0742A83}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5BB16880-87AD-4035-849D-6878A0742A83}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{78D00CDD-9D5C-4BCC-9E5F-0F7B3D9C3B4C} = {BFEA281D-DE4D-4352-B9F8-06C3FB307DFF}
+		{9D51604C-7FED-4991-9B17-0F240E310983} = {BFEA281D-DE4D-4352-B9F8-06C3FB307DFF}
+		{5BB16880-87AD-4035-849D-6878A0742A83} = {BFEA281D-DE4D-4352-B9F8-06C3FB307DFF}
 	EndGlobalSection
 EndGlobal
