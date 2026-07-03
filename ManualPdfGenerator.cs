@@ -290,6 +290,20 @@ public static class ManualPdfGenerator
         Bullet(column, "Дата 01.01.1970 в USBDetector — это технический ноль, а не реальное подключение в 1970 году.");
         Bullet(column, "Раздел «Другие следы подключения устройств» часто показывает косвенные записи (VMware, MRU) — сравнивайте с нашим аудитом.");
         Bullet(column, "Результат считывания сохраняется и попадает в полный PDF-отчёт.");
+
+        SubTitle(column, "Жёсткая трассировка (Procmon)");
+        Paragraph(column,
+            "Procmon64 встроен в exe и распаковывается в папку data\\tools\\ при первом запуске. " +
+            "Трассировка фиксирует, какие ключи реестра читала утилита во время сканирования — это жёсткое доказательство источника строки, " +
+            "но не доказательство физического подключения флешки.");
+        AddTable(column,
+            ("Кнопка", "Действие"),
+            ("Жёсткая трассировка (Procmon)", "Запускает Procmon, автоматически нажимает «Поиск» в USBDetector и сохраняет CSV"),
+            ("Папка сессии Procmon", "Открывает data\\procmon\\yyyyMMdd-HHmmss\\ с capture.csv и README"));
+
+        Bullet(column, "USBDetector должен быть запущен и виден на экране — иначе трассировка не поймает чтение реестра.");
+        Bullet(column, "Строки из «Другие следы» с датой 01.01.1970 и косвенным ключом MountedDevices/MRU — часто артефакт, а не флешка.");
+        Bullet(column, "Procmon доказывает «утилита прочитала ключ X в момент T», аудит показывает «ключ X существует в системе».");
     }
 
     private static void AddReportTab(ColumnDescriptor column)
@@ -335,15 +349,20 @@ public static class ManualPdfGenerator
     private static void AddDataStorage(ColumnDescriptor column)
     {
         SectionTitle(column, "11. Где хранятся данные");
-        Paragraph(column, "Все файлы лежат в: %LOCALAPPDATA%\\UsbForensicAudit\\");
         Paragraph(column,
-            "Сборка для распространения (один exe + инструкция) обычно лежит в папке bin\\publish\\ рядом с исходниками проекта.");
+            "Portable-сборка (exe с флешки или из bin\\publish\\): все данные рядом с программой в папке data\\ — " +
+            "после удаления папки на ПК не остаётся следов в %LOCALAPPDATA%.");
+        Paragraph(column,
+            "Если папка data\\ рядом с exe недоступна для записи (например, exe лежит в Program Files), " +
+            "данные сохраняются в %LOCALAPPDATA%\\UsbForensicAudit\\.");
         AddTable(column,
-            ("Файл", "Назначение"),
-            ("audit.sqlite", "База SQLite — устройства, доказательства, находки"),
-            ("evidence.jsonl", "Forensic-журнал с SHA-256 hash-chain"),
-            ("app.log", "Технический лог ошибок приложения"),
-            ("external_utility_snapshot.json", "Сохранённый снимок сторонней утилиты и исторические запуски"),
+            ("Файл / папка", "Назначение"),
+            ("data\\audit.sqlite", "База SQLite — устройства, доказательства, находки"),
+            ("data\\evidence.jsonl", "Forensic-журнал с SHA-256 hash-chain"),
+            ("data\\app.log", "Технический лог ошибок приложения"),
+            ("data\\external_utility_snapshot.json", "Снимок сторонней утилиты и исторические запуски"),
+            ("data\\tools\\Procmon64.exe", "Распакованный Procmon (встроен в exe)"),
+            ("data\\procmon\\*", "Сессии жёсткой трассировки: capture.csv, README"),
             ("UsbForensicAudit_*.pdf", "Полные PDF-отчёты"),
             ("UsbForensicAudit_Svodnyj_*.pdf", "Сводные PDF-отчёты"));
     }
@@ -435,6 +454,8 @@ public static class ManualPdfGenerator
             ("«Сейчас не подключено, время неизвестно»", "Флешка/устройство не подключено, но когда отключили — неизвестно"),
             ("«Windows не сохранила расположение порта»", "Нормально — Windows редко сохраняет этот путь"),
             ("Кнопки отчёта неактивны", "Сначала выполните «Полное сканирование»"),
+            ("Procmon: 0 чтений реестра", "Запустите USBDetector, откройте вкладку «Поиск» и повторите трассировку"),
+            ("Procmon: кнопка неактивна", "Выберите строку в таблице сторонней утилиты — кнопка привязана к выбранной записи"),
             ("Кракозябры в PDF или колонках", "Обновите программу — текст проходит через нормализацию кодировки и шрифты с поддержкой кириллицы"),
             ("Ошибка в работе", "Откройте app.log в папке данных"));
     }

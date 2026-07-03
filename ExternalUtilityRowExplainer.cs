@@ -5,12 +5,19 @@ namespace UsbForensicAudit;
 
 public static class ExternalUtilityRowExplainer
 {
-    public static ExternalUtilityRowAssessment Assess(ExternalUtilityRow row, AuditResult? audit)
+    public static ExternalUtilityRowAssessment Assess(ExternalUtilityRow row, AuditResult? audit) =>
+        Assess(row, audit, null, null, null);
+
+    public static ExternalUtilityRowAssessment Assess(
+        ExternalUtilityRow row,
+        AuditResult? audit,
+        IReadOnlyList<ExternalUtilitySourceHit>? procmonHits,
+        string? procmonSessionDirectory,
+        string? procmonSummaryForReport)
     {
         var identifier = ExternalUtilityIdentifierParser.Parse(row);
         var isOtherTraces = ExternalUtilitySectionCatalog.IsOtherTracesSection(row.SectionTitle);
-        var vid = identifier.Vid;
-        var pid = identifier.Pid;
+        var isUsbDetector = row.UtilityName.Contains("USBDetector", StringComparison.OrdinalIgnoreCase);
         var installText = ExternalUtilityColumnNormalizer.FindConnectionDate(row.Values)
                           ?? FindValue(row, "Установка", "Installation", "First connection", "Подключение", "Дата", "Первое подключение", "Модификация");
         var matches = audit is null ? [] : FindMatchingDevices(row, audit, identifier).Take(5).ToArray();
@@ -21,20 +28,57 @@ public static class ExternalUtilityRowExplainer
 
         var level = ResolveVerdictLevel(row, isOtherTraces, identifier, matches.Length, hasEpochDate, beforeOsInstall);
         var origin = ResolveProbableOrigin(row, identifier, isOtherTraces, matches);
-        var detectorNote = ResolveUsbDetectorNote(row, identifier, isOtherTraces, hasEpochDate, beforeOsInstall, matches.Length);
         var auditSummary = ResolveAuditMatchSummary(matches, audit, isOtherTraces);
-        var reportConclusion = BuildReportConclusion(row, audit, level, identifier, origin, auditSummary, matches);
+        var baseHits = ExternalUtilitySourceCorrelator.Correlate(identifier, audit);
+        var sourceHits = procmonHits is { Count: > 0 }
+            ? ExternalUtilitySourceCorrelator.MergeProcmonHits(baseHits, procmonHits)
+            : baseHits;
+        var hasProcmon = sourceHits.Any(x => x.IsProcmonEvidence && x.Found);
+        var topProcmonHit = sourceHits.FirstOrDefault(x => x.IsProcmonEvidence && x.Found);
+        var sourceChecksText = ExternalUtilitySourceCorrelator.FormatSourceChecks(sourceHits, isUsbDetector, isOtherTraces);
+        var reportConclusionProcmon = hasProcmon
+            ? procmonSummaryForReport ?? (topProcmonHit is null
+                ? null
+                : ProcmonReportBuilder.BuildSummary(row, identifier, sourceHits.Where(x => x.IsProcmonEvidence).ToArray()))
+            : null;
+        origin = ResolveProbableOriginWithProcmon(topProcmonHit, origin);
+        var reportConclusionRow = BuildReportConclusionRow(
+            row, audit, level, identifier, origin, auditSummary, matches, isOtherTraces, reportConclusionProcmon);
+        var reportConclusionCase = BuildReportConclusionCase(row, audit, level, identifier, matches, isOtherTraces, hasProcmon);
+        var verdictTitle = VerdictTitle(level, row, isOtherTraces, identifier, hasProcmon, topProcmonHit);
+        var detectorNote = ResolveUsbDetectorNote(row, identifier, isOtherTraces, hasEpochDate, beforeOsInstall, matches.Length, hasProcmon);
 
         return new ExternalUtilityRowAssessment
         {
             Level = level,
-            VerdictTitle = VerdictTitle(level, row, isOtherTraces, identifier),
+            VerdictTitle = verdictTitle,
             ProbableOrigin = origin,
             UsbDetectorNote = detectorNote,
             AuditMatchSummary = auditSummary,
-            ReportConclusion = reportConclusion,
+            ReportConclusionRow = reportConclusionRow,
+            ReportConclusionCase = reportConclusionCase,
+            ReportConclusionProcmon = reportConclusionProcmon,
+            ProcmonSessionDirectory = procmonSessionDirectory,
             Identifier = identifier,
-            FullExplanation = Explain(row, audit, identifier, level, origin, detectorNote, auditSummary, reportConclusion, matches)
+            SourceHits = sourceHits,
+            SourceChecksText = sourceChecksText,
+            FullExplanation = Explain(
+                row,
+                audit,
+                identifier,
+                verdictTitle,
+                origin,
+                detectorNote,
+                auditSummary,
+                reportConclusionRow,
+                reportConclusionCase,
+                reportConclusionProcmon,
+                sourceChecksText,
+                matches,
+                installText,
+                hasEpochDate,
+                beforeOsInstall,
+                isOtherTraces)
         };
     }
 
@@ -48,153 +92,98 @@ public static class ExternalUtilityRowExplainer
         ExternalUtilityRow row,
         AuditResult? audit,
         ExternalUtilityIdentifierInfo identifier,
-        ExternalUtilityVerdictLevel level,
+        string verdictTitle,
         string origin,
         string detectorNote,
         string auditSummary,
-        string reportConclusion,
-        IReadOnlyList<UsbDeviceRecord> matches)
+        string reportConclusionRow,
+        string reportConclusionCase,
+        string? reportConclusionProcmon,
+        string sourceChecksText,
+        IReadOnlyList<UsbDeviceRecord> matches,
+        string installText,
+        bool hasEpochDate,
+        bool beforeOsInstall,
+        bool isOtherTraces)
     {
         var builder = new StringBuilder();
-        var sectionInfo = ExternalUtilitySectionCatalog.GetInfo(row.SectionTitle);
-        var isOtherTraces = ExternalUtilitySectionCatalog.IsOtherTracesSection(row.SectionTitle);
 
-        builder.AppendLine($"Утилита: {row.UtilityName}");
-        builder.AppendLine($"Раздел: {row.SectionTitle}");
+        builder.AppendLine($"{row.UtilityName} · {row.SectionTitle}");
         builder.AppendLine($"Запись: {row.PrimaryText}");
+        builder.AppendLine($"Вердикт: {verdictTitle}");
         builder.AppendLine();
-        builder.AppendLine("ФОРМУЛИРОВКА ДЛЯ ОТЧЁТА:");
-        builder.AppendLine(reportConclusion);
-        builder.AppendLine();
-        builder.AppendLine($"Вердикт: {VerdictTitle(level, row, isOtherTraces, identifier)}");
-        builder.AppendLine($"Откуда, скорее всего: {origin}");
-        builder.AppendLine($"Замечание по USBDetector: {detectorNote}");
-        builder.AppendLine($"Наш аудит: {auditSummary}");
 
-        AppendIdentifierBlock(builder, identifier);
+        builder.AppendLine("ФОРМУЛИРОВКА ПО СТРОКЕ (для отчёта):");
+        builder.AppendLine(reportConclusionRow);
+        builder.AppendLine();
+
+        if (!string.IsNullOrWhiteSpace(reportConclusionProcmon))
+        {
+            builder.AppendLine("PROCMON (ЖЁСТКОЕ ДОКАЗАТЕЛЬСТВО — ЧТЕНИЕ РЕЕСТРА УТИЛИТОЙ):");
+            builder.AppendLine(reportConclusionProcmon);
+            builder.AppendLine();
+        }
+
+        builder.AppendLine("ФОРМУЛИРОВКА ПО ДЕЛУ (общий вывод по USB на ПК):");
+        builder.AppendLine(reportConclusionCase);
+        builder.AppendLine();
+
+        builder.AppendLine(sourceChecksText);
+        builder.AppendLine();
+
+        builder.AppendLine("Кратко:");
+        builder.AppendLine($"• Откуда строка: {origin}");
+        builder.AppendLine($"• Замечание: {detectorNote}");
+        builder.AppendLine($"• Аудит: {auditSummary}");
+
+        if (identifier.HasVid)
+        {
+            builder.AppendLine($"• VID/PID: {identifier.VidPidText} · {identifier.VendorProductText}");
+        }
+
+        if (hasEpochDate)
+        {
+            builder.AppendLine("• Дата 01.01.1970 — FILETIME=0 в реестре, не реальное подключение.");
+        }
+
+        if (beforeOsInstall && audit?.OsInstalledAtUtc is not null)
+        {
+            builder.AppendLine($"• Дата в утилите ({installText}) раньше установки Windows ({audit.OsInstalledAtText}) — ненадёжна.");
+        }
+
+        if (matches.Count > 0)
+        {
+            builder.AppendLine("• Совпадения в аудите:");
+            foreach (var device in matches)
+            {
+                builder.AppendLine($"  — {device.DisplayName}: {ToRegistryPath(device)}");
+            }
+        }
 
         if (isOtherTraces)
         {
             builder.AppendLine();
-            builder.AppendLine("Что означает раздел «Другие следы подключения устройств»:");
-            builder.AppendLine("• Это не список «кто точно подключал флешку», а сбор косвенных записей Windows.");
-            builder.AppendLine("• USBDetector смешивает MRU, MountedDevices, виртуальные USB (VMware) и старые ключи.");
-            builder.AppendLine("• Дата «первого подключения» здесь часто вычислена ошибочно — особенно 01.01.1970 или дата до установки Windows.");
-            builder.AppendLine("• Колонки могут быть обрезаны: вместо VID_0E0F&PID_0003 видно только «0E0F» — это отображение USBDetector, не ошибка нашего считывания.");
-            builder.AppendLine();
-            builder.AppendLine("Типичные источники таких строк:");
-            builder.AppendLine($"• {sectionInfo.TypicalSources}");
-        }
-        else if (row.SectionTitle.Contains("Основной список", StringComparison.OrdinalIgnoreCase))
-        {
-            builder.AppendLine();
-            builder.AppendLine("Основной список (реестр):");
-            builder.AppendLine("• Запись из Enum\\USB / USBSTOR — обычно это реальный след установки драйвера USB-устройства.");
-            builder.AppendLine("• Всё равно сверяйте даты с нашим аудитом и setupapi.dev.log.");
-        }
-
-        var installText = ExternalUtilityColumnNormalizer.FindConnectionDate(row.Values)
-                          ?? FindValue(row, "Установка", "Installation", "First connection", "Подключение", "Дата", "Первое подключение", "Модификация");
-        if (LooksLikeUnixEpoch(installText))
-        {
-            builder.AppendLine();
-            builder.AppendLine("Почему дата «01.01.1970»:");
-            builder.AppendLine("• В реестре нет реальной даты установки (FILETIME = 0), USBDetector подставляет 01.01.1970.");
-            builder.AppendLine("• Это не подключение в 1970 году — игнорируйте эту колонку, смотрите «Модификация» и наш аудит.");
-        }
-
-        if (audit is not null)
-        {
-            builder.AppendLine();
-            builder.AppendLine("Сопоставление с нашим аудитом:");
-            builder.AppendLine($"• Установка Windows: {audit.OsInstalledAtText}");
-
-            if (matches.Count == 0)
-            {
-                builder.AppendLine("• В нашем списке USB-устройств прямого совпадения нет.");
-                if (isOtherTraces)
-                {
-                    builder.AppendLine("• Для «Других следов» это нормально: запись может жить только в косвенном источнике USBDetector.");
-                }
-            }
-            else
-            {
-                foreach (var device in matches)
-                {
-                    builder.AppendLine($"• Совпадение: {device.DisplayName} ({device.CategoryText})");
-                    builder.AppendLine($"  Источник у нас: {device.SourceText}");
-                    builder.AppendLine($"  Подключение: {device.FirstConnectedText}; активность: {device.LastSeenText}");
-                    builder.AppendLine($"  Достоверность дат: {device.DateConfidenceText}");
-                }
-            }
-
-            if (TryParseRowDate(installText, out var rowDate)
-                && audit.OsInstalledAtUtc is not null
-                && rowDate < audit.OsInstalledAtUtc.Value)
-            {
-                builder.AppendLine();
-                builder.AppendLine("Дата в утилите раньше установки Windows:");
-                builder.AppendLine("• Часто это не реальное подключение до переустановки.");
-                builder.AppendLine("• Возможные причины: перенос профиля, MRU, MountedDevices, ошибка USBDetector, виртуальное устройство.");
-            }
-        }
-        else
-        {
-            builder.AppendLine();
-            builder.AppendLine("Выполните полное сканирование — тогда появится сопоставление с реестром, журналами и хронологией.");
+            builder.AppendLine("Раздел «Другие следы»: косвенные ключи Windows; одна строка ≠ доказательство флешки.");
         }
 
         if (row.UtilityName.Contains("Oblivion", StringComparison.OrdinalIgnoreCase))
         {
-            builder.AppendLine();
-            builder.AppendLine("USB Oblivion удаляет следы из реестра. Запуск виден в Prefetch; факт удаления — на вкладке «Следы очистки».");
+            builder.AppendLine("USB Oblivion удаляет следы — см. вкладку «Следы очистки».");
         }
 
         return builder.ToString().TrimEnd();
     }
 
-    private static void AppendIdentifierBlock(StringBuilder builder, ExternalUtilityIdentifierInfo identifier)
-    {
-        builder.AppendLine();
-        builder.AppendLine("Идентификатор USB (разбор):");
-        builder.AppendLine($"• Способ: {identifier.ParseMethod}");
-
-        if (identifier.HasVid)
-        {
-            builder.AppendLine($"• VID: {identifier.Vid}");
-            if (identifier.VendorLookup.HasVendor)
-            {
-                builder.AppendLine($"• Производитель (база USB ID): {identifier.VendorLookup.VendorName}");
-            }
-        }
-
-        if (identifier.HasFullPair)
-        {
-            builder.AppendLine($"• PID: {identifier.Pid}");
-            if (identifier.VendorLookup.HasProduct)
-            {
-                builder.AppendLine($"• Модель (база USB ID): {identifier.VendorLookup.ProductName}");
-            }
-        }
-        else if (identifier.HasVid)
-        {
-            builder.AppendLine("• PID: не указан в строке USBDetector (идентификатор неполный).");
-        }
-
-        if (!string.IsNullOrWhiteSpace(identifier.ParseNote))
-        {
-            builder.AppendLine($"• Примечание: {identifier.ParseNote}");
-        }
-    }
-
-    private static string BuildReportConclusion(
+    private static string BuildReportConclusionRow(
         ExternalUtilityRow row,
         AuditResult? audit,
         ExternalUtilityVerdictLevel level,
         ExternalUtilityIdentifierInfo identifier,
         string origin,
         string auditSummary,
-        IReadOnlyList<UsbDeviceRecord> matches)
+        IReadOnlyList<UsbDeviceRecord> matches,
+        bool isOtherTraces,
+        string? reportConclusionProcmon)
     {
         var deviceName = identifier.VendorLookup.DeviceDescription;
         var idText = identifier.HasFullPair
@@ -208,38 +197,106 @@ public static class ExternalUtilityRowExplainer
             idText = $"{idText} ({deviceName})";
         }
 
-        return level switch
+        var utilityLabel = row.UtilityName.Contains("USBDeview", StringComparison.OrdinalIgnoreCase) ? "USBDeview" : "USBDetector";
+        var baseConclusion = level switch
         {
             ExternalUtilityVerdictLevel.Confirmed when matches.Count > 0 =>
-                $"USBDetector ({row.SectionTitle}): {idText}. " +
-                $"Подтверждено полным аудитом — {matches[0].DisplayName}, источник {matches[0].SourceText}. " +
-                $"Это реальный след USB-устройства в системе.",
+                $"{utilityLabel}, строка «{row.PrimaryText}»: {idText}. Подтверждено аудитом — {matches[0].DisplayName}, путь {ToRegistryPath(matches[0])}.",
 
             ExternalUtilityVerdictLevel.Probable when matches.Count > 0 =>
-                $"USBDetector («Другие следы»): {idText}. " +
-                $"В полном аудите найдено совпадение ({matches[0].DisplayName}), но строка из косвенного раздела USBDetector. " +
-                $"Устройство вероятно подключалось; дату «первого подключения» в USBDetector проверять отдельно.",
+                $"{utilityLabel}, «Другие следы»: {idText}. В аудите есть {matches[0].DisplayName}, но строка из косвенного раздела — дату в утилите проверять отдельно.",
 
             ExternalUtilityVerdictLevel.Virtual =>
-                $"USBDetector («Другие следы»): запись {row.PrimaryText} → {idText}. " +
-                $"Это виртуальное USB VMware, не физический накопитель. " +
-                $"Полный аудит USB-накопителей совпадений не даёт — к подключению флешки не относится.",
+                $"{utilityLabel}, «Другие следы»: {idText}. Виртуальное USB VMware — не физический накопитель; к подключению флешки не относится.",
 
             ExternalUtilityVerdictLevel.DateArtifact =>
-                $"USBDetector: {idText}. Дата в утилите ненадёжна (01.01.1970 или раньше установки Windows). " +
-                $"{auditSummary} След трактовать только после сверки с реестром и setupapi.dev.log.",
+                $"{utilityLabel}: {idText}. Дата в утилите ненадёжна (1970 или до установки Windows). {auditSummary}",
 
             ExternalUtilityVerdictLevel.Indirect =>
-                $"USBDetector («Другие следы»): {idText}. " +
-                $"{origin} Полный аудит совпадений не нашёл — это косвенный след Windows, не доказательство подключения USB-накопителя.",
+                $"{utilityLabel}, «Другие следы»: {idText}. {origin} Эта строка — косвенный след, не доказательство подключения USB-накопителя.",
 
             ExternalUtilityVerdictLevel.NotFound =>
-                $"USBDetector ({row.SectionTitle}): {idText}. " +
-                $"В полном аудите устройство не найдено. {auditSummary}",
+                $"{utilityLabel} ({row.SectionTitle}): {idText}. В аудите не найдено. {auditSummary}",
 
             _ =>
-                $"USBDetector: {idText}. Требуется ручная сверка с основным списком реестра и нашим аудитом."
+                $"{utilityLabel}: {idText}. Требуется ручная сверка с реестром и аудитом."
         };
+
+        if (string.IsNullOrWhiteSpace(reportConclusionProcmon))
+        {
+            return baseConclusion;
+        }
+
+        return $"{baseConclusion} Procmon подтвердил чтение реестра утилитой — см. блок Procmon ниже.";
+    }
+
+    private static string BuildReportConclusionCase(
+        ExternalUtilityRow row,
+        AuditResult? audit,
+        ExternalUtilityVerdictLevel level,
+        ExternalUtilityIdentifierInfo identifier,
+        IReadOnlyList<UsbDeviceRecord> matches,
+        bool isOtherTraces,
+        bool hasProcmon)
+    {
+        if (audit is null)
+        {
+            return "По делу: полное сканирование не выполнялось — общий вывод по USB на этом ПК пока недоступен.";
+        }
+
+        var realUsbCount = audit.Devices.Count(d =>
+            d.Source.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase)
+            || (d.Source.Contains("Registry: USB", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(d.Vid)));
+
+        var storageCount = audit.Devices.Count(d => d.Source.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase));
+
+        if (hasProcmon && isOtherTraces)
+        {
+            return $"По делу: на ПК {realUsbCount} USB-записей реестра, {storageCount} USBSTOR. Procmon зафиксировал, какую ветку реестра читала утилита для этой строки — это доказательство источника строки, но не автоматически физической флешки.";
+        }
+
+        if (level is ExternalUtilityVerdictLevel.Virtual)
+        {
+            return $"По делу: на ПК в аудите {realUsbCount} USB-записей реестра, {storageCount} накопителей USBSTOR. Строка VID {identifier.Vid} — виртуальное устройство VMware, не свидетельствует о флешках.";
+        }
+
+        if (level is ExternalUtilityVerdictLevel.Confirmed or ExternalUtilityVerdictLevel.Probable && matches.Count > 0)
+        {
+            return $"По делу: на ПК зафиксировано {realUsbCount} USB-записей, {storageCount} USBSTOR. Строка утилиты согласуется с аудитом ({matches[0].DisplayName}) — устройство реально присутствовало в системе.";
+        }
+
+        if (isOtherTraces && matches.Count == 0)
+        {
+            return $"По делу: на ПК {realUsbCount} USB-записей реестра, {storageCount} USBSTOR. Отсутствие совпадения по одной строке «Других следов» не означает «USB не было» — только что эта запись не подтверждена прямым следом.";
+        }
+
+        if (level is ExternalUtilityVerdictLevel.NotFound)
+        {
+            return $"По делу: на ПК {realUsbCount} USB-записей, {storageCount} USBSTOR. Строка утилиты не подтверждена аудитом — возможны удаление следов, ошибка утилиты или устройство только в её локальной истории.";
+        }
+
+        return $"По делу: на ПК {realUsbCount} USB-записей реестра, {storageCount} накопителей USBSTOR. Оценивайте строку утилиты вместе с вкладками «USB устройства» и «Доказательства».";
+    }
+
+    private static string ToRegistryPath(UsbDeviceRecord device)
+    {
+        if (device.DeviceInstanceId.StartsWith(@"HKLM\", StringComparison.OrdinalIgnoreCase)
+            || device.DeviceInstanceId.StartsWith(@"HKU\", StringComparison.OrdinalIgnoreCase))
+        {
+            return device.DeviceInstanceId;
+        }
+
+        if (device.Source.Contains("MountedDevices", StringComparison.OrdinalIgnoreCase))
+        {
+            return @"HKLM\SYSTEM\MountedDevices";
+        }
+
+        if (device.DeviceInstanceId.Contains('\\'))
+        {
+            return $@"HKLM\SYSTEM\CurrentControlSet\Enum\{device.DeviceInstanceId}";
+        }
+
+        return device.DeviceInstanceId;
     }
 
     private static ExternalUtilityVerdictLevel ResolveVerdictLevel(
@@ -284,14 +341,44 @@ public static class ExternalUtilityRowExplainer
         return ExternalUtilityVerdictLevel.Unknown;
     }
 
+    private static string ResolveProbableOriginWithProcmon(
+        ExternalUtilitySourceHit? topProcmonHit,
+        string fallbackOrigin)
+    {
+        if (topProcmonHit is null || !topProcmonHit.Found)
+        {
+            return fallbackOrigin;
+        }
+
+        var kind = topProcmonHit.ResultText.Contains("прямой", StringComparison.OrdinalIgnoreCase)
+            ? "прямой ключ реестра USB"
+            : topProcmonHit.ResultText.Contains("косвен", StringComparison.OrdinalIgnoreCase)
+                ? "косвенный ключ Windows"
+                : "запись реестра";
+
+        return $"Procmon: утилита выполнила {topProcmonHit.Operation} → {kind} «{topProcmonHit.RegistryPath}».";
+    }
+
     private static string VerdictTitle(
         ExternalUtilityVerdictLevel level,
         ExternalUtilityRow row,
         bool isOtherTraces,
-        ExternalUtilityIdentifierInfo identifier)
+        ExternalUtilityIdentifierInfo identifier,
+        bool hasProcmon,
+        ExternalUtilitySourceHit? topProcmonHit)
     {
         var isUsbDeview = row.UtilityName.Contains("USBDeview", StringComparison.OrdinalIgnoreCase)
                           || row.SectionTitle.Contains("USBDeview", StringComparison.OrdinalIgnoreCase);
+
+        if (hasProcmon && topProcmonHit is not null)
+        {
+            var procmonKind = topProcmonHit.ResultText.Contains("прямой", StringComparison.OrdinalIgnoreCase)
+                ? "прямой ключ реестра"
+                : "косвенный ключ Windows";
+            return isOtherTraces
+                ? $"Procmon — источник строки доказан ({procmonKind})"
+                : $"Procmon — утилита читала {procmonKind}";
+        }
 
         return level switch
         {
@@ -323,18 +410,17 @@ public static class ExternalUtilityRowExplainer
     {
         if (identifier.Vid?.Equals("0E0F", StringComparison.OrdinalIgnoreCase) == true)
         {
-            return "VMware Workstation/Player — виртуальный USB (VID 0E0F, база USB ID: VMware, Inc.).";
+            return "VMware (VID 0E0F) — виртуальный USB.";
         }
 
         if (identifier.VendorLookup.HasVendor && isOtherTraces)
         {
-            return $"Косвенный след с кодом {identifier.Vid} ({identifier.VendorLookup.VendorName}) — USBDetector видит ключ Windows, полный аудит не подтверждает физическое USB.";
+            return $"Косвенный ключ Windows, код {identifier.Vid} ({identifier.VendorLookup.VendorName}).";
         }
 
         if (matches.Count > 0)
         {
-            var utility = row.UtilityName.Contains("USBDeview", StringComparison.OrdinalIgnoreCase) ? "USBDeview" : "USBDetector";
-            return $"Подтверждение в нашем аудите ({matches[0].SourceText}). {utility} и наш аудит ссылаются на одно и то же VID/PID.";
+            return $"Подтверждение в аудите: {ToRegistryPath(matches[0])}.";
         }
 
         if (isOtherTraces)
@@ -342,18 +428,18 @@ public static class ExternalUtilityRowExplainer
             var text = string.Join(' ', row.Values.Values).ToUpperInvariant();
             if (text.Contains("MOUNTED") || text.Contains("MOUNT"))
             {
-                return "Вероятно MountedDevices / буква диска — след монтирования, не обязательно история флешки.";
+                return "Вероятно HKLM\\SYSTEM\\MountedDevices.";
             }
 
             if (text.Contains("MRU") || text.Contains("RECENT"))
             {
-                return "Вероятно MRU/Recent пользователя — след обращения к пути, не факт подключения USB.";
+                return "Вероятно MRU/Recent пользователя.";
             }
 
-            return "Косвенный ключ Windows (MRU, MountedDevices, профиль, старый реестр) — источник видит только USBDetector.";
+            return "Косвенный ключ (MRU, MountedDevices, MountPoints2) — типичный источник «Других следов» USBDetector.";
         }
 
-        return "Запись реестра USB/USBSTOR или список USBDeview.";
+        return "Enum\\USB / USBSTOR или список USBDeview.";
     }
 
     private static string ResolveUsbDetectorNote(
@@ -362,56 +448,63 @@ public static class ExternalUtilityRowExplainer
         bool isOtherTraces,
         bool hasEpochDate,
         bool beforeOsInstall,
-        int matchCount)
+        int matchCount,
+        bool hasProcmon)
     {
         var isUsbDeview = row.UtilityName.Contains("USBDeview", StringComparison.OrdinalIgnoreCase);
 
+        if (hasProcmon)
+        {
+            return "Procmon зафиксировал чтение реестра процессом утилиты — это жёсткое доказательство источника строки.";
+        }
+
         if (isUsbDeview && matchCount > 0)
         {
-            return "USBDeview и наш аудит совпали по VID/PID — строка подтверждена.";
+            return "USBDeview и аудит совпали по VID/PID.";
         }
 
         if (isUsbDeview && !identifier.HasVid)
         {
-            return "Не найдены колонки Vendor ID / Product ID — проверьте, что считывание захватило все колонки USBDeview.";
+            return "Не найдены колонки Vendor ID / Product ID.";
         }
 
         if (isUsbDeview && identifier.HasVid && matchCount == 0)
         {
-            return $"VID/PID {identifier.VidPidText} есть в USBDeview, но в полном аудите совпадений нет — возможно след удалён или устройство только в истории USBDeview.";
+            return $"VID/PID {identifier.VidPidText} в USBDeview, в аудите нет — след мог быть удалён.";
         }
+
         if (!string.IsNullOrWhiteSpace(identifier.ParseNote)
             && identifier.ParseMethod.Contains("Обрезан", StringComparison.OrdinalIgnoreCase))
         {
-            return identifier.ParseNote + " База USB ID встроена в программу (формат usb.ids).";
+            return identifier.ParseNote;
         }
 
         if (hasEpochDate)
         {
-            return "Колонка «Установка»/«Первое подключение» = 01.01.1970 из-за нулевого FILETIME. Это особенность USBDetector, не реальная дата.";
+            return "Дата 01.01.1970 — FILETIME=0, не реальное подключение.";
         }
 
         if (beforeOsInstall)
         {
-            return "Дата раньше установки Windows — USBDetector мог взять косвенный источник. Не считать доказательством подключения до переустановки.";
+            return "Дата раньше установки Windows — косвенный источник USBDetector.";
         }
 
         if (isOtherTraces && matchCount == 0 && identifier.HasVid && !identifier.HasFullPair)
         {
-            return "USBDetector передал неполный идентификатор (только VID). Это не «склеивание» префикса нашим приложением — так отображает утилита или обрезает колонку.";
+            return "Неполный VID без PID — так отображает USBDetector.";
         }
 
         if (isOtherTraces && matchCount == 0)
         {
-            return "Строка только в «Других следах» и без совпадения в нашем аудите — типичный косвенный след, не обязательно ошибка USBDetector.";
+            return "Только «Другие следы», без совпадения в аудите — косвенная запись.";
         }
 
         if (isOtherTraces)
         {
-            return "Раздел «Другие следы» намеренно широкий: USBDetector показывает всё подозрительное, часть строк — не про физическое USB.";
+            return "Раздел «Другие следы» шире основного списка реестра.";
         }
 
-        return "Основной список ближе к реальным записям реестра; всё равно сверяйте с нашим сканированием.";
+        return "Основной список ближе к Enum\\USB/USBSTOR.";
     }
 
     private static string ResolveAuditMatchSummary(
@@ -421,17 +514,17 @@ public static class ExternalUtilityRowExplainer
     {
         if (audit is null)
         {
-            return "Сканирование не выполнялось — сначала «Полное сканирование».";
+            return "Сканирование не выполнялось.";
         }
 
         if (matches.Count == 0)
         {
             return isOtherTraces
-                ? "Совпадений нет — для «Других следов» это часто означает косвенную запись, а не пропущенную флешку."
-                : "Совпадений нет — проверьте setupapi.dev.log и вкладку «Доказательства».";
+                ? "Совпадений нет — для «Других следов» это часто нормально."
+                : "Совпадений нет — см. setupapi и «Доказательства».";
         }
 
-        return $"Найдено совпадений: {matches.Count} — устройство(а) есть в нашем аудите.";
+        return $"Совпадений: {matches.Count}.";
     }
 
     private static IEnumerable<UsbDeviceRecord> FindMatchingDevices(
@@ -439,24 +532,22 @@ public static class ExternalUtilityRowExplainer
         AuditResult audit,
         ExternalUtilityIdentifierInfo identifier)
     {
-        var vid = identifier.Vid;
-        var pid = identifier.Pid;
         var serial = FindValue(row, "Serial", "Серийный номер", "UID");
         var name = FindValue(row, "Модель", "Model", "Производитель", "Manufacturer", "Носитель информации", "UID");
 
         return audit.Devices.Where(device =>
         {
-            if (!string.IsNullOrWhiteSpace(vid)
-                && !string.IsNullOrWhiteSpace(pid)
-                && device.Vid.Equals(vid, StringComparison.OrdinalIgnoreCase)
-                && device.Pid.Equals(pid, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(identifier.Vid)
+                && !string.IsNullOrWhiteSpace(identifier.Pid)
+                && device.Vid.Equals(identifier.Vid, StringComparison.OrdinalIgnoreCase)
+                && device.Pid.Equals(identifier.Pid, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
 
-            if (!string.IsNullOrWhiteSpace(vid)
-                && string.IsNullOrWhiteSpace(pid)
-                && device.Vid.Equals(vid, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(identifier.Vid)
+                && string.IsNullOrWhiteSpace(identifier.Pid)
+                && device.Vid.Equals(identifier.Vid, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }

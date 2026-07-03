@@ -7,8 +7,8 @@ public static class AppLog
 {
     private static readonly object Sync = new();
 
-    public static string DataDirectory { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UsbForensicAudit");
-    public static string LogPath { get; } = Path.Combine(DataDirectory, "app.log");
+    public static string DataDirectory => AppPaths.DataDirectory;
+    public static string LogPath { get; } = Path.Combine(AppPaths.DataDirectory, "app.log");
 
     public static void Info(string message)
     {

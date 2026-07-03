@@ -35,6 +35,7 @@
     <Content Include="Assets\app-icon.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Assets\Logo2.jpg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('Assets\Logo2.jpg')" />
     <EmbeddedResource Include="Assets\USBVendors.txt" LogicalName="UsbForensicAudit.Assets.USBVendors.txt" Condition="Exists('Assets\USBVendors.txt')" />
+    <EmbeddedResource Include="tools\Procmon64.exe" LogicalName="UsbForensicAudit.Tools.Procmon64.exe" Condition="Exists('tools\Procmon64.exe')" />
   </ItemGroup>
 
   <ItemGroup>

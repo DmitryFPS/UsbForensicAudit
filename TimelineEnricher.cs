@@ -20,6 +20,10 @@ public sealed class TimelineEnricher
             {
                 evidence.UserExplanation = ExplainEvidence(evidence);
             }
+            else if (string.IsNullOrWhiteSpace(TextSanitizer.NormalizeDisplay(evidence.UserExplanation, 800)))
+            {
+                evidence.UserExplanation = ExplainEvidence(evidence);
+            }
         }
 
         foreach (var device in result.Devices)
@@ -344,12 +348,58 @@ public sealed class TimelineEnricher
 
     private static string ExplainEvidence(EvidenceRecord evidence)
     {
+        if (evidence.Source.Contains("Prefetch", StringComparison.OrdinalIgnoreCase))
+        {
+            return evidence.EventId == "CLEANER_HINT"
+                ? "Prefetch: Windows запускала утилиту очистки USB-следов — возможный признак anti-forensics."
+                : "Prefetch: Windows сохранила след запуска программы. Пути к USB/дискам внутри .pf — подсказка об активности, не прямое подключение флешки.";
+        }
+
+        if (evidence.Source.Contains("JumpList", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Jump List в профиле пользователя: недавние пути к файлам или томам — признак работы с USB/съёмным диском.";
+        }
+
+        if (evidence.Source.Contains("LNK", StringComparison.OrdinalIgnoreCase)
+            || evidence.Source.Contains("Recent", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Ярлык (LNK) или Recent: пользователь открывал файл/папку — часто с removable-диска или сетевого пути.";
+        }
+
+        if (evidence.Source.Contains("MountPoints2", StringComparison.OrdinalIgnoreCase))
+        {
+            return "MountPoints2: Explorer запомнил точку монтирования тома — след буквы диска или съёмного носителя.";
+        }
+
+        if (evidence.Source.Contains("Hive", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Файл реестра профиля (NTUSER/UsrClass): источник MRU, MountPoints2 и других пользовательских следов.";
+        }
+
+        if (evidence.Source.Contains("Amcache", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Amcache: Windows хранит следы установки/запуска программ — иногда с путями к USB или cleaner-утилитам.";
+        }
+
+        if (evidence.Source.Contains("Shimcache", StringComparison.OrdinalIgnoreCase)
+            || evidence.Source.Contains("AppCompatCache", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Shimcache/AppCompatCache: история запуска программ в реестре — вспомогательный след исполнения.";
+        }
+
+        if (evidence.Source.Contains("setupapi", StringComparison.OrdinalIgnoreCase))
+        {
+            return evidence.EvidenceCategory.Contains("Отключение", StringComparison.OrdinalIgnoreCase)
+                ? "setupapi.dev.log: Windows зафиксировала удаление или остановку USB-устройства."
+                : "setupapi.dev.log: установка драйвера USB — сильный след первого появления устройства в системе.";
+        }
+
         return evidence.EvidenceCategory switch
         {
-            "Пользовательская активность" => "Следы в профиле пользователя: открытые файлы, Recent, LNK, Jump Lists, MountPoints2 или Shellbags.",
-            "Запуск/исполнение" => "Артефакт запуска программы или появления исполняемого файла: Prefetch, Amcache или Shimcache.",
-            "Корреляция" => "Автоматически построенная связь между устройством и несколькими источниками evidence.",
-            "Очистка/антифорензика" => "Индикатор очистки журналов или запуска утилит очистки следов.",
+            "Пользовательская активность" => "След в профиле пользователя: Recent, LNK, Jump Lists, MountPoints2 или MRU.",
+            "Запуск/исполнение" => "След запуска программы: Prefetch, Amcache или Shimcache.",
+            "Корреляция" => "Автоматическая связь устройства с несколькими источниками доказательств.",
+            "Очистка/антифорензика" => "Признак очистки журналов или запуска утилит удаления следов.",
             _ => "Системный forensic-артефакт Windows."
         };
     }

@@ -14,7 +14,7 @@ public sealed class AuditStorage
 
     public AuditStorage()
     {
-        DataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UsbForensicAudit");
+        DataDirectory = AppPaths.DataDirectory;
         DatabasePath = Path.Combine(DataDirectory, "audit.sqlite");
         JsonlPath = Path.Combine(DataDirectory, "evidence.jsonl");
         Directory.CreateDirectory(DataDirectory);
