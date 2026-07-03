@@ -10,8 +10,8 @@ public sealed class EndpointProtectionEventLogCollector
     private static readonly Regex DriveLetterRegex = new(@"\b[A-Z]:\b", RegexOptions.Compiled);
 
     public const string SourcePrefix = "Журнал контроля USB";
-    public const string CategoryConnect = "Контроль USB: подключение устройства";
-    public const string CategoryDisconnect = "Контроль USB: отключение устройства";
+    public const string CategoryConnect = EndpointProtectionCategories.Connect;
+    public const string CategoryDisconnect = EndpointProtectionCategories.Disconnect;
     public const string CategoryDenied = "Контроль USB: доступ к устройству запрещён";
     public const string CategoryGeneric = "Контроль USB: событие устройства";
 

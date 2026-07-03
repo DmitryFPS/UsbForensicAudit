@@ -2,9 +2,21 @@ namespace UsbForensicAudit;
 
 public sealed class TimelineEnricher
 {
+    private readonly IConnectedDeviceProbe _connectedDeviceProbe;
+
+    public TimelineEnricher()
+        : this(NullConnectedDeviceProbe.Instance)
+    {
+    }
+
+    public TimelineEnricher(IConnectedDeviceProbe connectedDeviceProbe)
+    {
+        _connectedDeviceProbe = connectedDeviceProbe;
+    }
+
     public void Enrich(AuditResult result)
     {
-        var connectedDevices = ConnectedDeviceIndex.Capture();
+        var connectedDevices = _connectedDeviceProbe.Capture();
         var scanStartedUtc = result.StartedAtUtc;
 
         foreach (var evidence in result.Evidence)
@@ -252,7 +264,7 @@ public sealed class TimelineEnricher
         }
 
         return evidence.EvidenceCategory.StartsWith("Подключение", StringComparison.OrdinalIgnoreCase)
-               || evidence.EvidenceCategory.StartsWith(EndpointProtectionEventLogCollector.CategoryConnect, StringComparison.OrdinalIgnoreCase)
+               || evidence.EvidenceCategory.StartsWith(EndpointProtectionCategories.Connect, StringComparison.OrdinalIgnoreCase)
                || evidence.EventId == "6416"
                || evidence.EvidenceCategory.Contains("Установка/инициализация", StringComparison.OrdinalIgnoreCase);
     }
@@ -277,7 +289,7 @@ public sealed class TimelineEnricher
     private static bool IsDisconnectEvidence(EvidenceRecord evidence)
     {
         return evidence.EvidenceCategory.Contains("Отключение", StringComparison.OrdinalIgnoreCase)
-               || evidence.EvidenceCategory.StartsWith(EndpointProtectionEventLogCollector.CategoryDisconnect, StringComparison.OrdinalIgnoreCase)
+               || evidence.EvidenceCategory.StartsWith(EndpointProtectionCategories.Disconnect, StringComparison.OrdinalIgnoreCase)
                || evidence.Summary.Contains("disconnect", StringComparison.OrdinalIgnoreCase)
                || evidence.Summary.Contains("removed", StringComparison.OrdinalIgnoreCase)
                || evidence.Summary.Contains("removal", StringComparison.OrdinalIgnoreCase)

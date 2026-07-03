@@ -11,7 +11,7 @@ public sealed class AuditOrchestrator
     private readonly ExecutionArtifactCollector _executionArtifactCollector = new();
     private readonly ProcessAttributionCollector _processAttributionCollector = new();
     private readonly CorrelationService _correlationService = new();
-    private readonly TimelineEnricher _timelineEnricher = new();
+    private readonly TimelineEnricher _timelineEnricher = new(new WmiConnectedDeviceProbe());
     private readonly LiveDeviceMerger _liveDeviceMerger = new();
     private readonly CleanupDetector _cleanupDetector = new();
     private readonly AuditStorage _storage = new();

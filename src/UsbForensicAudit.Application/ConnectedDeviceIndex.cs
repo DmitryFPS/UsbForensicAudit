@@ -1,8 +1,12 @@
-using System.Management;
 using System.Text.RegularExpressions;
 
 namespace UsbForensicAudit;
 
+/// <summary>
+/// Чистый индекс сопоставления «устройство ↔ подключено сейчас». Набор ключей подключённых
+/// устройств заполняется инфраструктурной пробой (<see cref="IConnectedDeviceProbe"/>); сам
+/// индекс не зависит от WMI и содержит только логику сопоставления.
+/// </summary>
 public sealed class ConnectedDeviceIndex
 {
     private static readonly Regex VidPidRegex = new(@"VID_([0-9A-F]{4})&PID_([0-9A-F]{4})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -16,44 +20,29 @@ public sealed class ConnectedDeviceIndex
         _connectedVidPidPairs = connectedVidPidPairs;
     }
 
-    public static ConnectedDeviceIndex Capture()
+    public static ConnectedDeviceIndex Empty { get; } = new(
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Строит индекс из «сырых» идентификаторов PnP и букв дисков, полученных инфраструктурой.
+    /// </summary>
+    public static ConnectedDeviceIndex Build(IEnumerable<string?> pnpIdentifiers, IEnumerable<string?> driveLetters)
     {
         var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var vidPidPairs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        try
+        foreach (var pnpId in pnpIdentifiers)
         {
-            using var searcher = new ManagementObjectSearcher(
-                "SELECT PNPDeviceID FROM Win32_PnPEntity WHERE PNPDeviceID LIKE 'USB%' OR PNPDeviceID LIKE 'USBSTOR%'");
-
-            foreach (ManagementObject item in searcher.Get())
-            {
-                AddKeys(keys, vidPidPairs, item["PNPDeviceID"]?.ToString());
-            }
-
-            using var diskSearcher = new ManagementObjectSearcher(
-                "SELECT PNPDeviceID FROM Win32_DiskDrive WHERE InterfaceType = 'USB'");
-
-            foreach (ManagementObject disk in diskSearcher.Get())
-            {
-                AddKeys(keys, vidPidPairs, disk["PNPDeviceID"]?.ToString());
-            }
-
-            using var volumeSearcher = new ManagementObjectSearcher(
-                "SELECT DeviceID, DriveType FROM Win32_LogicalDisk WHERE DriveType = 2");
-
-            foreach (ManagementObject volume in volumeSearcher.Get())
-            {
-                var driveLetter = volume["DeviceID"]?.ToString();
-                if (!string.IsNullOrWhiteSpace(driveLetter))
-                {
-                    keys.Add(Normalize(driveLetter));
-                }
-            }
+            AddKeys(keys, vidPidPairs, pnpId);
         }
-        catch
+
+        foreach (var driveLetter in driveLetters)
         {
-            // Если WMI недоступен, обогащение работает только на основе событий.
+            if (!string.IsNullOrWhiteSpace(driveLetter))
+            {
+                keys.Add(Normalize(driveLetter));
+            }
         }
 
         return new ConnectedDeviceIndex(keys, vidPidPairs);

@@ -13,7 +13,8 @@ public static class ExternalUtilityRowExplainer
         AuditResult? audit,
         IReadOnlyList<ExternalUtilitySourceHit>? procmonHits,
         string? procmonSessionDirectory,
-        string? procmonSummaryForReport)
+        string? procmonSummaryForReport,
+        IExternalUtilityRegistryTracer? registryTracer = null)
     {
         var identifier = ExternalUtilityIdentifierParser.Parse(row);
         var isOtherTraces = ExternalUtilitySectionCatalog.IsOtherTracesSection(row.SectionTitle);
@@ -29,7 +30,7 @@ public static class ExternalUtilityRowExplainer
         var level = ResolveVerdictLevel(row, isOtherTraces, identifier, matches.Length, hasEpochDate, beforeOsInstall);
         var origin = ResolveProbableOrigin(row, identifier, isOtherTraces, matches);
         var auditSummary = ResolveAuditMatchSummary(matches, audit, isOtherTraces);
-        var baseHits = ExternalUtilitySourceCorrelator.Correlate(identifier, audit);
+        var baseHits = ExternalUtilitySourceCorrelator.Correlate(identifier, audit, registryTracer);
         var sourceHits = procmonHits is { Count: > 0 }
             ? ExternalUtilitySourceCorrelator.MergeProcmonHits(baseHits, procmonHits)
             : baseHits;
