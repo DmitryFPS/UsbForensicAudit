@@ -24,7 +24,7 @@ internal static class LiveDeviceMetadataReader
         }
         catch
         {
-            // Fall back to parsing the instance path.
+            // Запасной вариант — разбор пути экземпляра устройства.
         }
 
         return ParseFromInstancePath(pnpDeviceId);

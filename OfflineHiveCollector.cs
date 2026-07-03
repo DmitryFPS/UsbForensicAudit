@@ -164,7 +164,7 @@ public sealed class OfflineHiveCollector
             }
             catch
             {
-                // Some shellbag nodes can be unreadable on live systems.
+                // Некоторые узлы shellbag могут быть недоступны для чтения на работающей системе.
             }
         }
 
@@ -201,7 +201,7 @@ public sealed class OfflineHiveCollector
             }
             catch
             {
-                // Best effort cleanup; caller records the timeout.
+                // Очистка по возможности; вызывающий код фиксирует таймаут.
             }
 
             return (-1, "reg.exe timeout");

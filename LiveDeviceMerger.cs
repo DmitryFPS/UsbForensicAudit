@@ -75,7 +75,7 @@ public sealed class LiveDeviceMerger
         }
         catch
         {
-            // Live merge is best-effort.
+            // Слияние с live-данными выполняется по возможности (без гарантий).
         }
 
         return records;

@@ -90,7 +90,7 @@ internal static class EndpointProtectionEnvironment
         }
         catch
         {
-            // Ignore WMI failures.
+            // Игнорируем ошибки WMI.
         }
 
         return false;
@@ -114,7 +114,7 @@ internal static class EndpointProtectionEnvironment
         }
         catch
         {
-            // Ignore WMI failures.
+            // Игнорируем ошибки WMI.
         }
 
         return false;

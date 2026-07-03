@@ -6,7 +6,7 @@ namespace UsbForensicAudit;
 internal static class ProcessBitnessHelper
 {
     /// <summary>
-    /// SendMessage with structure pointers is unsafe across bitness (64-bit reader → 32-bit ListView crashes the target).
+    /// SendMessage с указателями на структуры небезопасен при разной разрядности (64-битный читатель → 32-битный ListView аварийно завершает целевой процесс).
     /// </summary>
     public static bool RequiresUiAutomationForWindowMessages(int processId)
     {

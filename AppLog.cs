@@ -32,7 +32,7 @@ public static class AppLog
         }
         catch
         {
-            // Logging must never break forensic collection.
+            // Логирование не должно ломать сбор форензик-данных.
         }
     }
 }

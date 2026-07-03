@@ -5,7 +5,7 @@ namespace UsbForensicAudit;
 
 public sealed class EndpointProtectionEventLogCollector
 {
-    // Internal provider names from the Windows Application log — not shown in the UI.
+    // Внутренние имена провайдеров из журнала Windows Application — в интерфейсе не показываются.
     private static readonly string[] EventProviders = ["Secret Net", "OmsHost"];
     private static readonly Regex DriveLetterRegex = new(@"\b[A-Z]:\b", RegexOptions.Compiled);
 
@@ -94,7 +94,7 @@ public sealed class EndpointProtectionEventLogCollector
         }
         catch
         {
-            // Fall back to raw event data.
+            // Запасной вариант — необработанные данные события.
         }
 
         foreach (var property in record.Properties)

@@ -44,7 +44,7 @@ public sealed class LiveUsbSnapshotService
         }
         catch
         {
-            // Best effort; polling will retry on the next tick.
+            // По возможности; опрос повторит попытку на следующем тике.
         }
 
         RemoveMissingDevices(devicesByStableKey.Keys);
@@ -165,7 +165,7 @@ public sealed class LiveUsbSnapshotService
         }
         catch
         {
-            // Ignore association failures under DLP filters.
+            // Игнорируем ошибки сопоставления под DLP-фильтрами.
         }
 
         return null;
@@ -386,7 +386,7 @@ public sealed class LiveUsbSnapshotService
             }
             catch
             {
-                // Best effort only; live window still shows devices even if registry correlation fails.
+                // Только по возможности; окно live-режима покажет устройства, даже если корреляция с реестром не удалась.
             }
 
             return new UsbVidPidResolver(map);

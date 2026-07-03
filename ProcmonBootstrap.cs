@@ -167,7 +167,7 @@ public static class ProcmonBootstrap
         }
         catch
         {
-            // Best effort cleanup.
+            // Очистка по возможности (без гарантий).
         }
     }
 }

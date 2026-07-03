@@ -143,7 +143,7 @@ internal static class Program
                 }
                 catch
                 {
-                    // Best effort cleanup.
+                    // Очистка по возможности (без гарантий).
                 }
             }
 

@@ -30,7 +30,7 @@ public static class RunningExternalUtilityScanner
             }
             catch
             {
-                // Access denied for some processes.
+                // Доступ к некоторым процессам запрещён.
             }
             finally
             {
