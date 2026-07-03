@@ -25,6 +25,11 @@ internal static class EndpointProtectionEnvironment
 
     public static bool IsProtectionActive { get; } = DetectProtectionActive();
 
+    static EndpointProtectionEnvironment()
+    {
+        EndpointProtectionState.IsProtectionActive = IsProtectionActive;
+    }
+
     public static string Summary
     {
         get

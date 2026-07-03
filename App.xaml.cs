@@ -8,6 +8,7 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        EndpointProtectionState.IsProtectionActive = EndpointProtectionEnvironment.IsProtectionActive;
 
         DispatcherUnhandledException += (_, args) =>
         {
