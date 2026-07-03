@@ -29,8 +29,13 @@ Desktop.ini
 
 # Logs and local audit data (not part of source)
 *.log
+*-exit.txt
+publish-*.log
+publish-*-exit.txt
+build-*.log
+build-*-exit.txt
+logo-*.log
+logo-*-exit.txt
 data/
 TestResults/
 tests/**/TestResults/
-*-exit.txt
-build-exit.txt
