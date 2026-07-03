@@ -11,7 +11,8 @@ public static class ApplicationServiceCollectionExtensions
     {
         services.AddSingleton<CorrelationService>();
         services.AddSingleton<CleanupDetector>();
-        services.AddSingleton<TimelineEnricher>();
+        services.AddSingleton<TimelineEnricher>(static sp =>
+            new TimelineEnricher(sp.GetRequiredService<IConnectedDeviceProbe>()));
         services.AddSingleton<AuditOrchestrator>();
         return services;
     }
