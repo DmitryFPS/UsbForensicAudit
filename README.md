@@ -1,128 +1,96 @@
 # UsbForensicAudit
 
-GUI-first Windows forensic-аудитор USB/Type-C устройств для Windows 10 и Windows 11.
+GUI-first forensic-аудитор USB/Type-C устройств для **Windows 10/11**. Собирает артефакты из реестра, журналов событий и профилей пользователей, коррелирует их с устройствами, выявляет признаки очистки следов и формирует отчёты HTML/PDF.
 
-Приложение запускается с правами администратора, собирает следы USB-устройств, строит таблицы доказательств, ищет признаки очистки журналов и формирует HTML/PDF отчет.
+Приложение ориентировано на аналитика/администратора: русский интерфейс, пояснения к каждой записи, portable-сборка для работы с флешки без следов в `%LOCALAPPDATA%`.
+
+---
+
+## Содержание
+
+- [Возможности](#возможности)
+- [Требования](#требования)
+- [Быстрый старт](#быстрый-старт)
+- [Архитектура](#архитектура)
+- [Структура решения](#структура-решения)
+- [Конвейер сканирования](#конвейер-сканирования)
+- [Presentation-слой (WPF + MVVM)](#presentation-слой-wpf--mvvm)
+- [Хранение данных](#хранение-данных)
+- [Сборка](#сборка)
+- [Тестирование](#тестирование)
+- [Вспомогательные утилиты (`tools/`)](#вспомогательные-утилиты-tools)
+- [Расширение системы](#расширение-системы)
+- [Ограничения и интерпретация](#ограничения-и-интерпретация)
+
+---
 
 ## Возможности
 
-- Сбор `HKLM\SYSTEM\CurrentControlSet\Enum\USB`.
-- Сбор `USBSTOR`, `SCSI`, `SWD\WPDBUSENUM`.
-- Сбор `HKLM\SYSTEM\MountedDevices`.
-- Парсинг `C:\Windows\inf\setupapi.dev.log`.
-- Чтение основных Windows Event Logs: `System`, `Security`, `DeviceSetupManager`, `DriverFrameworks-UserMode`.
-- Сбор пользовательских артефактов из загруженных `HKU`: `MountPoints2`, `RecentDocs`, `OpenSavePidlMRU`, `LastVisitedPidlMRU`.
-- Сканирование профилей пользователей: `Recent`/`.lnk`, `AutomaticDestinations`, `CustomDestinations`.
-- Структурный парсинг `.lnk`: target path, local base path, volume label, volume serial, timestamps.
-- Offline-анализ `NTUSER.DAT` и `UsrClass.dat` через временную загрузку hive в `HKU`.
-- Shellbags/MountPoints2 анализ для активных и неактивных профилей, если hive доступен.
-- Сбор индикаторов запуска и использования: `Prefetch`, `Amcache.hve`, `Shimcache/AppCompatCache`.
-- Корреляция `device -> evidence -> user artifacts` с уровнем confidence.
-- Визуальное разделение USB-записей: `RealUsb`, `RelatedStorage`, `SupportArtifact`.
-- Расчет дат `Первое подключение`, `Последний след`, `Отключение` по SetupAPI/EventLog/user artifacts, если в источниках есть точное событие.
-- Все даты в GUI/HTML/PDF показываются в Московском времени в формате `дд.ММ.гггг ЧЧ:мм:сс МСК`.
-- Подозрительные timestamp до 2000 года не показываются как нормальные события и заменяются на `нет точной даты`.
-- Пояснения для вкладки `Доказательства`: установка/инициализация, пользовательская активность, запуск/исполнение, корреляция, очистка.
-- Поиск признаков очистки с атрибуцией: **инициатор** (система / администратор / пользователь из Event 104/1102), **возможный инструмент** (Prefetch, Amcache, Security 4688), **уверенность** (норма / вероятно / косвенный след). USBDeview, USBDetector, wevtutil и др. Окно после установки — **3 часа**.
-- Security Event ID **4688** (создание процесса) — для связи очистки журналов с wevtutil, PowerShell, USB-утилитами, если аудит включён.
-- Отображение даты установки Windows (`InstallDate` из реестра) на вкладках «Обзор» и «Следы очистки», в HTML/PDF отчётах.
-- Поиск индикаторов cleaner-утилит в Prefetch/Amcache.
-- Live-мониторинг USB/Type-C: события PnP Windows + периодическая проверка каждые ~2 секунды.
-- Кнопка `Окно USB` — повторное открытие окна мониторинга без остановки фонового сбора.
-- Учёт корпоративного контроля съёмных носителей: дополнительные журналы, оценочные даты, расшифровка статуса WMI `Error`.
-- Хранение в SQLite и JSONL с SHA-256 hash-chain.
-- HTML отчет с source coverage, карточками устройств и timeline.
-- PDF отчет с summary, source coverage, timeline, устройствами, рисками и warnings.
-- Локальный `app.log` для ошибок приложения.
-- Отдельное окно `Сейчас подключено USB/Type-C` при запуске мониторинга. Список обновляется автоматически; устройство исчезает после отключения, история остаётся в основных вкладках. Закрытое окно можно открыть снова кнопкой `Окно USB`.
-- Вкладка «Сторонние утилиты»: захват таблиц из USBDetector, USBDeview, USB Oblivion; разбор каждой строки и сопоставление с аудитом.
-- **Жёсткая трассировка (Procmon)**: встроенный Procmon64 фиксирует, какие ключи реестра читала утилита во время сканирования. Сессии сохраняются в `data\procmon\`.
-- **Portable-режим**: при запуске с записываемой папки (флешка, `bin\publish\`) все данные лежат в `data\` рядом с exe — после удаления папки на хосте не остаётся следов в `%LOCALAPPDATA%`.
-- Понятный интерфейс для обычного пользователя: русские названия столбцов, пояснения на вкладках, без лишнего технического жаргона.
-- PDF/HTML отчёты полностью на русском языке с корректной кириллицей.
-- Файл `UsbForensicAudit-Instrukciya.pdf` лежит рядом с exe и создаётся автоматически при сборке.
-- Новый dark/SOC дизайн с векторным логотипом `shield + USB + fingerprint`, без зависимости от внешних картинок.
+### Сбор артефактов
+
+| Источник | Что извлекается |
+|---|---|
+| Реестр `HKLM\SYSTEM\CurrentControlSet\Enum` | `USB`, `USBSTOR`, `SCSI`, `SWD\WPDBUSENUM` |
+| Реестр `HKLM\SYSTEM\MountedDevices` | точки монтирования томов |
+| `C:\Windows\inf\setupapi.dev.log` | история PnP/USB из SetupAPI |
+| Event Log | `System`, `Security`, `DeviceSetupManager`, `DriverFrameworks-UserMode` |
+| Endpoint Protection (если установлен) | корпоративные журналы контроля USB |
+| Профили пользователей (`HKU`, offline hive) | `MountPoints2`, Recent, LNK, Jump Lists, Shellbags |
+| Execution artifacts | Prefetch, Amcache, Shimcache |
+| Security 4688 | атрибуция процессов очистки (при включённом аудите) |
+
+### Аналитика
+
+- Корреляция **устройство → доказательство → пользовательский артефакт** с уровнем уверенности.
+- Классификация записей: `RealUsb`, `RelatedStorage`, `SupportArtifact`.
+- Расчёт дат подключения/отключения по SetupAPI, Event Log и user artifacts; все даты в GUI/отчётах — **МСК** (`дд.ММ.гггг ЧЧ:мм:сс МСК`).
+- Поиск признаков очистки с атрибуцией: инициатор, возможный инструмент, уверенность, severity.
+- Учёт даты установки Windows и **grace period 3 часа** после установки (события «Норма: ОС после установки»).
+- Live-мониторинг USB/Type-C по **событиям PnP Windows** (без постоянного опроса каждые 2 секунды).
+- Вкладка **«Сторонние утилиты»**: захват таблиц USBDetector/USBDeview, разбор строк, Procmon-трассировка реестра.
+- Отчёты **HTML** и **PDF** (полный и сводный) на русском языке с корректной кириллицей.
+
+### Portable-режим
+
+При запуске из записываемой папки (флешка, `bin\publish\`) все данные пишутся в `data\` рядом с exe. Procmon64 встроен в сборку и распаковывается при первом использовании.
+
+---
 
 ## Требования
 
-- Windows 10 или Windows 11.
-- .NET 8 SDK для сборки.
-- Visual Studio 2022 с workload `.NET desktop development`.
+| Компонент | Версия |
+|---|---|
+| ОС | Windows 10 / 11 x64 |
+| .NET SDK | 8.0+ |
+| IDE (опционально) | Visual Studio 2022 (workload *Desktop development with .NET*) или JetBrains Rider |
 
-## Открыть в Visual Studio
+Для полного сканирования, Procmon-трассировки и захвата сторонних утилит нужны **права администратора**. Окно приложения открывается и без UAC; ограничения отображаются в статусе шапки.
 
-1. Откройте Visual Studio.
-2. Выберите `Open a project or solution`.
-3. Откройте файл:
+---
 
-```text
-C:\Users\adm\UsbForensicAudit\UsbForensicAudit.sln
-```
+## Быстрый старт
 
-4. Выберите конфигурацию `Release`.
-5. Нажмите `Build -> Build Solution`.
-
-## Запуск
-
-Приложение запускается **без обязательного UAC** — обычный пользователь может открыть окно и увидеть ограничения доступа.
-
-Для полного сканирования нужны права администратора:
-
-1. **ПКМ по exe → «Запуск от имени администратора»**, или
-2. Кнопка **«Запуск от администратора»** в шапке программы (если статус «Нет прав администратора»).
-
-Раньше в манифесте был `requireAdministrator` и автоперезапуск — это могло вызывать «мигание» и бесконечный цикл на учётной записи без прав админа. Сейчас используется `asInvoker`.
-
-Основной сценарий:
-
-1. Нажать `Полное сканирование`.
-2. Изучить вкладки `USB устройства`, `Доказательства`, `Следы очистки`.
-3. На вкладке `Отчет` создать `HTML` или `PDF`.
-4. При необходимости нажать `Старт мониторинга`, чтобы программа отслеживала новые подключения USB/Type-C в реальном времени.
-
-Во вкладке `USB устройства` цвета означают:
-
-- зеленый `RealUsb` - реальное USB/Type-C устройство;
-- желтый `RelatedStorage` - связанная storage-запись, часто относится к USB-накопителю, но сама не является отдельным подключением;
-- серый `SupportArtifact` - служебный артефакт, например `MountedDevices`.
-
-Даты подключения и отключения показываются, если найдено событие с временем. Если стандартные журналы Windows пусты (например, при корпоративном контроле USB), программа может показать ориентир по реестру, времени сканирования или журналам систем безопасности — с пояснением в столбце «Пояснение по датам».
-
-При нажатии `Старт мониторинга` открывается отдельное окно текущих подключенных USB/Type-C устройств. Окно обновляется автоматически (~2 сек). Кнопка `Окно USB` снова открывает его, если вы случайно закрыли. Кнопка `Стоп` полностью останавливает мониторинг.
-
-## Где лежат данные
-
-**Portable-сборка** (рекомендуется — один exe на флешке или из `bin\publish\`):
-
-```text
-{папка с UsbForensicAudit.exe}\data\
-```
-
-**Fallback**, если рядом с exe нельзя писать (например, `Program Files`):
-
-```text
-%LOCALAPPDATA%\UsbForensicAudit\
-```
-
-Файлы и папки:
-
-- `audit.sqlite` — база для поиска и анализа.
-- `evidence.jsonl` — forensic-журнал с hash-chain.
-- `app.log` — технический журнал ошибок приложения.
-- `external_utility_snapshot.json` — снимок сторонней утилиты.
-- `tools\Procmon64.exe` — распакованный Procmon (встроен в exe при сборке).
-- `procmon\yyyyMMdd-HHmmss\` — сессии жёсткой трассировки (`capture.csv`, `README.txt`).
-- `UsbForensicAudit_*.html` / `UsbForensicAudit_*.pdf` — отчёты.
-
-## Сборка одного exe
-
-Можно использовать скрипт:
+### Разработческая сборка
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\build-exe.ps1
+git clone https://github.com/DmitryFPS/UsbForensicAudit.git
+cd UsbForensicAudit
+dotnet build UsbForensicAudit.sln -c Release
 ```
 
-Итоговый файл будет в:
+Запуск:
+
+```text
+bin\Release\net8.0-windows\UsbForensicAudit.exe
+```
+
+### Portable single-file exe
+
+```powershell
+.\build-exe.ps1
+```
+
+Результат:
 
 ```text
 bin\publish\UsbForensicAudit.exe
@@ -130,26 +98,316 @@ bin\publish\UsbForensicAudit-Instrukciya.pdf
 bin\publish\PORTABLE.txt
 ```
 
-Скрипт скачивает Procmon64 и встраивает его в exe — для работы трассировки интернет нужен только **на этапе сборки**, не на целевом ПК.
+### Типовой сценарий работы
 
-## Тесты и покрытие
+1. Запустить exe **от имени администратора** (ПКМ или кнопка «Запуск от администратора»).
+2. Нажать **«Полное сканирование»**.
+3. Изучить вкладки **USB устройства**, **Доказательства**, **Следы очистки**.
+4. При необходимости — **«Старт мониторинга»** и окно **«Окно USB»**.
+5. На вкладке **Отчёт** — создать HTML или PDF.
 
-```powershell
-dotnet test tests/UsbForensicAudit.Tests/UsbForensicAudit.Tests.csproj --collect:"XPlat Code Coverage"
+**Цвета строк USB:**
+
+| Цвет | Категория | Смысл |
+|---|---|---|
+| Зелёный | `RealUsb` | реальное USB/Type-C устройство |
+| Жёлтый | `RelatedStorage` | связанная storage-запись (диск/том) |
+| Серый | `SupportArtifact` | служебная запись Windows |
+
+---
+
+## Архитектура
+
+Проект следует **Clean Architecture** (слои + порты/адаптеры + DI). Зависимости направлены внутрь: Presentation → Application → Domain; Infrastructure реализует порты Application.
+
+```mermaid
+flowchart TB
+    subgraph Presentation["Presentation (WPF)"]
+        MW[MainWindow]
+        VM[MainViewModel]
+        ADW[ActiveDevicesWindow]
+    end
+
+    subgraph Application["Application — use cases"]
+        AO[AuditOrchestrator]
+        CS[CorrelationService]
+        TE[TimelineEnricher]
+        CD[CleanupDetector]
+        Ports["Порты: IAuditStorage, IEvidenceCollector, IReportService, …"]
+    end
+
+    subgraph Domain["Domain — модели и правила"]
+        Models[UsbDeviceRecord, EvidenceRecord, …]
+        Catalogs[Справочники, форматтеры, VID/PID]
+    end
+
+    subgraph Infrastructure["Infrastructure — ОС и I/O"]
+        Collectors[Коллекторы реестра/Event Log/WMI]
+        Storage[AuditStorage SQLite/JSONL]
+        Reports[QuestPDF, HTML builder]
+        Win32[Win32 UI Automation, Procmon]
+    end
+
+    MW --> VM
+    VM --> AO
+    VM --> Ports
+    AO --> Ports
+    AO --> CS
+    AO --> TE
+    AO --> CD
+    CS --> Models
+    TE --> Models
+    CD --> Models
+    Ports -.->|реализация| Collectors
+    Ports -.->|реализация| Storage
+    Ports -.->|реализация| Reports
 ```
 
-Unit-тесты покрывают бизнес-логику (разбор утилит, Procmon CSV, корреляции, нормализацию текста) **не менее чем на 90%** измеряемого ядра. UI, сборщики реестра/Event Log, PDF-генераторы и слой отображения (`UserDisplayText`) в метрику не входят — они требуют интерактивной Windows-среды. Конфигурация: `tests/UsbForensicAudit.Tests/coverlet.runsettings`.
+### Правила зависимостей
 
-## Важные ограничения
+| Слой | Может ссылаться на | Не должен |
+|---|---|---|
+| **Domain** | только BCL / CodePages | Application, Infrastructure, WPF |
+| **Application** | Domain | Infrastructure (только интерфейсы-порты) |
+| **Infrastructure** | Application, Domain | Presentation |
+| **Presentation** | все слои через DI | — |
 
-- Программа не блокирует USB-устройства, а только анализирует и мониторит.
-- Корпоративные политики контроля USB могут скрывать стандартные следы Windows; программа использует дополнительные источники и помечает такие даты как ориентир.
-- Windows не всегда хранит физический номер разъема. Приложение показывает `LocationInformation` и `LocationPaths`, если ОС их отдает.
-- Отсутствие артефакта не всегда означает очистку. Поэтому признаки очистки имеют уровни риска и должны оцениваться вместе с другими источниками.
-- В первые 3 часа после установки Windows система сама очищает журналы — такие события остаются в аудите со статусом «Норма: ОС после установки» и инициатором «Система».
-- Инициатор «Система» не всегда означает атаку: службы Windows, Update и корпоративные политики тоже работают от SYSTEM.
-- Prefetch/Amcache USBDeview, USBDetector и т.п. фиксируют **запуск** утилиты, но не доказывают очистку в конкретную секунду — смотрите колонку «Уверенность».
-- Security Event ID 4688 читается только при включённом аудите создания процессов; без него инструмент определяется в основном по Prefetch.
-- Разные сборки Windows 10/11 могут давать разные Event ID и разную детализацию, поэтому каждый collector работает независимо и не останавливает весь анализ при ошибке одного источника.
-- Jump Lists, Amcache и Shimcache в текущей версии анализируются через безопасное извлечение индикаторов и метаданные. Для судебной экспертизы высокого уровня результаты нужно интерпретировать вместе с другими источниками.
-- Offline-загрузка hive может не сработать для активного или заблокированного профиля. В этом случае активные профили все равно анализируются через уже загруженный `HKU`, а ошибка пишется в warnings.
+Корневой namespace везде `UsbForensicAudit` — осознанное решение для минимизации churn при рефакторинге. Границы слоёв обеспечиваются `.csproj`-ссылками и `InternalsVisibleTo` для тестов.
+
+### DI и точка входа
+
+`App.xaml.cs` поднимает `Microsoft.Extensions.Hosting`:
+
+```csharp
+services.AddApplicationServices();      // CorrelationService, CleanupDetector, TimelineEnricher, AuditOrchestrator
+services.AddInfrastructureServices();   // коллекторы, хранилище, отчёты, WMI
+services.AddSingleton<MainViewModel>();
+services.AddSingleton<MainWindow>();
+```
+
+`MainWindow` получает `MainViewModel` и платформенные сервисы через конструктор; `DataContext = MainViewModel`.
+
+---
+
+## Структура решения
+
+```text
+UsbForensicAudit/
+├── UsbForensicAudit.sln          # Domain, Application, Infrastructure, Presentation
+├── UsbForensicAudit.csproj       # WPF-приложение (Presentation)
+├── MainWindow.xaml(.cs)          # View: разметка + тонкий code-behind (Win32, clipboard, Procmon UI)
+├── MainViewModel.cs              # ViewModel: коллекции, состояние сканирования, порядок сортировки
+├── ActiveDevicesWindow.xaml(.cs)  # Окно live-мониторинга
+├── App.xaml(.cs)                 # Generic Host, DI, глобальные обработчики ошибок
+├── build-exe.ps1                 # Portable publish + PDF-инструкция + проверка Procmon
+├── Assets/                       # Иконки, логотип, USBVendors.txt (embedded в Domain)
+├── src/
+│   ├── UsbForensicAudit.Domain/           # Модели, справочники, форматтеры, парсеры
+│   ├── UsbForensicAudit.Application/      # Use cases, оркестратор, порты, аналитика
+│   └── UsbForensicAudit.Infrastructure/   # Коллекторы, SQLite, PDF, WMI, Win32, Procmon
+├── tests/
+│   └── UsbForensicAudit.Tests/            # xUnit, coverlet (209+ тестов)
+└── tools/
+    ├── GenerateIcon/                      # PNG → ICO для сборки
+    ├── GenerateManual/                  # PDF-инструкция пользователя
+    ├── MergeUsbVendorDatabase/            # Слияние usb.ids с локальной базой VID/PID
+    └── ExternalUtilityHarness/            # Интеграционный harness захвата утилит
+```
+
+**Папки, которых нет в git** (создаются при сборке/работе): `bin/`, `obj/`, `obj/rid-out/`, `TestResults/`, `.idea/`.
+
+---
+
+## Конвейер сканирования
+
+Центральный use case — `AuditOrchestrator.RunFullScanAsync`. Выполняется в фоне (`Task.Run`), прогресс отдаётся в UI через `IProgress<string>`.
+
+```text
+1. UsbRegistryCollector          → Devices
+2. SetupApiLogCollector          → Evidence
+3. EventLogCollector             → Evidence
+4. EndpointProtectionCollector   → Evidence (если ShouldRun)
+5. UserArtifactCollector         → Evidence
+6. OfflineHiveCollector          → Evidence
+7. ExecutionArtifactCollector    → Evidence
+8. ProcessAttributionCollector   → Evidence
+9. CorrelationService            → доп. Evidence (корреляции)
+10. LiveDeviceMerger             → обогащение Devices
+11. TimelineEnricher             → даты, пояснения, WMI «подключено сейчас»
+12. CleanupDetector              → CleanupFindings
+13. AuditStorage.Save            → SQLite + JSONL
+```
+
+Порядок шагов 2–8 задаётся регистрацией `IEvidenceCollector` в `InfrastructureServiceCollectionExtensions` (порядок `AddSingleton` = порядок выполнения).
+
+Ключевые порты Application (`Abstractions.cs`):
+
+| Порт | Назначение |
+|---|---|
+| `IUsbDeviceCollector` | первый шаг — устройства из реестра |
+| `IEvidenceCollector` | один источник доказательств; `ShouldRun` для условных сборщиков |
+| `IAuditStorage` | персистентность результатов |
+| `ILiveDeviceMerger` | слияние с live-устройствами |
+| `IConnectedDeviceProbe` | WMI-проба «подключено сейчас» для TimelineEnricher |
+| `IReportService` | HTML/PDF отчёты |
+| `IPrivilegeChecker` | проверка прав администратора |
+| `IExternalUtilityRegistryTracer` | live-трассировка реестра для сторонних утилит |
+
+---
+
+## Presentation-слой (WPF + MVVM)
+
+| Компонент | Ответственность |
+|---|---|
+| `MainViewModel` | `ObservableCollection` для таблиц, `IsScanning` / `IsProcmonTracing`, `LastResult`, вызов `AuditOrchestrator`, сортировка результатов (`OrderDevices`, `OrderEvidence`, `OrderCleanupFindings`) |
+| `MainWindow` | XAML-привязки `{Binding Devices}`, `{Binding Evidence}`, обработчики кнопок, Win32/clipboard, Procmon UI, обновление счётчиков и `DataGrid` |
+| `ActiveDevicesWindow` | отдельное окно live-списка подключённых устройств |
+
+Платформенный код (UI Automation, захват ListView, Procmon session folder) **намеренно** остаётся во View — это допустимый компромисс: бизнес-логика в нижних слоях, View — адаптер ОС.
+
+---
+
+## Хранение данных
+
+### Portable (приоритет)
+
+```text
+{папка с UsbForensicAudit.exe}\data\
+```
+
+### Fallback (если рядом с exe нельзя писать)
+
+```text
+%LOCALAPPDATA%\UsbForensicAudit\
+```
+
+### Содержимое `data\`
+
+| Файл / папка | Назначение |
+|---|---|
+| `audit.sqlite` | структурированное хранилище для поиска |
+| `evidence.jsonl` | append-only журнал с SHA-256 hash-chain |
+| `app.log` | технический лог приложения |
+| `external_utility_snapshot.json` | снимок сторонней утилиты |
+| `tools\Procmon64.exe` | распакованный Procmon (из embedded resource) |
+| `procmon\{session}\` | CSV-трассировки Procmon |
+| `UsbForensicAudit_*.html/pdf` | сгенерированные отчёты |
+
+Логика выбора каталога — `AppPaths` (Infrastructure).
+
+---
+
+## Сборка
+
+### Dev-сборка (Rider / Visual Studio / CLI)
+
+```powershell
+dotnet build UsbForensicAudit.sln -c Release
+```
+
+Выход:
+
+```text
+bin\Release\net8.0-windows\UsbForensicAudit.exe
+```
+
+### Portable publish
+
+```powershell
+.\build-exe.ps1
+```
+
+Скрипт:
+
+1. Проверяет/скачивает `tools\Procmon64.exe` (нужен интернет **только при сборке**).
+2. Генерирует `Assets\app.ico` через `tools\GenerateIcon`.
+3. Выполняет `dotnet publish` (single-file, self-contained, `win-x64`).
+4. Создаёт PDF-инструкцию через `tools\GenerateManual`.
+5. Проверяет, что Procmon встроен в `UsbForensicAudit.Infrastructure.dll`.
+
+RID-сборка (`publish -r win-x64`) пишет промежуточные артефакты в `obj\rid-out\`, не затрагивая `bin\Release\` — это исключает конфликты блокировки DLL при параллельной работе IDE и скрипта.
+
+**Если publish падает с «файл заблокирован»:** закройте запущенный `UsbForensicAudit.exe`, остановите Debug в Rider/VS, выполните `dotnet build-server shutdown`, повторите скрипт.
+
+---
+
+## Тестирование
+
+```powershell
+dotnet test tests\UsbForensicAudit.Tests\UsbForensicAudit.Tests.csproj -c Release
+```
+
+С покрытием:
+
+```powershell
+dotnet test tests\UsbForensicAudit.Tests\UsbForensicAudit.Tests.csproj --collect:"XPlat Code Coverage"
+```
+
+Конфигурация coverlet: `tests/UsbForensicAudit.Tests/coverlet.runsettings`.
+
+**Стратегия покрытия:** unit-тесты на измеряемое ядро (парсеры, корреляции, Procmon CSV, ViewModel-сортировка, DI-регистрация) с порогом **≥ 90% line coverage** по включённым файлам. Исключены из метрики: WPF code-behind, коллекторы ОС, PDF-генераторы, WMI — они требуют интерактивной Windows-среды.
+
+Примеры тестовых классов:
+
+| Класс | Что проверяет |
+|---|---|
+| `CoreLogicTests`, `CorrelationServiceTests` | корреляция и ключевая логика |
+| `ProcmonCsvParserTests`, `ProcmonCompletenessTests` | разбор Procmon |
+| `ExternalUtilityTests`, `ExternalUtilityReportConclusionTests` | сторонние утилиты |
+| `MainViewModelTests` | порядок сортировки результатов в VM |
+| `ServiceRegistrationTests` | порядок сборщиков и WMI-probe в DI |
+| `TimelineEnricherTests`, `TextSanitizerTests` | обогащение и нормализация текста |
+
+---
+
+## Вспомогательные утилиты (`tools/`)
+
+| Проект | Назначение |
+|---|---|
+| `GenerateIcon` | конвертация `Assets/app-icon.png` → `Assets/app.ico` |
+| `GenerateManual` | генерация `UsbForensicAudit-Instrukciya.pdf` (использует `ManualPdfGenerator` из Infrastructure) |
+| `MergeUsbVendorDatabase` | слияние `Assets/USBVendors.txt` с загруженным `usb.ids` |
+| `ExternalUtilityHarness` | headless-тест захвата окон USBDeview/USBDetector |
+
+Procmon на этапе сборки: `tools\Procmon64.exe` (в `.gitignore`; скачивается `build-exe.ps1` или кладётся вручную).
+
+---
+
+## Расширение системы
+
+### Добавить новый источник доказательств
+
+1. Реализовать `IEvidenceCollector` в `UsbForensicAudit.Infrastructure`.
+2. Зарегистрировать в `InfrastructureServiceCollectionExtensions` **в нужном порядке**:
+   ```csharp
+   services.AddSingleton<IEvidenceCollector, MyNewCollector>();
+   ```
+3. Добавить unit-тесты на парсинг/нормализацию (без обращения к ОС, если возможно).
+
+Оркестратор менять не нужно — он итерирует все зарегистрированные `IEvidenceCollector`.
+
+### Добавить порт / адаптер
+
+1. Интерфейс — в `UsbForensicAudit.Application`.
+2. Реализация — в `UsbForensicAudit.Infrastructure`.
+3. Регистрация — в `AddInfrastructureServices()` или `AddApplicationServices()`.
+
+---
+
+## Ограничения и интерпреация
+
+- Приложение **не блокирует** USB — только анализирует и мониторит.
+- Корпоративные политики DLP/Endpoint Protection могут скрывать стандартные следы Windows; программа использует дополнительные источники и помечает даты как ориентир.
+- Windows **не всегда** сохраняет физический номер порта; показываются `LocationInformation` / `LocationPaths`, если ОС их отдала.
+- Отсутствие артефакта ≠ факт очистки. Оценивайте findings в совокупности и смотрите колонку «Уверенность».
+- **Grace period 3 часа** после установки Windows: очистка журналов ОС — норма, статус «Норма: ОС после установки».
+- Security **4688** доступен только при включённом аудите создания процессов.
+- Prefetch/Amcache фиксируют **запуск** утилиты, но не доказывают очистку в конкретную секунду.
+- Offline-загрузка hive может не сработать для активного профиля; активные профили анализируются через загруженный `HKU`, ошибка попадает в warnings.
+- Разные сборки Windows 10/11 дают разную детализацию Event Log; каждый collector изолирован — сбой одного не останавливает весь аудит.
+
+---
+
+## Автор
+
+**Орлов Дмитрий Владимирович**
