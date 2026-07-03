@@ -3,7 +3,7 @@ using System.IO;
 
 namespace UsbForensicAudit;
 
-public sealed class ReportService
+public sealed class ReportService : IReportService
 {
     public string CreateHtml(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null)
     {

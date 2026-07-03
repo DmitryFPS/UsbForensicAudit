@@ -11,24 +11,20 @@ namespace UsbForensicAudit;
 
 public partial class MainWindow : Window
 {
-    private readonly AuditOrchestrator _orchestrator;
-    private readonly ReportService _reportService;
+    private readonly MainViewModel _vm;
     private readonly WmiUsbMonitor _monitor;
     private readonly DeviceChangeNotifier _deviceChangeNotifier;
     private readonly LiveUsbSnapshotService _liveUsbSnapshotService;
-    private readonly ObservableCollection<UsbDeviceRecord> _devices = [];
-    private readonly ObservableCollection<EvidenceRecord> _evidence = [];
-    private readonly ObservableCollection<CleanupFinding> _cleanupFindings = [];
-    private readonly ObservableCollection<ExternalUtilityRow> _externalUtilityRows = [];
-    private readonly ObservableCollection<RunningExternalUtility> _runningExternalUtilities = [];
-    private readonly ObservableCollection<HistoricalUtilityLaunch> _historicalUtilityLaunches = [];
+    private ObservableCollection<UsbDeviceRecord> _devices => _vm.Devices;
+    private ObservableCollection<EvidenceRecord> _evidence => _vm.Evidence;
+    private ObservableCollection<CleanupFinding> _cleanupFindings => _vm.CleanupFindings;
+    private ObservableCollection<ExternalUtilityRow> _externalUtilityRows => _vm.ExternalUtilityRows;
+    private ObservableCollection<RunningExternalUtility> _runningExternalUtilities => _vm.RunningExternalUtilities;
+    private ObservableCollection<HistoricalUtilityLaunch> _historicalUtilityLaunches => _vm.HistoricalUtilityLaunches;
     private readonly ICollectionView _cleanupFindingsView;
     private readonly ICollectionView _externalUtilityRowsView;
     private ExternalUtilityReportSnapshot _externalUtilitySnapshot = new();
-    private AuditResult? _lastResult;
     private string _lastExternalUtilityAnalysisCopyText = "";
-    private bool _isScanning;
-    private bool _isProcmonTracing;
     private ExternalUtilityRow? _activeExternalUtilityRow;
     private RunningExternalUtility? _lastCapturedExternalUtility;
     private readonly Dictionary<string, IReadOnlyList<ExternalUtilitySourceHit>> _procmonHitsByRowKey = new(StringComparer.Ordinal);
@@ -37,19 +33,12 @@ public partial class MainWindow : Window
     private DateTimeOffset _lastAutoScanUtc = DateTimeOffset.MinValue;
     private ActiveDevicesWindow? _activeDevicesWindow;
 
-    public ObservableCollection<UsbDeviceRecord> Devices => _devices;
-    public ObservableCollection<EvidenceRecord> Evidence => _evidence;
-    public ObservableCollection<CleanupFinding> CleanupFindings => _cleanupFindings;
-    public ObservableCollection<ExternalUtilityRow> ExternalUtilityRows => _externalUtilityRows;
-
     public MainWindow(
-        AuditOrchestrator orchestrator,
-        ReportService reportService,
+        MainViewModel viewModel,
         WmiUsbMonitor monitor,
         LiveUsbSnapshotService liveUsbSnapshotService)
     {
-        _orchestrator = orchestrator;
-        _reportService = reportService;
+        _vm = viewModel;
         _monitor = monitor;
         _liveUsbSnapshotService = liveUsbSnapshotService;
         InitializeComponent();
@@ -57,21 +46,21 @@ public partial class MainWindow : Window
         TrySetWindowIconInstance();
         _deviceChangeNotifier = new DeviceChangeNotifier(this);
         _monitor.AttachDeviceNotifier(_deviceChangeNotifier);
-        DataContext = this;
+        DataContext = _vm;
         _cleanupFindingsView = CollectionViewSource.GetDefaultView(_cleanupFindings);
         _cleanupFindingsView.Filter = FilterCleanupFinding;
         FindingsGrid.ItemsSource = _cleanupFindingsView;
         _externalUtilityRowsView = CollectionViewSource.GetDefaultView(_externalUtilityRows);
         _externalUtilityRowsView.Filter = FilterExternalUtilityRow;
         ExternalUtilityRowsGrid.ItemsSource = _externalUtilityRowsView;
-        _externalUtilitySnapshot = ExternalUtilitySnapshotStorage.Load(_orchestrator.Storage.DataDirectory) ?? new ExternalUtilityReportSnapshot();
+        _externalUtilitySnapshot = ExternalUtilitySnapshotStorage.Load(_vm.Storage.DataDirectory) ?? new ExternalUtilityReportSnapshot();
         RestoreExternalUtilitySnapshotToUi();
         RefreshExternalUtilitySectionFilterCombo();
         AdminStatusText.Text = AdminHelper.IsAdministrator() ? "Администратор" : "Нет прав администратора";
         ElevateButton.Visibility = AdminHelper.IsAdministrator() ? Visibility.Collapsed : Visibility.Visible;
         UpdateOsInstallDisplay(null);
         AppendLog($"Запуск UsbForensicAudit. Администратор: {AdminHelper.IsAdministrator()}. {AppPaths.LayoutDescription}");
-        AppendLog($"База: {_orchestrator.Storage.DatabasePath}");
+        AppendLog($"База: {_vm.Storage.DatabasePath}");
         UpdateExternalUtilityControls();
         _monitor.DeviceChanged += Monitor_DeviceChanged;
         _monitor.RefreshRequested += Monitor_RefreshRequested;
@@ -106,7 +95,7 @@ public partial class MainWindow : Window
 
     private async Task RunScanAsync(string startMessage)
     {
-        if (_isScanning)
+        if (_vm.IsScanning)
         {
             AppendLog("Сканирование уже выполняется, новый запуск пропущен.");
             return;
@@ -114,7 +103,7 @@ public partial class MainWindow : Window
 
         try
         {
-            _isScanning = true;
+            _vm.IsScanning = true;
             SetBusy(true);
             AppendLog(startMessage);
             AppLog.Info(startMessage);
@@ -124,8 +113,8 @@ public partial class MainWindow : Window
                 AppendLog(message);
             });
 
-            var result = await _orchestrator.RunFullScanAsync(progress);
-            _lastResult = result;
+            var result = await _vm.RunFullScanAsync(progress);
+            _vm.LastResult = result;
             BindResult(result);
             PdfReportButton.IsEnabled = true;
             BriefPdfReportButton.IsEnabled = true;
@@ -141,7 +130,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            _isScanning = false;
+            _vm.IsScanning = false;
             SetBusy(false);
             StatusText.Text = "Готово";
         }
@@ -149,26 +138,7 @@ public partial class MainWindow : Window
 
     private void BindResult(AuditResult result)
     {
-        _devices.Clear();
-        foreach (var item in result.Devices.OrderBy(x => CategoryRank(x.VisualCategory)).ThenBy(x => x.DisplayName))
-        {
-            _devices.Add(item);
-        }
-
-        _evidence.Clear();
-        foreach (var item in result.Evidence.OrderByDescending(x => x.TimestampUtc))
-        {
-            _evidence.Add(item);
-        }
-
-        _cleanupFindings.Clear();
-        foreach (var item in result.CleanupFindings
-                     .OrderByDescending(x => x.IsSuspicious)
-                     .ThenByDescending(x => SeverityRank(x.Severity))
-                     .ThenByDescending(x => x.TimestampUtc))
-        {
-            _cleanupFindings.Add(item);
-        }
+        _vm.PopulateFromResult(result);
 
         DevicesCountText.Text = _devices.Count.ToString();
         EvidenceCountText.Text = _evidence.Count.ToString();
@@ -325,16 +295,16 @@ public partial class MainWindow : Window
 
     private void PdfReportButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_lastResult is null)
+        if (_vm.LastResult is null)
         {
             return;
         }
 
         try
         {
-            var path = _reportService.CreatePdf(_lastResult, _orchestrator.Storage.DataDirectory, GetExternalUtilitySnapshotForReport());
+            var path = _vm.ReportService.CreatePdf(_vm.LastResult, _vm.Storage.DataDirectory, GetExternalUtilitySnapshotForReport());
             ReportStatusText.Text = $"PDF отчет создан: {path}";
-            _reportService.OpenFile(path);
+            _vm.ReportService.OpenFile(path);
         }
         catch (Exception ex)
         {
@@ -345,16 +315,16 @@ public partial class MainWindow : Window
 
     private void BriefPdfReportButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_lastResult is null)
+        if (_vm.LastResult is null)
         {
             return;
         }
 
         try
         {
-            var path = _reportService.CreateBriefPdf(_lastResult, _orchestrator.Storage.DataDirectory, GetExternalUtilitySnapshotForReport());
+            var path = _vm.ReportService.CreateBriefPdf(_vm.LastResult, _vm.Storage.DataDirectory, GetExternalUtilitySnapshotForReport());
             ReportStatusText.Text = $"Сводный PDF создан: {path}";
-            _reportService.OpenFile(path);
+            _vm.ReportService.OpenFile(path);
         }
         catch (Exception ex)
         {
@@ -367,7 +337,7 @@ public partial class MainWindow : Window
     {
         Process.Start(new ProcessStartInfo
         {
-            FileName = _orchestrator.Storage.DataDirectory,
+            FileName = _vm.Storage.DataDirectory,
             UseShellExecute = true
         });
     }
@@ -388,7 +358,7 @@ public partial class MainWindow : Window
             }
 
             RunningExternalUtilitiesList.ItemsSource = _runningExternalUtilities;
-            RefreshHistoricalUtilityLaunches(_lastResult);
+            RefreshHistoricalUtilityLaunches(_vm.LastResult);
             CaptureExternalUtilityButton.IsEnabled = _runningExternalUtilities.Count > 0;
             ExternalUtilityStatusText.Text = _runningExternalUtilities.Count == 0
                 ? "Запущенные USBDetector / USBDeview / USB Oblivion не найдены. Сначала откройте утилиту и выполните в ней поиск."
@@ -406,7 +376,7 @@ public partial class MainWindow : Window
     {
         CaptureExternalUtilityButton.IsEnabled = RunningExternalUtilitiesList.SelectedItem is RunningExternalUtility
                                                    && AdminHelper.IsAdministrator()
-                                                   && !_isScanning;
+                                                   && !_vm.IsScanning;
     }
 
     private async void CaptureExternalUtilityButton_Click(object sender, RoutedEventArgs e)
@@ -482,7 +452,7 @@ public partial class MainWindow : Window
     {
         var hasRow = ExternalUtilityRowsGrid.SelectedItem is ExternalUtilityRow;
         CopyExternalUtilityRowButton.IsEnabled = hasRow;
-        FillManualFromRowButton.IsEnabled = hasRow && AdminHelper.IsAdministrator() && !_isScanning;
+        FillManualFromRowButton.IsEnabled = hasRow && AdminHelper.IsAdministrator() && !_vm.IsScanning;
         OpenExternalUtilityAnalysisTabButton.IsEnabled = hasRow;
 
         if (ExternalUtilityRowsGrid.SelectedItem is not ExternalUtilityRow row)
@@ -596,7 +566,7 @@ public partial class MainWindow : Window
         _procmonHitsByRowKey.TryGetValue(rowKey, out var procmonHits);
         _procmonSessionByRowKey.TryGetValue(rowKey, out var procmonSession);
         _procmonSummaryByRowKey.TryGetValue(rowKey, out var procmonSummary);
-        return ExternalUtilityRowExplainer.Assess(row, _lastResult, procmonHits, procmonSession, procmonSummary, new RegistryExternalUtilityTracer());
+        return ExternalUtilityRowExplainer.Assess(row, _vm.LastResult, procmonHits, procmonSession, procmonSummary, new RegistryExternalUtilityTracer());
     }
 
     private ExternalUtilityRow? GetExternalUtilityRowForActions() =>
@@ -698,7 +668,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_isProcmonTracing)
+        if (_vm.IsProcmonTracing)
         {
             return;
         }
@@ -725,7 +695,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _isProcmonTracing = true;
+        _vm.IsProcmonTracing = true;
         UpdateExternalUtilityControls();
 
         try
@@ -780,7 +750,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            _isProcmonTracing = false;
+            _vm.IsProcmonTracing = false;
             UpdateExternalUtilityControls();
         }
     }
@@ -1063,7 +1033,7 @@ public partial class MainWindow : Window
 
         if (_historicalUtilityLaunches.Count > 0 || _externalUtilitySnapshot.Rows.Count > 0)
         {
-            ExternalUtilitySnapshotStorage.Save(_orchestrator.Storage.DataDirectory, _externalUtilitySnapshot);
+            ExternalUtilitySnapshotStorage.Save(_vm.Storage.DataDirectory, _externalUtilitySnapshot);
         }
     }
 
@@ -1077,7 +1047,7 @@ public partial class MainWindow : Window
             _externalUtilitySnapshot.Rows.Add(row);
         }
 
-        ExternalUtilitySnapshotStorage.Save(_orchestrator.Storage.DataDirectory, _externalUtilitySnapshot);
+        ExternalUtilitySnapshotStorage.Save(_vm.Storage.DataDirectory, _externalUtilitySnapshot);
     }
 
     private void RestoreExternalUtilitySnapshotToUi()
@@ -1114,19 +1084,19 @@ public partial class MainWindow : Window
     private void UpdateExternalUtilityControls()
     {
         var isAdmin = AdminHelper.IsAdministrator();
-        FindExternalUtilitiesButton.IsEnabled = isAdmin && !_isScanning;
+        FindExternalUtilitiesButton.IsEnabled = isAdmin && !_vm.IsScanning;
         CaptureExternalUtilityButton.IsEnabled = isAdmin
-                                                 && !_isScanning
+                                                 && !_vm.IsScanning
                                                  && RunningExternalUtilitiesList?.SelectedItem is RunningExternalUtility;
-        AnalyzeManualUtilityButton.IsEnabled = isAdmin && !_isScanning;
+        AnalyzeManualUtilityButton.IsEnabled = isAdmin && !_vm.IsScanning;
         CopyExternalUtilityRowButton.IsEnabled = ExternalUtilityRowsGrid?.SelectedItem is ExternalUtilityRow;
         FillManualFromRowButton.IsEnabled = isAdmin
-                                              && !_isScanning
+                                              && !_vm.IsScanning
                                               && ExternalUtilityRowsGrid?.SelectedItem is ExternalUtilityRow;
         CopyExternalUtilityAnalysisButton.IsEnabled = !string.IsNullOrWhiteSpace(_lastExternalUtilityAnalysisCopyText);
         OpenExternalUtilityAnalysisTabButton.IsEnabled = GetExternalUtilityRowForActions() is ExternalUtilityRow
                                                        || ExternalUtilityRowsGrid?.SelectedItem is ExternalUtilityRow;
-        ProcmonTraceButton.IsEnabled = !_isProcmonTracing
+        ProcmonTraceButton.IsEnabled = !_vm.IsProcmonTracing
                                        && GetExternalUtilityRowForActions() is ExternalUtilityRow;
         if (!isAdmin && ExternalUtilityStatusText is not null && string.IsNullOrWhiteSpace(ExternalUtilityStatusText.Text))
         {
@@ -1137,8 +1107,8 @@ public partial class MainWindow : Window
     private void SetBusy(bool busy)
     {
         ScanButton.IsEnabled = !busy;
-        PdfReportButton.IsEnabled = !busy && _lastResult is not null;
-        BriefPdfReportButton.IsEnabled = !busy && _lastResult is not null;
+        PdfReportButton.IsEnabled = !busy && _vm.LastResult is not null;
+        BriefPdfReportButton.IsEnabled = !busy && _vm.LastResult is not null;
         UpdateExternalUtilityControls();
         Cursor = busy ? System.Windows.Input.Cursors.Wait : null;
     }
@@ -1147,30 +1117,6 @@ public partial class MainWindow : Window
     {
         ActivityLogTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
         ActivityLogTextBox.ScrollToEnd();
-    }
-
-    private static int SeverityRank(string severity)
-    {
-        return severity.ToLowerInvariant() switch
-        {
-            "critical" => 5,
-            "high" => 4,
-            "medium" => 3,
-            "low" => 2,
-            "info" => 1,
-            _ => 0
-        };
-    }
-
-    private static int CategoryRank(string category)
-    {
-        return category switch
-        {
-            "RealUsb" => 0,
-            "RelatedStorage" => 1,
-            "SupportArtifact" => 2,
-            _ => 3
-        };
     }
 
     protected override void OnClosed(EventArgs e)

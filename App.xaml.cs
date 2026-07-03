@@ -43,6 +43,7 @@ public partial class App : Application
             {
                 services.AddApplicationServices();
                 services.AddInfrastructureServices();
+                services.AddSingleton<MainViewModel>();
                 services.AddSingleton<MainWindow>();
             })
             .Build();
