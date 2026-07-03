@@ -2,8 +2,14 @@ using System.Diagnostics.Eventing.Reader;
 
 namespace UsbForensicAudit;
 
-public sealed class EventLogCollector
+public sealed class EventLogCollector : IEvidenceCollector
 {
+    public string ProgressMessage => "Чтение Windows Event Logs...";
+
+    public bool ShouldRun => true;
+
+    IReadOnlyList<EvidenceRecord> IEvidenceCollector.Collect(List<string> warnings) => Collect(warnings);
+
     private static readonly string[] Logs =
     [
         "System",

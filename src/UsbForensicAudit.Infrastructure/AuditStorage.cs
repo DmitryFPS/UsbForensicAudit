@@ -6,7 +6,7 @@ using Microsoft.Data.Sqlite;
 
 namespace UsbForensicAudit;
 
-public sealed class AuditStorage
+public sealed class AuditStorage : IAuditStorage
 {
     public string DataDirectory { get; }
     public string DatabasePath { get; }

@@ -4,10 +4,14 @@ using System.Text.RegularExpressions;
 
 namespace UsbForensicAudit;
 
-public sealed class SetupApiLogCollector
+public sealed class SetupApiLogCollector : IEvidenceCollector
 {
     private static readonly Regex SectionRegex = new(@"^>>>\s+\[(?<title>.+?)\]", RegexOptions.Compiled);
     private static readonly Regex TimeRegex = new(@"^>>>\s+Section start (?<time>.+)$", RegexOptions.Compiled);
+
+    public string ProgressMessage => "Парсинг setupapi.dev.log...";
+
+    public bool ShouldRun => true;
 
     public IReadOnlyList<EvidenceRecord> Collect(List<string> warnings)
     {

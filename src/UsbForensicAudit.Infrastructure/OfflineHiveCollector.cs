@@ -5,8 +5,12 @@ using Microsoft.Win32;
 
 namespace UsbForensicAudit;
 
-public sealed class OfflineHiveCollector
+public sealed class OfflineHiveCollector : IEvidenceCollector
 {
+    public string ProgressMessage => "Offline-анализ NTUSER.DAT и UsrClass.dat...";
+
+    public bool ShouldRun => true;
+
     private static readonly string[] NtUserPaths =
     [
         @"Software\Microsoft\Windows\CurrentVersion\Explorer\MountPoints2",
