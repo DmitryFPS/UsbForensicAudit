@@ -26,7 +26,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IEvidenceCollector, ExecutionArtifactCollector>();
         services.AddSingleton<IEvidenceCollector, ProcessAttributionCollector>();
 
-        services.AddSingleton<ReportService>();
+        services.AddSingleton<IReportService, ReportService>();
         services.AddSingleton<WmiUsbMonitor>();
         services.AddSingleton<LiveUsbSnapshotService>();
         return services;
