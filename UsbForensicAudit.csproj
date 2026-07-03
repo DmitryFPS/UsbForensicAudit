@@ -18,6 +18,12 @@
     <Description>Windows USB forensic audit and monitoring tool</Description>
   </PropertyGroup>
 
+  <!-- publish -r win-x64: не bin\Release\win-x64 (Rider/MSBuild часто держат DLL), только obj\rid-out -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <OutputPath>obj\rid-out\</OutputPath>
+    <IntermediateOutputPath>obj\rid-int\</IntermediateOutputPath>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />

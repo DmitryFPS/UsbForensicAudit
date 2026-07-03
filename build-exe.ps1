@@ -4,12 +4,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$solution = Join-Path $PSScriptRoot "UsbForensicAudit.sln"
 $project = Join-Path $PSScriptRoot "UsbForensicAudit.csproj"
 $publishDir = Join-Path $PSScriptRoot "bin\publish"
 $procmonDir = Join-Path $PSScriptRoot "tools"
 $procmonExe = Join-Path $procmonDir "Procmon64.exe"
 $procmonZip = Join-Path $procmonDir "ProcessMonitor.zip"
 $procmonExtract = Join-Path $procmonDir "pmextract"
+$infrastructureDll = Join-Path $PSScriptRoot "src\UsbForensicAudit.Infrastructure\bin\$Configuration\net8.0-windows\UsbForensicAudit.Infrastructure.dll"
 
 function Ensure-ProcmonForOfflineBuild {
     New-Item -ItemType Directory -Force -Path $procmonDir | Out-Null
@@ -38,9 +40,36 @@ function Ensure-ProcmonForOfflineBuild {
     Write-Host "Procmon64.exe prepared: $procmonExe"
 }
 
-Ensure-ProcmonForOfflineBuild
+function Prepare-BuildEnvironment {
+    Get-Process -Name UsbForensicAudit -ErrorAction SilentlyContinue | Stop-Process -Force
+    dotnet build-server shutdown 2>$null | Out-Null
+}
 
-dotnet restore $project
+function Test-EmbeddedProcmon {
+    param([string]$DllPath)
+
+    if (-not (Test-Path $DllPath)) {
+        return $false
+    }
+
+    $escaped = $DllPath.Replace("'", "''")
+    $command = @"
+`$bytes = [System.IO.File]::ReadAllBytes('$escaped')
+`$asm = [System.Reflection.Assembly]::Load(`$bytes)
+if (`$asm.GetManifestResourceNames() -notcontains 'UsbForensicAudit.Tools.Procmon64.exe') { exit 1 }
+exit 0
+"@
+
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $command
+    return $LASTEXITCODE -eq 0
+}
+
+Ensure-ProcmonForOfflineBuild
+Prepare-BuildEnvironment
+
+dotnet clean $solution -c $Configuration --nologo -v q
+
+dotnet restore $solution
 
 $iconTool = Join-Path $PSScriptRoot "tools\GenerateIcon\GenerateIcon.csproj"
 $iconPng = Join-Path $PSScriptRoot "Assets\app-icon.png"
@@ -51,7 +80,6 @@ if (Test-Path $iconPng) {
     Write-Warning "Icon PNG not found: $iconPng"
 }
 
-# Удаляем хвосты от старых сборок (когда native-DLL лежали рядом с exe).
 foreach ($pattern in @("*.dll", "*.pdb")) {
     Get-ChildItem -Path $publishDir -Filter $pattern -ErrorAction SilentlyContinue | Remove-Item -Force
 }
@@ -69,7 +97,10 @@ dotnet publish $project `
     -p:DebugType=none `
     -o $publishDir
 
-# После single-file publish не должно остаться DLL — только exe и доп. файлы.
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish failed with exit code $LASTEXITCODE"
+}
+
 Get-ChildItem -Path $publishDir -Filter "*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
     Write-Warning "Unexpected file after single-file publish: $($_.Name)"
     Remove-Item $_.FullName -Force
@@ -84,6 +115,10 @@ $manualPath = Join-Path $publishDir "UsbForensicAudit-Instrukciya.pdf"
 Get-ChildItem -Path $publishDir -Filter "UsbForensicAudit*.pdf" -ErrorAction SilentlyContinue | Remove-Item -Force
 
 dotnet run --project $manualProject -c $Configuration -- $manualPath
+
+if ($LASTEXITCODE -ne 0) {
+    throw "GenerateManual failed with exit code $LASTEXITCODE"
+}
 
 $portableReadme = Join-Path $publishDir "PORTABLE.txt"
 $readmeLines = @(
@@ -114,15 +149,8 @@ if (-not (Test-Path $publishedExe)) {
     throw "Published exe not found: $publishedExe"
 }
 
-$builtDll = Join-Path $PSScriptRoot "bin\$Configuration\net8.0-windows\$Runtime\UsbForensicAudit.dll"
-if (-not (Test-Path $builtDll)) {
-    throw "Built dll not found for verification: $builtDll"
-}
-
-$assembly = [System.Reflection.Assembly]::LoadFrom($builtDll)
-$embeddedProcmon = $assembly.GetManifestResourceNames() | Where-Object { $_ -eq "UsbForensicAudit.Tools.Procmon64.exe" }
-if (-not $embeddedProcmon) {
-    throw "Portable build verification failed: Procmon64.exe is not embedded in UsbForensicAudit.dll"
+if (-not (Test-EmbeddedProcmon $infrastructureDll)) {
+    throw "Portable build verification failed: Procmon64.exe is not embedded in UsbForensicAudit.Infrastructure.dll ($infrastructureDll)"
 }
 
 Write-Host "Verified: Procmon64.exe is embedded (offline-ready)."
