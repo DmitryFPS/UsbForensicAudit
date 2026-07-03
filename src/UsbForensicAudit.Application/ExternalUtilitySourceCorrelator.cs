@@ -6,7 +6,8 @@ public static class ExternalUtilitySourceCorrelator
 {
     public static IReadOnlyList<ExternalUtilitySourceHit> Correlate(
         ExternalUtilityIdentifierInfo identifier,
-        AuditResult? audit)
+        AuditResult? audit,
+        IExternalUtilityRegistryTracer? registryTracer = null)
     {
         var hits = new List<ExternalUtilitySourceHit>();
 
@@ -16,9 +17,9 @@ public static class ExternalUtilitySourceCorrelator
             AppendAuditEvidenceHits(identifier, audit, hits);
         }
 
-        if (identifier.HasVid)
+        if (identifier.HasVid && registryTracer is not null)
         {
-            foreach (var liveHit in ExternalUtilityRegistrySourceTracer.Trace(identifier.Vid, identifier.Pid))
+            foreach (var liveHit in registryTracer.Trace(identifier.Vid, identifier.Pid))
             {
                 if (hits.Any(x => x.Title.StartsWith(liveHit.Title, StringComparison.OrdinalIgnoreCase)))
                 {

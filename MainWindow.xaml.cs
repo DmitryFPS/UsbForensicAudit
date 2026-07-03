@@ -588,7 +588,7 @@ public partial class MainWindow : Window
         _procmonHitsByRowKey.TryGetValue(rowKey, out var procmonHits);
         _procmonSessionByRowKey.TryGetValue(rowKey, out var procmonSession);
         _procmonSummaryByRowKey.TryGetValue(rowKey, out var procmonSummary);
-        return ExternalUtilityRowExplainer.Assess(row, _lastResult, procmonHits, procmonSession, procmonSummary);
+        return ExternalUtilityRowExplainer.Assess(row, _lastResult, procmonHits, procmonSession, procmonSummary, new RegistryExternalUtilityTracer());
     }
 
     private ExternalUtilityRow? GetExternalUtilityRowForActions() =>
