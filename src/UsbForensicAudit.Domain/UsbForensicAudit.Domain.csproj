@@ -9,6 +9,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\Assets\USBVendors.txt" LogicalName="UsbForensicAudit.Assets.USBVendors.txt" Condition="Exists('..\..\Assets\USBVendors.txt')" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="UsbForensicAudit.Application" />
     <InternalsVisibleTo Include="UsbForensicAudit.Infrastructure" />
     <InternalsVisibleTo Include="UsbForensicAudit" />

@@ -314,7 +314,7 @@ public static class UserDisplayText
                 || deviceId.StartsWith(@"USB\", StringComparison.OrdinalIgnoreCase)
                 || deviceId.StartsWith(@"REMOVABLE\", StringComparison.OrdinalIgnoreCase))
             {
-                if (EndpointProtectionEnvironment.IsProtectionActive)
+                if (EndpointProtectionState.IsProtectionActive)
                 {
                     return "Подключено через корпоративную защиту USB (WMI показывает Error — это нормально для фильтра дисков)";
                 }
