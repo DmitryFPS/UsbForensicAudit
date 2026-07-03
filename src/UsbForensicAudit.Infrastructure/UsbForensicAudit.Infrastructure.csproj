@@ -6,7 +6,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>UsbForensicAudit</RootNamespace>
     <AssemblyName>UsbForensicAudit.Infrastructure</AssemblyName>
+    <UseWPF>true</UseWPF>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\tools\Procmon64.exe" LogicalName="UsbForensicAudit.Tools.Procmon64.exe" Condition="Exists('..\..\tools\Procmon64.exe')" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
