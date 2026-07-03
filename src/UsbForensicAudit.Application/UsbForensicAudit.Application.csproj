@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>UsbForensicAudit</RootNamespace>
+    <AssemblyName>UsbForensicAudit.Application</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UsbForensicAudit.Domain\UsbForensicAudit.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="UsbForensicAudit.Infrastructure" />
+    <InternalsVisibleTo Include="UsbForensicAudit" />
+    <InternalsVisibleTo Include="UsbForensicAudit.Tests" />
+    <InternalsVisibleTo Include="ExternalUtilityHarness" />
+  </ItemGroup>
+
+</Project>

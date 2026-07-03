@@ -43,11 +43,21 @@
     <None Include="tools\**" />
     <Compile Remove="tests\**" />
     <None Include="tests\**" />
+    <Compile Remove="src\**" />
+    <EmbeddedResource Remove="src\**" />
+    <Page Remove="src\**" />
+    <None Remove="src\**" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="UsbForensicAudit.Tests" />
     <InternalsVisibleTo Include="ExternalUtilityHarness" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="src\UsbForensicAudit.Application\UsbForensicAudit.Application.csproj" />
+    <ProjectReference Include="src\UsbForensicAudit.Domain\UsbForensicAudit.Domain.csproj" />
+    <ProjectReference Include="src\UsbForensicAudit.Infrastructure\UsbForensicAudit.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
