@@ -2,8 +2,14 @@ using System.Diagnostics.Eventing.Reader;
 
 namespace UsbForensicAudit;
 
-public sealed class ProcessAttributionCollector
+public sealed class ProcessAttributionCollector : IEvidenceCollector
 {
+    public string ProgressMessage => "Поиск процессов очистки в Security (4688)...";
+
+    public bool ShouldRun => true;
+
+    IReadOnlyList<EvidenceRecord> IEvidenceCollector.Collect(List<string> warnings) => Collect(warnings);
+
     public IReadOnlyList<EvidenceRecord> Collect(List<string> warnings, int maxEvents = 400)
     {
         var results = new List<EvidenceRecord>();

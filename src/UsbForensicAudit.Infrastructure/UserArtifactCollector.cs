@@ -3,8 +3,12 @@ using System.IO;
 
 namespace UsbForensicAudit;
 
-public sealed class UserArtifactCollector
+public sealed class UserArtifactCollector : IEvidenceCollector
 {
+    public string ProgressMessage => "Сбор пользовательских артефактов: HKU, Recent, LNK, Jump Lists...";
+
+    public bool ShouldRun => true;
+
     public IReadOnlyList<EvidenceRecord> Collect(List<string> warnings)
     {
         var evidence = new List<EvidenceRecord>();

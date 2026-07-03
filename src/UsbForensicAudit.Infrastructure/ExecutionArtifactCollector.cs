@@ -3,8 +3,12 @@ using System.IO;
 
 namespace UsbForensicAudit;
 
-public sealed class ExecutionArtifactCollector
+public sealed class ExecutionArtifactCollector : IEvidenceCollector
 {
+    public string ProgressMessage => "Сбор артефактов запуска: Prefetch, Amcache, Shimcache...";
+
+    public bool ShouldRun => true;
+
     public IReadOnlyList<EvidenceRecord> Collect(List<string> warnings)
     {
         var evidence = new List<EvidenceRecord>();

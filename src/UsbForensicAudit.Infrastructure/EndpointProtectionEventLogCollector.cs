@@ -3,8 +3,14 @@ using System.Text.RegularExpressions;
 
 namespace UsbForensicAudit;
 
-public sealed class EndpointProtectionEventLogCollector
+public sealed class EndpointProtectionEventLogCollector : IEvidenceCollector
 {
+    public string ProgressMessage => "Чтение журнала корпоративной защиты USB...";
+
+    public bool ShouldRun => EndpointProtectionEnvironment.IsInstalled;
+
+    IReadOnlyList<EvidenceRecord> IEvidenceCollector.Collect(List<string> warnings) => Collect(warnings);
+
     // Внутренние имена провайдеров из журнала Windows Application — в интерфейсе не показываются.
     private static readonly string[] EventProviders = ["Secret Net", "OmsHost"];
     private static readonly Regex DriveLetterRegex = new(@"\b[A-Z]:\b", RegexOptions.Compiled);

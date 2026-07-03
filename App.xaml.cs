@@ -1,10 +1,14 @@
 ﻿using System.Text;
 using System.Windows;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace UsbForensicAudit;
 
 public partial class App : Application
 {
+    private IHost? _host;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -34,8 +38,23 @@ public partial class App : Application
         AppLog.Info("Application startup");
         base.OnStartup(e);
 
-        var mainWindow = new MainWindow();
+        _host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddApplicationServices();
+                services.AddInfrastructureServices();
+                services.AddSingleton<MainWindow>();
+            })
+            .Build();
+
+        var mainWindow = _host.Services.GetRequiredService<MainWindow>();
         DarkWindowChrome.Apply(mainWindow, hideUntilReady: true);
         mainWindow.Show();
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _host?.Dispose();
+        base.OnExit(e);
     }
 }

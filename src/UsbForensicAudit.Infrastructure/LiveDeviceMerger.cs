@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace UsbForensicAudit;
 
-public sealed class LiveDeviceMerger
+public sealed class LiveDeviceMerger : ILiveDeviceMerger
 {
     private static readonly Regex VidPidRegex = new(@"VID_([0-9A-F]{4})&PID_([0-9A-F]{4})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 

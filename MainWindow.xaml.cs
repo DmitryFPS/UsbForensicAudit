@@ -11,11 +11,11 @@ namespace UsbForensicAudit;
 
 public partial class MainWindow : Window
 {
-    private readonly AuditOrchestrator _orchestrator = new();
-    private readonly ReportService _reportService = new();
-    private readonly WmiUsbMonitor _monitor = new();
+    private readonly AuditOrchestrator _orchestrator;
+    private readonly ReportService _reportService;
+    private readonly WmiUsbMonitor _monitor;
     private readonly DeviceChangeNotifier _deviceChangeNotifier;
-    private readonly LiveUsbSnapshotService _liveUsbSnapshotService = new();
+    private readonly LiveUsbSnapshotService _liveUsbSnapshotService;
     private readonly ObservableCollection<UsbDeviceRecord> _devices = [];
     private readonly ObservableCollection<EvidenceRecord> _evidence = [];
     private readonly ObservableCollection<CleanupFinding> _cleanupFindings = [];
@@ -42,8 +42,16 @@ public partial class MainWindow : Window
     public ObservableCollection<CleanupFinding> CleanupFindings => _cleanupFindings;
     public ObservableCollection<ExternalUtilityRow> ExternalUtilityRows => _externalUtilityRows;
 
-    public MainWindow()
+    public MainWindow(
+        AuditOrchestrator orchestrator,
+        ReportService reportService,
+        WmiUsbMonitor monitor,
+        LiveUsbSnapshotService liveUsbSnapshotService)
     {
+        _orchestrator = orchestrator;
+        _reportService = reportService;
+        _monitor = monitor;
+        _liveUsbSnapshotService = liveUsbSnapshotService;
         InitializeComponent();
         ApplyHeaderLogo();
         TrySetWindowIconInstance();

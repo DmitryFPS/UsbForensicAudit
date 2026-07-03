@@ -4,9 +4,11 @@ using Microsoft.Win32;
 
 namespace UsbForensicAudit;
 
-public sealed class UsbRegistryCollector
+public sealed class UsbRegistryCollector : IUsbDeviceCollector
 {
     private static readonly Regex VidPidRegex = new(@"VID_([0-9A-F]{4})&PID_([0-9A-F]{4})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    public string ProgressMessage => "Чтение Registry USB/USBSTOR/SCSI/WPD...";
 
     public IReadOnlyList<UsbDeviceRecord> Collect(List<string> warnings)
     {
