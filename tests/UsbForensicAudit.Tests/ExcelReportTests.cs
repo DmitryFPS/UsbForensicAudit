@@ -36,7 +36,11 @@ public sealed class ExcelReportTests
         var directory = CreateTemporaryDirectory();
         try
         {
-            var path = new ReportService().CreateExcel(CreateResult(), directory, CreateExternalSnapshot());
+            var result = CreateResult();
+            result.Devices[0].UserMeaning = string.Join(
+                " ",
+                Enumerable.Repeat("Подробное forensic-описание USB-устройства должно оставаться внутри ячейки.", 12));
+            var path = new ReportService().CreateExcel(result, directory, CreateExternalSnapshot());
 
             Assert.True(File.Exists(path));
             using var workbook = new XLWorkbook(path);
@@ -71,6 +75,11 @@ public sealed class ExcelReportTests
             Assert.True(devices.AutoFilter.IsEnabled);
             Assert.True(devices.Cell("C5").Style.Alignment.WrapText);
             Assert.True(devices.Column(2).Width >= 30);
+            Assert.InRange(devices.Row(5).Height, 22, 108);
+            Assert.Equal(4, devices.SheetView.SplitRow);
+            Assert.Equal(1, devices.SheetView.SplitColumn);
+            Assert.Equal(XLPageOrientation.Landscape, devices.PageSetup.PageOrientation);
+            Assert.InRange(devices.SheetView.ZoomScale, 70, 90);
 
             var evidence = workbook.Worksheet("Доказательства");
             Assert.Equal("Подключение USB", evidence.Cell("B5").GetString());
@@ -90,21 +99,39 @@ public sealed class ExcelReportTests
     }
 
     [Fact]
-    public void Brief_excel_report_contains_only_human_focused_sections()
+    public void Brief_excel_report_contains_all_usb_devices_and_stable_layout()
     {
         var directory = CreateTemporaryDirectory();
         try
         {
-            var path = new ReportService().CreateBriefExcel(CreateResult(), directory);
+            var result = CreateResult();
+            for (var index = 0; index < 30; index++)
+            {
+                result.Devices.Add(new UsbDeviceRecord
+                {
+                    VisualCategory = "RealUsb",
+                    UserMeaning = "Дополнительное USB-устройство",
+                    DeviceInstanceId = $@"USB\VID_1234&PID_5678\SERIAL_{index:00}",
+                    FriendlyName = $"USB устройство {index:00}",
+                    Serial = $"SERIAL_{index:00}"
+                });
+            }
+
+            var path = new ReportService().CreateBriefExcel(result, directory);
 
             Assert.True(File.Exists(path));
             using var workbook = new XLWorkbook(path);
 
             Assert.Equal(
-                new[] { "Сводка", "Инциденты", "Значимые USB", "Предупреждения" },
+                new[] { "Сводка", "Инциденты", "Все USB устройства", "Предупреждения" },
                 workbook.Worksheets.Select(x => x.Name).ToArray());
             Assert.Contains("Сводный отчёт", workbook.Worksheet("Сводка").Cell("A1").GetString());
-            Assert.Equal("Тестовая флешка", workbook.Worksheet("Значимые USB").Cell("B5").GetString());
+            var devices = workbook.Worksheet("Все USB устройства");
+            Assert.Equal(31, devices.Column(2).CellsUsed().Count() - 1);
+            Assert.Contains(devices.Column(2).CellsUsed(), cell => cell.GetString() == "Тестовая флешка");
+            Assert.Contains(devices.Column(2).CellsUsed(), cell => cell.GetString() == "USB устройство 29");
+            Assert.Equal(4, devices.SheetView.SplitRow);
+            Assert.Equal(1, devices.SheetView.SplitColumn);
             Assert.True(workbook.Worksheet("Инциденты").AutoFilter.IsEnabled);
         }
         finally

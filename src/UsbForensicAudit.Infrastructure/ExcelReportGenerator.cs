@@ -13,6 +13,10 @@ internal static class ExcelReportGenerator
     private static readonly XLColor UsbFlagsColor = XLColor.FromHtml("#E9E3FA");
     private static readonly XLColor SupportColor = XLColor.FromHtml("#E8EEF5");
     private static readonly XLColor DangerColor = XLColor.FromHtml("#FDE2E6");
+    private static readonly XLColor AlternatingRowColor = XLColor.FromHtml("#F5F8FB");
+    private static readonly XLColor WhiteColor = XLColor.White;
+    private const double MinimumDataRowHeight = 21;
+    private const double MaximumDataRowHeight = 108;
 
     public static void GenerateFull(string path, ForensicReportContext context)
     {
@@ -39,10 +43,7 @@ internal static class ExcelReportGenerator
         AddSummarySheet(workbook, context, isBrief: true);
         AddCleanupSheet(workbook, context.SuspiciousFindings.Take(20), brief: true);
 
-        var notableDevices = context.RealDevices
-            .OrderByDescending(x => x.LastSeenUtc ?? x.FirstConnectedUtc ?? DateTimeOffset.MinValue)
-            .Take(25);
-        AddDevicesSheet(workbook, notableDevices, "Значимые USB");
+        AddDevicesSheet(workbook, context.ReportableDevices, "Все USB устройства");
         AddWarningsSheet(workbook, context.Result.SourceWarnings);
 
         workbook.SaveAs(path);
@@ -66,9 +67,9 @@ internal static class ExcelReportGenerator
         ConfigureSheet(worksheet);
         worksheet.Column(1).Width = 28;
         worksheet.Column(2).Width = 44;
-        worksheet.Column(3).Width = 4;
-        worksheet.Column(4).Width = 30;
-        worksheet.Column(5).Width = 18;
+        worksheet.Column(3).Width = 12;
+        worksheet.Column(4).Width = 28;
+        worksheet.Column(5).Width = 42;
         worksheet.Column(6).Width = 18;
 
         AddTitle(
@@ -100,6 +101,10 @@ internal static class ExcelReportGenerator
         worksheet.Cell(row, 1).Style.Font.Bold = true;
         worksheet.Cell(row, 2).Value = Normalize(result.OsInstallGraceNote);
         worksheet.Cell(row, 2).Style.Alignment.WrapText = true;
+        worksheet.Row(row).Height = EstimateRowHeight(
+            [("Примечание", worksheet.Column(1).Width), (Normalize(result.OsInstallGraceNote), worksheet.Column(2).Width)],
+            minimum: 28,
+            maximum: 72);
 
         var metricRow = 4;
         AddSectionHeader(worksheet, metricRow++, 4, 6, "Ключевые показатели");
@@ -121,7 +126,10 @@ internal static class ExcelReportGenerator
             worksheet.Cell(metricRow, 5).Value = value;
             worksheet.Cell(metricRow, 5).Style.Font.Bold = true;
             worksheet.Cell(metricRow, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            worksheet.Range(metricRow, 4, metricRow, 6).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            worksheet.Range(metricRow, 4, metricRow, 6).Style.Alignment.WrapText = true;
             ApplyThinBorder(worksheet.Range(metricRow, 4, metricRow, 6));
+            worksheet.Row(metricRow).Height = 24;
             metricRow++;
         }
 
@@ -134,7 +142,10 @@ internal static class ExcelReportGenerator
         worksheet.Cell(metricRow, 4).Style.Font.FontColor = risk.FontColor;
         worksheet.Cell(metricRow, 4).Style.Fill.BackgroundColor = risk.BackgroundColor;
         worksheet.Cell(metricRow, 4).Style.Alignment.WrapText = true;
-        worksheet.Row(metricRow).Height = 38;
+        worksheet.Row(metricRow).Height = EstimateRowHeight(
+            [(risk.Text, worksheet.Column(4).Width + worksheet.Column(5).Width + worksheet.Column(6).Width)],
+            minimum: 42,
+            maximum: 72);
 
         var tableRow = Math.Max(row + 3, metricRow + 3);
         AddSectionHeader(worksheet, tableRow++, 1, 3, "Устройства по категориям");
@@ -174,6 +185,8 @@ internal static class ExcelReportGenerator
             }));
 
         worksheet.SheetView.FreezeRows(2);
+        worksheet.SheetView.ZoomScale = 90;
+        ConfigurePrintLayout(worksheet, 1, 6, 1, 2);
         worksheet.TabColor = HeaderColor;
     }
 
@@ -366,19 +379,29 @@ internal static class ExcelReportGenerator
         header.Style.Fill.BackgroundColor = HeaderColor;
         header.Style.Font.FontColor = XLColor.White;
         header.Style.Font.Bold = true;
+        header.Style.Font.FontSize = 10;
         header.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
         header.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
         header.Style.Alignment.WrapText = true;
-        worksheet.Row(headerRow).Height = 32;
+        worksheet.Row(headerRow).Height = 36;
 
         for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
         {
             var excelRow = headerRow + rowIndex + 1;
+            var heightInputs = new List<(string Value, double Width)>(columns.Count);
             for (var columnIndex = 0; columnIndex < columns.Count; columnIndex++)
             {
-                worksheet.Cell(excelRow, columnIndex + 1).Value =
-                    Normalize(columns[columnIndex].Value(rows[rowIndex]));
+                var value = Normalize(columns[columnIndex].Value(rows[rowIndex]));
+                var cell = worksheet.Cell(excelRow, columnIndex + 1);
+                cell.Value = value;
+                cell.Style.Alignment.Horizontal = AlignmentFor(columns[columnIndex].Header);
+                heightInputs.Add((value, columns[columnIndex].Width));
             }
+
+            worksheet.Row(excelRow).Height = EstimateRowHeight(
+                heightInputs,
+                MinimumDataRowHeight,
+                MaximumDataRowHeight);
         }
 
         var lastRow = Math.Max(headerRow + 1, headerRow + rows.Count);
@@ -386,6 +409,7 @@ internal static class ExcelReportGenerator
         dataRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
         dataRange.Style.Alignment.WrapText = true;
         dataRange.Style.Font.FontSize = 9;
+        ApplyAlternatingRows(worksheet, headerRow + 1, lastRow, columns.Count);
         ApplyThinBorder(worksheet.Range(headerRow, 1, lastRow, columns.Count));
 
         if (rows.Count == 0)
@@ -394,14 +418,17 @@ internal static class ExcelReportGenerator
             worksheet.Cell(headerRow + 1, 1).Value = "Записей нет";
             worksheet.Cell(headerRow + 1, 1).Style.Font.Italic = true;
             worksheet.Cell(headerRow + 1, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            worksheet.Cell(headerRow + 1, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            worksheet.Row(headerRow + 1).Height = 28;
         }
         else
         {
             worksheet.Range(headerRow, 1, headerRow + rows.Count, columns.Count).SetAutoFilter();
         }
 
-        worksheet.SheetView.FreezeRows(headerRow);
-        worksheet.SheetView.FreezeColumns(1);
+        worksheet.SheetView.Freeze(headerRow, 1);
+        worksheet.SheetView.ZoomScale = columns.Count >= 15 ? 70 : columns.Count >= 9 ? 80 : 90;
+        ConfigurePrintLayout(worksheet, 1, columns.Count, 1, headerRow);
         worksheet.TabColor = HeaderColor;
         return worksheet;
     }
@@ -411,6 +438,7 @@ internal static class ExcelReportGenerator
         worksheet.Style.Font.FontName = "Segoe UI";
         worksheet.Style.Font.FontSize = 10;
         worksheet.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        worksheet.Style.Alignment.WrapText = false;
         worksheet.ShowGridLines = false;
     }
 
@@ -426,15 +454,17 @@ internal static class ExcelReportGenerator
         worksheet.Cell(1, 1).Style.Font.FontColor = XLColor.White;
         worksheet.Cell(1, 1).Style.Font.Bold = true;
         worksheet.Cell(1, 1).Style.Font.FontSize = 16;
+        worksheet.Cell(1, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
         worksheet.Cell(1, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-        worksheet.Row(1).Height = 30;
+        worksheet.Row(1).Height = 34;
 
         worksheet.Range(2, 1, 2, columnCount).Merge();
         worksheet.Cell(2, 1).Value = Normalize(subtitle);
         worksheet.Cell(2, 1).Style.Font.FontColor = XLColor.FromHtml("#4B6475");
         worksheet.Cell(2, 1).Style.Font.Italic = true;
         worksheet.Cell(2, 1).Style.Alignment.WrapText = true;
-        worksheet.Row(2).Height = 26;
+        worksheet.Cell(2, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        worksheet.Row(2).Height = 30;
     }
 
     private static void AddSectionHeader(
@@ -450,8 +480,9 @@ internal static class ExcelReportGenerator
         cell.Style.Fill.BackgroundColor = SectionColor;
         cell.Style.Font.Bold = true;
         cell.Style.Font.FontColor = TitleColor;
+        cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
         cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-        worksheet.Row(row).Height = 23;
+        worksheet.Row(row).Height = 25;
     }
 
     private static void AddKeyValueRow(
@@ -465,6 +496,12 @@ internal static class ExcelReportGenerator
         worksheet.Cell(row, firstColumn).Style.Font.Bold = true;
         worksheet.Cell(row, firstColumn + 1).Value = Normalize(value);
         worksheet.Cell(row, firstColumn + 1).Style.Alignment.WrapText = true;
+        worksheet.Range(row, firstColumn, row, firstColumn + 1).Style.Alignment.Vertical =
+            XLAlignmentVerticalValues.Center;
+        worksheet.Row(row).Height = EstimateRowHeight(
+            [(label, worksheet.Column(firstColumn).Width), (Normalize(value), worksheet.Column(firstColumn + 1).Width)],
+            minimum: 22,
+            maximum: 66);
         ApplyThinBorder(worksheet.Range(row, firstColumn, row, firstColumn + 1));
     }
 
@@ -484,23 +521,117 @@ internal static class ExcelReportGenerator
         header.Style.Fill.BackgroundColor = HeaderColor;
         header.Style.Font.FontColor = XLColor.White;
         header.Style.Font.Bold = true;
+        header.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        header.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        header.Style.Alignment.WrapText = true;
+        worksheet.Row(startRow).Height = 28;
 
         var rowNumber = startRow + 1;
         foreach (var values in rows)
         {
+            var heightInputs = new List<(string Value, double Width)>(headers.Count);
             for (var index = 0; index < headers.Count; index++)
             {
-                worksheet.Cell(rowNumber, startColumn + index).Value =
-                    Normalize(index < values.Length ? values[index] : "");
+                var value = Normalize(index < values.Length ? values[index] : "");
+                var cell = worksheet.Cell(rowNumber, startColumn + index);
+                cell.Value = value;
+                cell.Style.Alignment.WrapText = true;
+                cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                cell.Style.Alignment.Horizontal = AlignmentFor(headers[index]);
+                heightInputs.Add((value, worksheet.Column(startColumn + index).Width));
             }
+            worksheet.Row(rowNumber).Height = EstimateRowHeight(heightInputs, 21, 72);
             rowNumber++;
         }
 
-        ApplyThinBorder(worksheet.Range(
+        var tableRange = worksheet.Range(
             startRow,
             startColumn,
             Math.Max(startRow + 1, rowNumber - 1),
-            startColumn + headers.Count - 1));
+            startColumn + headers.Count - 1);
+        ApplyThinBorder(tableRange);
+        ApplyAlternatingRows(
+            worksheet,
+            startRow + 1,
+            Math.Max(startRow + 1, rowNumber - 1),
+            startColumn + headers.Count - 1,
+            startColumn);
+    }
+
+    private static void ApplyAlternatingRows(
+        IXLWorksheet worksheet,
+        int firstRow,
+        int lastRow,
+        int lastColumn,
+        int firstColumn = 1)
+    {
+        if (lastRow < firstRow)
+        {
+            return;
+        }
+
+        for (var row = firstRow; row <= lastRow; row++)
+        {
+            worksheet.Range(row, firstColumn, row, lastColumn).Style.Fill.BackgroundColor =
+                (row - firstRow) % 2 == 0 ? WhiteColor : AlternatingRowColor;
+        }
+    }
+
+    private static double EstimateRowHeight(
+        IEnumerable<(string Value, double Width)> values,
+        double minimum,
+        double maximum)
+    {
+        var lineCount = 1;
+        foreach (var (value, width) in values)
+        {
+            var usableWidth = Math.Max(8, width - 2);
+            var cellLines = value
+                .Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Split('\n')
+                .Sum(line => Math.Max(1, (int)Math.Ceiling(line.Length / usableWidth)));
+            lineCount = Math.Max(lineCount, cellLines);
+        }
+
+        return Math.Clamp(9 + lineCount * 12, minimum, maximum);
+    }
+
+    private static XLAlignmentHorizontalValues AlignmentFor(string header)
+    {
+        if (header.Contains("Дата", StringComparison.OrdinalIgnoreCase)
+            || header.Contains("Когда", StringComparison.OrdinalIgnoreCase)
+            || header.Contains("Статус", StringComparison.OrdinalIgnoreCase)
+            || header.Contains("Риск", StringComparison.OrdinalIgnoreCase)
+            || header.Contains("Уверенность", StringComparison.OrdinalIgnoreCase)
+            || header.Contains("Сила", StringComparison.OrdinalIgnoreCase)
+            || header.Contains("Количество", StringComparison.OrdinalIgnoreCase)
+            || header.Contains("Записей", StringComparison.OrdinalIgnoreCase)
+            || header is "№" or "Событие" or "Уровень" or "VID / PID" or "Transport" or "Connection")
+        {
+            return XLAlignmentHorizontalValues.Center;
+        }
+
+        return XLAlignmentHorizontalValues.Left;
+    }
+
+    private static void ConfigurePrintLayout(
+        IXLWorksheet worksheet,
+        int firstColumn,
+        int lastColumn,
+        int firstRepeatRow,
+        int lastRepeatRow)
+    {
+        worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+        worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
+        worksheet.PageSetup.PagesWide = lastColumn - firstColumn + 1 >= 15 ? 2 : 1;
+        worksheet.PageSetup.PagesTall = 0;
+        worksheet.PageSetup.CenterHorizontally = true;
+        worksheet.PageSetup.ShowGridlines = false;
+        worksheet.PageSetup.SetRowsToRepeatAtTop(firstRepeatRow, lastRepeatRow);
+        worksheet.PageSetup.Margins.Top = 0.45;
+        worksheet.PageSetup.Margins.Bottom = 0.45;
+        worksheet.PageSetup.Margins.Left = 0.3;
+        worksheet.PageSetup.Margins.Right = 0.3;
     }
 
     private static void ApplyThinBorder(IXLRange range)

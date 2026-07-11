@@ -3,9 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Сведения об USB-устройстве"
         Width="620"
-        SizeToContent="Height"
+        Height="680"
+        MinHeight="480"
         MaxHeight="720"
-        ResizeMode="NoResize"
+        ResizeMode="CanResize"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
         FontFamily="Segoe UI"
@@ -45,42 +46,59 @@
             BorderBrush="#1F3B59"
             BorderThickness="1"
             CornerRadius="14">
-        <StackPanel>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
             <TextBlock Text="Сведения об устройстве"
                        Foreground="#38BDF8"
                        FontSize="22"
                        FontWeight="SemiBold"
                        Margin="0,0,0,18"/>
 
-            <TextBlock Text="Имя устройства" Style="{StaticResource FieldLabel}"/>
-            <TextBox Text="{Binding DisplayName, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          PanningMode="VerticalOnly"
+                          Margin="0,0,-8,0"
+                          Padding="0,0,8,0">
+                <StackPanel>
+                    <TextBlock Text="Имя устройства" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding DisplayName, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
 
-            <TextBlock Text="Transport / connection / classification" Style="{StaticResource FieldLabel}"/>
-            <TextBox Text="{Binding ClassificationDisplayText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
+                    <TextBlock Text="Transport / connection / classification" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding ClassificationDisplayText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
 
-            <TextBlock Text="Evidence классификации" Style="{StaticResource FieldLabel}"/>
-            <TextBox Text="{Binding ClassificationEvidenceText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
+                    <TextBlock Text="Evidence классификации" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding ClassificationEvidenceText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
 
-            <TextBlock Text="Когда подключали" Style="{StaticResource FieldLabel}"/>
-            <TextBox Text="{Binding FirstConnectedText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
+                    <TextBlock Text="Когда подключали" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding FirstConnectedText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
 
-            <TextBlock Text="Последняя активность" Style="{StaticResource FieldLabel}"/>
-            <TextBox Text="{Binding LastSeenText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
+                    <TextBlock Text="Последняя активность" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding LastSeenText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
 
-            <TextBlock Text="Модель" Style="{StaticResource FieldLabel}"/>
-            <TextBox Text="{Binding ModelText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
+                    <TextBlock Text="Модель" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding ModelText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
 
-            <TextBlock Text="PID / VID" Style="{StaticResource FieldLabel}"/>
-            <TextBox Text="{Binding VidPidText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
+                    <TextBlock Text="PID / VID" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding VidPidText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
 
-            <TextBlock Text="Серийный номер" Style="{StaticResource FieldLabel}"/>
-            <TextBox Text="{Binding SerialText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
+                    <TextBlock Text="Серийный номер" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding SerialText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
+                </StackPanel>
+            </ScrollViewer>
 
             <Button Content="Закрыть"
+                    Grid.Row="2"
                     HorizontalAlignment="Right"
+                    Margin="0,14,0,0"
                     IsDefault="True"
                     IsCancel="True"
                     Click="CloseButton_Click"/>
-        </StackPanel>
+        </Grid>
     </Border>
 </Window>
