@@ -43,8 +43,24 @@ public static class ShellLinkParser
     {
         try
         {
-            var data = File.ReadAllBytes(path);
-            if (data.Length < 0x4C || ReadUInt32(data, 0) != 0x4C)
+            return TryParse(File.ReadAllBytes(path), path);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    internal static ShellLinkInfo? TryParse(byte[] data, string sourceName)
+    {
+        try
+        {
+            if (data.Length < 0x4C || ReadUInt32(data, 0) != 0x4C
+                || !data.AsSpan(4, 16).SequenceEqual(new byte[]
+                {
+                    0x01, 0x14, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46
+                }))
             {
                 return null;
             }
@@ -70,11 +86,11 @@ public static class ShellLinkParser
                 ParseLinkInfo(data, offset, out localBasePath, out commonPathSuffix, out volumeLabel, out volumeSerial);
             }
 
-            var hints = ArtifactStringExtractor.ExtractInterestingStrings(path, maxBytes: 512_000, maxResults: 20);
+            var hints = ExtractInterestingStrings(data, 20);
 
             return new ShellLinkInfo
             {
-                LinkPath = path,
+                LinkPath = sourceName,
                 LocalBasePath = localBasePath,
                 CommonPathSuffix = commonPathSuffix,
                 VolumeLabel = volumeLabel,
@@ -89,6 +105,29 @@ public static class ShellLinkParser
         {
             return null;
         }
+    }
+
+    private static IReadOnlyList<string> ExtractInterestingStrings(byte[] data, int maxResults)
+    {
+        var results = new List<string>();
+        foreach (var encoding in new[] { Encoding.Unicode, SystemAnsiEncoding })
+        {
+            var text = encoding.GetString(data, 0, Math.Min(data.Length, 512_000));
+            foreach (var candidate in text.Split('\0', '\r', '\n')
+                         .Select(x => x.Trim())
+                         .Where(x => x.Length >= 3 && x.Length <= 2048 && ArtifactStringExtractor.LooksInteresting(x)))
+            {
+                if (!results.Contains(candidate, StringComparer.OrdinalIgnoreCase))
+                {
+                    results.Add(candidate);
+                    if (results.Count >= maxResults)
+                    {
+                        return results;
+                    }
+                }
+            }
+        }
+        return results;
     }
 
     private static void ParseLinkInfo(byte[] data, int offset, out string localBasePath, out string commonPathSuffix, out string volumeLabel, out string volumeSerial)

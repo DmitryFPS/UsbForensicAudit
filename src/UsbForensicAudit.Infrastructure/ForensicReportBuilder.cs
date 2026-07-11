@@ -355,8 +355,19 @@ internal static class ForensicReportBuilder
         html.AppendLine($"<b>релевантных признаков очистки:</b> {ctx.CleanupFindings.Count}; ");
         html.AppendLine($"<b>подозрительных:</b> {ctx.SuspiciousCount}; ");
         html.AppendLine($"<b>высокого риска:</b> {ctx.HighRiskCount}; ");
-        html.AppendLine($"<b>предупреждений:</b> {result.SourceWarnings.Count}");
+        html.AppendLine($"<b>предупреждений:</b> {result.SourceWarnings.Count}; ");
+        html.AppendLine($"<b>canonical devices с точной датой:</b> {result.Coverage.CanonicalDevicesWithExactDates}/{result.Coverage.CanonicalDeviceCount} ({result.Coverage.ExactDateCoveragePercent:0.##}%)");
         html.AppendLine("</div>");
+
+        html.AppendLine("<h3>Покрытие источников</h3><table><tr><th>Источник</th><th>Статус</th><th>Записей</th><th>Лимит</th><th>Ошибка/ограничение</th></tr>");
+        foreach (var source in result.Coverage.Sources)
+        {
+            var limit = source.Capped
+                ? source.Limit > 0 ? $"достигнут ({source.Limit})" : "достигнут"
+                : "нет";
+            html.AppendLine($"<tr><td>{E(source.Source)}</td><td>{E(source.Status)}</td><td>{source.Count}</td><td>{limit}</td><td>{E(source.Error)}</td></tr>");
+        }
+        html.AppendLine("</table>");
 
         html.AppendLine("<h3>Устройства по типам</h3><table><tr><th>Тип</th><th>Количество</th></tr>");
         foreach (var item in ctx.DevicesByCategory)
@@ -521,14 +532,14 @@ internal static class ForensicReportBuilder
     {
         html.AppendLine("<h2 id=\"evidence\">7. Журнал доказательств</h2>");
         html.AppendLine("<p>Полный журнал с пояснениями и исходным текстом для детального анализа.</p>");
-        html.AppendLine("<table><tr><th>Дата и время</th><th>Категория</th><th>Источник</th><th>Уровень</th><th>Событие</th><th>Устройство</th><th>Описание</th><th>Пояснение</th><th>Исходный текст</th></tr>");
+        html.AppendLine("<table><tr><th>Дата и время</th><th>Категория</th><th>Источник</th><th>Strength / confidence</th><th>Уровень</th><th>Событие</th><th>Устройство</th><th>Описание</th><th>Пояснение</th><th>Provenance</th><th>Исходный текст</th></tr>");
         foreach (var evidence in ctx.Timeline)
         {
             html.AppendLine(
                 $"<tr><td>{E(evidence.TimestampText)}</td><td>{E(evidence.EvidenceCategoryText)}</td>" +
-                $"<td>{E(evidence.SourceText)}</td><td>{E(evidence.Level)}</td><td>{E(evidence.EventId)}</td>" +
+                $"<td>{E(evidence.SourceText)}</td><td>{E(evidence.EvidenceStrength)} / {E(evidence.Confidence)}</td><td>{E(evidence.Level)}</td><td>{E(evidence.EventId)}</td>" +
                 $"<td>{E(evidence.DeviceHintText)}</td><td>{E(evidence.SummaryText)}</td>" +
-                $"<td>{E(evidence.UserExplanationText)}</td><td>{E(ReportText.ForDisplay(evidence.RawText, 4000))}</td></tr>");
+                $"<td>{E(evidence.UserExplanationText)}</td><td>{E(evidence.Provenance)}</td><td>{E(ReportText.ForDisplay(evidence.RawText, 4000))}</td></tr>");
         }
         html.AppendLine("</table>");
     }
@@ -561,7 +572,7 @@ internal static class ForensicReportBuilder
             <li>Журнал корпоративной защиты USB (если установлен).</li>
             <li>Пользовательские артефакты: Recent, LNK, Jump Lists, MountPoints2, MRU.</li>
             <li>Offline-анализ NTUSER.DAT и UsrClass.dat (при доступе).</li>
-            <li>Prefetch, Amcache, Shimcache — следы запуска и использования.</li>
+            <li>Execution/presence artifacts: Prefetch supports execution; BAM/DAM and PCA can corroborate activity; Amcache and Windows 10/11 Shimcache are treated as presence/inventory unless stronger evidence exists.</li>
             <li>Корреляция устройств с доказательствами по VID/PID, серийному номеру и Instance ID.</li>
             </ul>
             <p class="muted">Все даты указаны в московском времени (МСК). Отчёт сформирован автоматически по результатам одного полного сканирования.</p>

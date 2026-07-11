@@ -53,23 +53,40 @@ public sealed class AuditOrchestrator
             };
 
             progress?.Report(_deviceCollector.ProgressMessage);
-            result.Devices.AddRange(_deviceCollector.Collect(result.SourceWarnings));
+            var warningCount = result.SourceWarnings.Count;
+            var devices = _deviceCollector.Collect(result.SourceWarnings);
+            result.Devices.AddRange(devices);
+            AddCoverage(result, _deviceCollector.GetType().Name, devices.Count, warningCount);
             cancellationToken.ThrowIfCancellationRequested();
 
             foreach (var collector in _evidenceCollectors)
             {
                 if (!collector.ShouldRun)
                 {
+                    result.Coverage.Sources.Add(new SourceCoverage
+                    {
+                        Source = collector.GetType().Name,
+                        Status = "NotRun"
+                    });
                     continue;
                 }
 
                 progress?.Report(collector.ProgressMessage);
-                result.Evidence.AddRange(collector.Collect(result.SourceWarnings));
+                warningCount = result.SourceWarnings.Count;
+                var collected = collector.Collect(result.SourceWarnings);
+                result.Evidence.AddRange(collected);
+                AddCoverage(result, collector.GetType().Name, collected.Count, warningCount);
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
+            DeduplicateUserArtifacts(result.Evidence);
+
             progress?.Report(_historicalArtifactCollector.ProgressMessage);
+            var historicalEvidenceBefore = result.Evidence.Count;
+            warningCount = result.SourceWarnings.Count;
             _historicalArtifactCollector.Collect(result, cancellationToken);
+            AddCoverage(result, _historicalArtifactCollector.GetType().Name,
+                result.Evidence.Count - historicalEvidenceBefore, warningCount);
             cancellationToken.ThrowIfCancellationRequested();
 
             progress?.Report("Сопоставление с устройствами, подключёнными прямо сейчас...");
@@ -85,6 +102,7 @@ public sealed class AuditOrchestrator
 
             progress?.Report("Расчет дат подключения/отключения и пояснений...");
             _timelineEnricher.Enrich(result);
+            CalculateDateCoverage(result);
             cancellationToken.ThrowIfCancellationRequested();
 
             progress?.Report("Поиск признаков очистки...");
@@ -98,5 +116,73 @@ public sealed class AuditOrchestrator
 
             return result;
         }, cancellationToken);
+    }
+
+    internal static void AddCoverage(AuditResult result, string source, int count, int warningCountBefore)
+    {
+        var newWarnings = result.SourceWarnings.Skip(warningCountBefore).ToArray();
+        var limit = newWarnings
+            .Select(x => System.Text.RegularExpressions.Regex.Match(
+                x, @"(?:лимит|limit)\D*(\d[\d\s]*)",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            .Where(x => x.Success)
+            .Select(x => int.TryParse(x.Groups[1].Value.Replace(" ", ""), out var value) ? value : 0)
+            .FirstOrDefault(x => x > 0);
+        result.Coverage.Sources.Add(new SourceCoverage
+        {
+            Source = source,
+            Count = count,
+            Status = newWarnings.Length == 0 ? "Complete" : count > 0 ? "Partial" : "Error",
+            Capped = newWarnings.Any(x => x.Contains("лимит", StringComparison.OrdinalIgnoreCase)
+                                          || x.Contains("limit", StringComparison.OrdinalIgnoreCase)),
+            Error = string.Join("; ", newWarnings),
+            Limit = limit
+        });
+    }
+
+    private static void DeduplicateUserArtifacts(List<EvidenceRecord> evidence)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < evidence.Count;)
+        {
+            var item = evidence[i];
+            if (string.IsNullOrWhiteSpace(item.UserSid))
+            {
+                i++;
+                continue;
+            }
+            var source = item.Source
+                .Replace("Offline NTUSER.DAT ", "", StringComparison.OrdinalIgnoreCase)
+                .Replace("Offline UsrClass.dat ", "", StringComparison.OrdinalIgnoreCase)
+                .Replace("Live HKU SID_Classes ", "", StringComparison.OrdinalIgnoreCase)
+                .Trim();
+            var key = string.Join("|",
+                item.UserSid.Trim().ToUpperInvariant(),
+                source.ToUpperInvariant(),
+                item.DeviceHint.Trim().ToUpperInvariant(),
+                item.SourceRecord.Split('\\').LastOrDefault()?.ToUpperInvariant() ?? "");
+            if (seen.Add(key))
+            {
+                i++;
+            }
+            else
+            {
+                evidence.RemoveAt(i);
+            }
+        }
+    }
+
+    internal static void CalculateDateCoverage(AuditResult result)
+    {
+        var canonical = result.Devices
+            .Where(x => x.IsCanonicalPrimary || (!string.IsNullOrWhiteSpace(x.CanonicalDeviceId)
+                                                  && result.Devices.Count(y => y.CanonicalDeviceId.Equals(
+                                                      x.CanonicalDeviceId, StringComparison.OrdinalIgnoreCase)) == 1))
+            .ToArray();
+        result.Coverage.CanonicalDeviceCount = canonical.Length;
+        result.Coverage.CanonicalDevicesWithExactDates = canonical.Count(x =>
+            x.FirstConnectedUtc.HasValue
+            && (x.ConnectionDisplayKind.Equals("ExactEvent", StringComparison.OrdinalIgnoreCase)
+                || x.ConnectionDisplayKind.Equals("PnpDevProperty", StringComparison.OrdinalIgnoreCase)));
     }
 }
