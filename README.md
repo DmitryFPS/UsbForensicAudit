@@ -106,8 +106,11 @@ dotnet test tests\UsbForensicAudit.Tests\UsbForensicAudit.Tests.csproj -c Releas
 ```text
 bin\publish\UsbForensicAudit.exe
 bin\publish\UsbForensicAudit-Instrukciya.pdf
-bin\publish\PORTABLE.txt
+bin\publish\UsbForensicAudit_Инженерное_руководство.pdf
 ```
+
+`PORTABLE.txt` не создаётся: правила запуска, переносимости, архитектура и порядок
+интерпретации результатов описаны в двух PDF-руководствах рядом с EXE.
 
 ### Типовой сценарий работы
 
@@ -401,6 +404,8 @@ dotnet test tests\UsbForensicAudit.Tests\UsbForensicAudit.Tests.csproj --collect
 | `MergeUsbVendorDatabase` | слияние `Assets/USBVendors.txt` с загруженным `usb.ids` |
 | `ExternalUtilityHarness` | headless-тест захвата окон USBDeview/USBDetector |
 
+Проверенное инженерное руководство хранится в `docs\UsbForensicAudit_Инженерное_руководство.pdf`;
+`build-exe.ps1` проверяет его наличие и PDF-сигнатуру, затем помещает рядом с EXE.
 Procmon на этапе сборки: `tools\Procmon64.exe` (в `.gitignore`; скачивается `build-exe.ps1` или кладётся вручную).
 
 ---
