@@ -30,22 +30,28 @@ GUI-first forensic-аудитор USB/Type-C устройств для **Windows
 
 | Источник | Что извлекается |
 |---|---|
-| Реестр `HKLM\SYSTEM\CurrentControlSet\Enum` | `USB`, `USBSTOR`, `SCSI`, `SWD\WPDBUSENUM` |
+| Реестр `HKLM\SYSTEM\*\ControlSet*\Enum` | `USB`, `USBSTOR`, `SCSI`, `SWD\WPDBUSENUM` (все ControlSet) |
+| PnP DevProperties `0064–0067` | точные даты первого/последнего подключения из реестра |
 | Реестр `HKLM\SYSTEM\*\Control\usbflags` | остаточные следы VID/PID (как USBTraceCleaner), база `Assets/USBVendors.txt` |
-| Реестр `HKLM\SYSTEM\MountedDevices` | точки монтирования томов |
-| `C:\Windows\inf\setupapi.dev.log` | история PnP/USB из SetupAPI |
-| Event Log | `System`, `Security`, `DeviceSetupManager`, `DriverFrameworks-UserMode` |
+| Реестр `HKLM\SYSTEM\MountedDevices` | буквы дисков, VSN, GPT/MBR-сигнатуры, пути `USBSTOR` |
+| `setupapi.dev.log` и архивы `setupapi.*.log` | история PnP/USB из SetupAPI (включая VSS-копии) |
+| Event Log | `System`, `Security`, `Kernel-PnP`, `Storage-ClassPnP`, `Partition`, `WPD-MTP`, `DeviceSetupManager`, `DriverFrameworks-UserMode` |
 | Endpoint Protection (если установлен) | корпоративные журналы контроля USB |
-| Профили пользователей (`HKU`, offline hive) | `MountPoints2`, Recent, LNK, Jump Lists, Shellbags |
-| Execution artifacts | Prefetch, Amcache, Shimcache |
+| Профили пользователей (`HKU`, offline hive) | `MountPoints2`, Recent, PIDL/MRU, LNK, Jump Lists, Shellbags, `$I/$R` Recycle Bin |
+| Execution artifacts | Prefetch, Amcache, Shimcache, PCA, BAM/DAM |
+| Исторические источники | `DeviceMigration`, diff ControlSet, `Windows.old`, read-only VSS discovery, transaction-log provenance |
 | Security 4688 | атрибуция процессов очистки (при включённом аудите) |
 
 ### Аналитика
 
-- Корреляция **устройство → доказательство → пользовательский артефакт** с уровнем уверенности.
+- **Граф идентичности устройств** (`DeviceIdentityGraph`): канонический ID, ContainerID, composite `MI_xx`, защита от ложного слияния по VID/PID.
+- **Корреляция томов** (`VolumeCorrelationService`): буквы дисков, VSN из LNK/Jump Lists, `MountedDevices`.
+- **Классификация транспорта** (`DeviceTransportClassifier`): UASP/SCSI, MTP/WPD, USB4/Thunderbolt, хабы, встроенные/внешние/виртуальные.
+- Корреляция **устройство → доказательство → пользовательский артефакт** с уровнем уверенности и `EvidenceStrength` (Direct / Corroborating / Indirect).
 - Классификация записей: `RealUsb`, `RelatedStorage`, `UsbFlagsTrace`, `SupportArtifact`.
+- **ScanCoverageReport**: статус каждого сборщика (Complete / Partial / Error / NotRun), лимиты, % устройств с точной датой.
 - Двойной клик по строке на вкладке **USB устройства** — модальное окно с именем, датами, моделью, VID/PID и серийным номером.
-- Расчёт дат подключения/отключения по SetupAPI, Event Log и user artifacts; все даты в GUI/отчётах — **МСК** (`дд.ММ.гггг ЧЧ:мм:сс МСК`).
+- Расчёт дат подключения/отключения по PnP DevProperties, SetupAPI, Event Log и user artifacts; все даты в GUI/отчётах — **МСК** (`дд.ММ.гггг ЧЧ:мм:сс МСК`).
 - Поиск признаков очистки с атрибуцией: инициатор, возможный инструмент, уверенность, severity.
 - Учёт даты установки Windows и **grace period 3 часа** после установки (события «Норма: ОС после установки»).
 - Live-мониторинг USB/Type-C по **событиям PnP Windows** (без постоянного опроса каждые 2 секунды).
@@ -214,7 +220,7 @@ UsbForensicAudit/
 │   ├── UsbForensicAudit.Application/      # Use cases, оркестратор, порты, аналитика
 │   └── UsbForensicAudit.Infrastructure/   # Коллекторы, SQLite, PDF, WMI, Win32, Procmon
 ├── tests/
-│   └── UsbForensicAudit.Tests/            # xUnit, coverlet (225 тестов)
+│   └── UsbForensicAudit.Tests/            # xUnit, coverlet (297+ тестов)
 └── tools/
     ├── GenerateIcon/                      # PNG → ICO для сборки
     ├── GenerateManual/                  # PDF-инструкция пользователя
@@ -231,22 +237,28 @@ UsbForensicAudit/
 Центральный use case — `AuditOrchestrator.RunFullScanAsync`. Выполняется в фоне (`Task.Run`), прогресс отдаётся в UI через `IProgress<string>`.
 
 ```text
-1. UsbRegistryCollector          → Devices (USB, USBSTOR, SCSI, usbflags, …)
-2. SetupApiLogCollector          → Evidence
-3. EventLogCollector             → Evidence
-4. EndpointProtectionCollector   → Evidence (если ShouldRun)
-5. UserArtifactCollector         → Evidence
-6. OfflineHiveCollector          → Evidence
-7. ExecutionArtifactCollector    → Evidence
-8. ProcessAttributionCollector   → Evidence
-9. CorrelationService            → доп. Evidence (корреляции)
-10. LiveDeviceMerger             → обогащение Devices
-11. TimelineEnricher             → даты, пояснения, WMI «подключено сейчас»
-12. CleanupDetector              → CleanupFindings
-13. AuditStorage.Save            → SQLite + JSONL
+1. UsbRegistryCollector              → Devices (USB, USBSTOR, SCSI, WPD, usbflags, все ControlSet)
+2. SetupApiLogCollector              → Evidence (+ архивы setupapi)
+3. EventLogCollector                 → Evidence (Kernel-PnP, Storage-ClassPnP, Partition, MTP, …)
+4. EndpointProtectionCollector       → Evidence (если ShouldRun)
+5. UserArtifactCollector             → Evidence (PIDL, Shellbags, Jump Lists, Recycle Bin, …)
+6. OfflineHiveCollector              → Evidence
+7. ExecutionArtifactCollector        → Evidence (Prefetch, Amcache, Shimcache, BAM/DAM, …)
+8. ProcessAttributionCollector       → Evidence
+   → dedup user artifacts
+9. HistoricalArtifactCollector       → Evidence (DeviceMigration, ControlSet diff, Windows.old, VSS)
+10. LiveDeviceMerger                 → обогащение Devices
+11. DeviceTransportClassifier        → транспорт/топология (UASP, MTP, USB4, …)
+12. DeviceIdentityGraph              → канонический ID, ContainerID, composite
+13. VolumeCorrelationService         → буквы дисков, VSN, MountedDevices
+14. CorrelationService               → доп. Evidence (корреляции)
+15. TimelineEnricher                 → даты, пояснения, WMI «подключено сейчас»
+16. CalculateDateCoverage            → ScanCoverageReport.ExactDateCoveragePercent
+17. CleanupDetector                  → CleanupFindings
+18. AuditStorage.Save                → SQLite + JSONL (audit_sessions, hash-chain)
 ```
 
-Порядок шагов 2–8 задаётся регистрацией `IEvidenceCollector` в `InfrastructureServiceCollectionExtensions` (порядок `AddSingleton` = порядок выполнения).
+Порядок шагов 2–8 задаётся регистрацией `IEvidenceCollector` в `InfrastructureServiceCollectionExtensions` (порядок `AddSingleton` = порядок выполнения). Шаг 9 — отдельный порт `IHistoricalArtifactCollector`.
 
 Ключевые порты Application (`Abstractions.cs`):
 
@@ -294,8 +306,8 @@ UsbForensicAudit/
 
 | Файл / папка | Назначение |
 |---|---|
-| `audit.sqlite` | структурированное хранилище для поиска |
-| `evidence.jsonl` | append-only журнал с SHA-256 hash-chain |
+| `audit.sqlite` | структурированное хранилище (`audit_sessions`, devices, evidence, cleanup) |
+| `evidence.jsonl` | append-only журнал с SHA-256 hash-chain и provenance |
 | `app.log` | технический лог приложения |
 | `external_utility_snapshot.json` | снимок сторонней утилиты |
 | `tools\Procmon64.exe` | распакованный Procmon (из embedded resource) |
@@ -362,6 +374,12 @@ dotnet test tests\UsbForensicAudit.Tests\UsbForensicAudit.Tests.csproj --collect
 
 | Класс | Что проверяет |
 |---|---|
+| `UsbRegistryForensicHelpersTests`, `EventAndSetupApiParserTests` | PnP DevProperties, Event Log, SetupAPI |
+| `Stage3IdentityAndVolumeTests` | граф идентичности, MountedDevices, VSN |
+| `Stage4TransportClassificationTests` | UASP, MTP, USB4, хабы, встроенные |
+| `Stage5HistoricalArtifactTests` | DeviceMigration, ControlSet, VSS provenance |
+| `Stage6ForensicArtifactTests` | PIDL, Shimcache, SQLite round-trip, coverage |
+| `Stage7IntegrationTests` | end-to-end orchestrator, golden fixture, отчёты |
 | `CoreLogicTests`, `CorrelationServiceTests` | корреляция и ключевая логика |
 | `ProcmonCsvParserTests`, `ProcmonCompletenessTests` | разбор Procmon |
 | `ExternalUtilityTests`, `ExternalUtilityReportConclusionTests` | сторонние утилиты |
@@ -408,13 +426,18 @@ Procmon на этапе сборки: `tools\Procmon64.exe` (в `.gitignore`; с
 
 ---
 
-## Ограничения и интерпреация
+## Ограничения и интерпретация
 
 - Приложение **не блокирует** USB — только анализирует и мониторит.
 - PDF/Excel/HTML-отчёты включают **только USB/Type-C** и связанные forensic-артефакты; внутренние SATA/NVMe и ОЗУ в отчёты не попадают.
+- **USB-C/Type-C порт ≠ гарантия USB-транспорта** — устройство может идти по PCIe/Thunderbolt; классификация помечает такие случаи как `PCIe-tunneled candidate`.
+- **USB4/Thunderbolt** покрыт частично: внешние NVMe-контейнеры и dock-кандидаты включаются при наличии маркеров в реестре/WMI.
+- **Deleted-cell carving** реестра не реализован; transaction logs дают provenance, но не полный replay удалённых ключей.
+- **VSS** — только read-only discovery существующих снимков; снимки не создаются и не изменяются.
+- SRUM и браузерные артефакты **не считаются прямым доказательством** подключения USB.
 - Корпоративные политики DLP/Endpoint Protection могут скрывать стандартные следы Windows; программа использует дополнительные источники и помечает даты как ориентир.
 - Windows **не всегда** сохраняет физический номер порта; показываются `LocationInformation` / `LocationPaths`, если ОС их отдала.
-- Отсутствие артефакта ≠ факт очистки. Оценивайте findings в совокупности и смотрите колонку «Уверенность».
+- Отсутствие артефакта ≠ факт очистки. Оценивайте findings в совокупности и смотрите колонку «Уверенность» / `EvidenceStrength`.
 - **Grace period 3 часа** после установки Windows: очистка журналов ОС — норма, статус «Норма: ОС после установки».
 - Security **4688** доступен только при включённом аудите создания процессов.
 - Prefetch/Amcache фиксируют **запуск** утилиты, но не доказывают очистку в конкретную секунду.
