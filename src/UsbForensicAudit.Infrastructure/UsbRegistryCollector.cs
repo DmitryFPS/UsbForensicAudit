@@ -23,7 +23,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         @"([0-9A-F]{4})([0-9A-F]{4})$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    public string ProgressMessage => "Чтение Registry USB/USBSTOR/SCSI/WPD/usbflags...";
+    public string ProgressMessage => "Чтение Registry USB/USBSTOR/SCSI/WPD/USB4/Thunderbolt...";
 
     public IReadOnlyList<UsbDeviceRecord> Collect(List<string> warnings)
     {
@@ -49,6 +49,19 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
             CollectEnumTree(path, "Registry: WPD/MTP", records, warnings);
         }
 
+        foreach (var path in UsbRegistryForensicHelpers.BuildControlSetEnumPaths(controlSets, "USB4"))
+        {
+            if (RegistryPathExists(path))
+            {
+                CollectEnumTree(path, "Registry: USB4/Thunderbolt", records, warnings);
+            }
+        }
+
+        foreach (var path in UsbRegistryForensicHelpers.BuildControlSetEnumPaths(controlSets, "PCI"))
+        {
+            CollectRelevantPci(path, records, warnings);
+        }
+
         CollectPortableDevices(records, warnings);
         records = DeduplicateEnumRecords(records);
         CorrelatePortableDevices(records);
@@ -56,8 +69,22 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         EnrichUsbStorVidPid(records);
         EnrichUsbVendorNames(records);
         AddMountedDeviceEvidence(records, warnings);
+        DeviceTransportClassifier.ClassifyAll(records);
         DeviceIdentityGraph.Process(records);
         return records;
+    }
+
+    private static bool RegistryPathExists(string path)
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(path);
+            return key is not null;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static void CollectUsbFlags(List<UsbDeviceRecord> records, List<string> warnings)
@@ -234,6 +261,8 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                         Product = ReadString(instance, "DeviceDesc"),
                         ClassGuid = ReadString(instance, "ClassGUID"),
                         Service = ReadString(instance, "Service"),
+                        HardwareIds = ReadMultiString(instance, "HardwareID"),
+                        CompatibleIds = ReadMultiString(instance, "CompatibleIDs"),
                         ContainerId = ReadString(instance, "ContainerID"),
                         ParentIdPrefix = ReadString(instance, "ParentIdPrefix"),
                         LocationInformation = ReadString(instance, "LocationInformation"),
@@ -284,6 +313,84 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         catch (Exception ex)
         {
             warnings.Add($"Ошибка чтения HKLM\\{path}: {ex.Message}");
+        }
+    }
+
+    private static void CollectRelevantPci(string path, List<UsbDeviceRecord> records, List<string> warnings)
+    {
+        try
+        {
+            using var root = Registry.LocalMachine.OpenSubKey(path);
+            if (root is null)
+            {
+                return;
+            }
+
+            foreach (var familyName in root.GetSubKeyNames())
+            {
+                using var family = root.OpenSubKey(familyName);
+                if (family is null)
+                {
+                    continue;
+                }
+
+                foreach (var instanceName in family.GetSubKeyNames())
+                {
+                    using var instance = family.OpenSubKey(instanceName);
+                    if (instance is null)
+                    {
+                        continue;
+                    }
+
+                    var service = ReadString(instance, "Service");
+                    var hardwareIds = ReadMultiString(instance, "HardwareID");
+                    var compatibleIds = ReadMultiString(instance, "CompatibleIDs");
+                    var locationPaths = ReadMultiString(instance, "LocationPaths");
+                    var description = FirstNotEmpty(ReadString(instance, "FriendlyName"), ReadString(instance, "DeviceDesc"));
+                    var deviceId = $@"PCI\{familyName}\{instanceName}";
+                    if (!DeviceTransportClassifier.IsRelevantLiveCandidate(
+                            deviceId, service, hardwareIds, compatibleIds, locationPaths, description))
+                    {
+                        continue;
+                    }
+
+                    var record = new UsbDeviceRecord
+                    {
+                        Source = "Registry: PCI USB4/Thunderbolt tunnel",
+                        VisualCategory = "RelatedStorage",
+                        UserMeaning = "Релевантный PCI instance с явным USB4/Thunderbolt/external-tunnel evidence; весь PCI не собирается.",
+                        DeviceInstanceId = deviceId,
+                        DeviceType = "USB4/Thunderbolt PCI",
+                        Serial = CleanSerial(instanceName),
+                        FriendlyName = description,
+                        Manufacturer = ReadString(instance, "Mfg"),
+                        Product = ReadString(instance, "DeviceDesc"),
+                        ClassGuid = ReadString(instance, "ClassGUID"),
+                        Service = service,
+                        HardwareIds = hardwareIds,
+                        CompatibleIds = compatibleIds,
+                        ContainerId = ReadString(instance, "ContainerID"),
+                        ParentIdPrefix = ReadString(instance, "ParentIdPrefix"),
+                        LocationInformation = ReadString(instance, "LocationInformation"),
+                        LocationPaths = locationPaths,
+                        RegistryLastWriteUtc = RegistryKeyTimestamps.GetLastWriteUtc(instance),
+                        RawJson = JsonSerializer.Serialize(new
+                        {
+                            RegistryPath = $@"HKLM\{path}\{familyName}\{instanceName}",
+                            Service = service,
+                            HardwareIDs = hardwareIds,
+                            CompatibleIDs = compatibleIds,
+                            LocationPaths = locationPaths
+                        })
+                    };
+                    DeviceTransportClassifier.Classify(record);
+                    records.Add(record);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"Ошибка безопасного чтения HKLM\\{path} для USB4/Thunderbolt: {ex.Message}");
         }
     }
 
@@ -683,6 +790,11 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
             return "SWD";
         }
 
+        if (source.Contains("USB4", StringComparison.OrdinalIgnoreCase))
+        {
+            return "USB4";
+        }
+
         return "USB";
     }
 
@@ -703,6 +815,11 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
             return "SCSI/UASP Storage";
         }
 
+        if (source.Contains("USB4", StringComparison.OrdinalIgnoreCase))
+        {
+            return "USB4/Thunderbolt";
+        }
+
         if (familyName.Contains("HID", StringComparison.OrdinalIgnoreCase))
         {
             return "HID";
@@ -715,7 +832,8 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
     {
         if (source.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase)
             || source.Equals("Registry: USB", StringComparison.OrdinalIgnoreCase)
-            || source.Contains("WPD", StringComparison.OrdinalIgnoreCase))
+            || source.Contains("WPD", StringComparison.OrdinalIgnoreCase)
+            || source.Contains("USB4", StringComparison.OrdinalIgnoreCase))
         {
             return "RealUsb";
         }
@@ -743,6 +861,11 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         if (source.Contains("WPD", StringComparison.OrdinalIgnoreCase))
         {
             return "Реальное portable/MTP устройство: телефон, камера или медиаплеер.";
+        }
+
+        if (source.Contains("USB4", StringComparison.OrdinalIgnoreCase))
+        {
+            return "USB4/Thunderbolt router/device; роль и внешность определяются только по сохранённым evidence.";
         }
 
         if (source.Contains("SCSI", StringComparison.OrdinalIgnoreCase))

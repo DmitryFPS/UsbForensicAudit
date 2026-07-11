@@ -16,12 +16,23 @@ public sealed class LiveUsbSnapshotService
         try
         {
             using var searcher = new ManagementObjectSearcher(
-                "SELECT DeviceID, Name, Caption, PNPDeviceID, Status, Description FROM Win32_PnPEntity WHERE PNPDeviceID LIKE 'USB%' OR PNPDeviceID LIKE 'USBSTOR%'");
+                "SELECT DeviceID, Name, Caption, PNPDeviceID, Status, Description, Service FROM Win32_PnPEntity " +
+                "WHERE PNPDeviceID LIKE 'USB%' OR PNPDeviceID LIKE 'USBSTOR%' OR PNPDeviceID LIKE 'SCSI%' " +
+                "OR PNPDeviceID LIKE 'SWD%' OR PNPDeviceID LIKE 'USB4%' OR PNPDeviceID LIKE 'PCI%' " +
+                "OR Service='uaspstor' OR Service='Usb4HostRouter' OR Service='Usb4DeviceRouter' OR Service='Usb4P2PNetAdapter'");
 
             foreach (ManagementObject item in searcher.Get())
             {
                 var pnpId = Read(item, "PNPDeviceID");
                 if (string.IsNullOrWhiteSpace(pnpId))
+                {
+                    continue;
+                }
+
+                var metadata = LiveDeviceMetadataReader.Read(pnpId);
+                if (!DeviceTransportClassifier.IsRelevantLiveCandidate(
+                        pnpId, Read(item, "Service"), metadata.HardwareIds, metadata.CompatibleIds,
+                        metadata.LocationPaths, FirstNotEmpty(Read(item, "Name"), Read(item, "Caption"), Read(item, "Description"))))
                 {
                     continue;
                 }
@@ -57,12 +68,21 @@ public sealed class LiveUsbSnapshotService
     private void AddUsbDisks(Dictionary<string, LiveUsbDevice> devicesByStableKey, UsbVidPidResolver vidPidResolver)
     {
         using var diskSearcher = new ManagementObjectSearcher(
-            "SELECT DeviceID, Model, Caption, PNPDeviceID, Status, InterfaceType FROM Win32_DiskDrive WHERE InterfaceType = 'USB'");
+            "SELECT DeviceID, Model, Caption, PNPDeviceID, Status, InterfaceType, MediaType FROM Win32_DiskDrive " +
+            "WHERE InterfaceType='USB' OR MediaType='Removable Media' OR MediaType='External hard disk media' OR PNPDeviceID LIKE 'SCSI%'");
 
         foreach (ManagementObject disk in diskSearcher.Get())
         {
             var pnpId = Read(disk, "PNPDeviceID");
             if (string.IsNullOrWhiteSpace(pnpId))
+            {
+                continue;
+            }
+
+            var metadata = LiveDeviceMetadataReader.Read(pnpId);
+            if (!DeviceTransportClassifier.IsRelevantLiveCandidate(
+                    pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds,
+                    metadata.LocationPaths, FirstNotEmpty(Read(disk, "Model"), Read(disk, "Caption")), Read(disk, "MediaType")))
             {
                 continue;
             }
@@ -288,6 +308,22 @@ public sealed class LiveUsbSnapshotService
         if (pnpId.StartsWith(@"REMOVABLE\", StringComparison.OrdinalIgnoreCase))
         {
             return "Съёмный том";
+        }
+
+        if (pnpId.StartsWith(@"SWD\WPDBUSENUM\", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Portable device / MTP / WPD";
+        }
+
+        if (pnpId.StartsWith(@"USB4\", StringComparison.OrdinalIgnoreCase)
+            || pnpId.StartsWith(@"PCI\", StringComparison.OrdinalIgnoreCase))
+        {
+            return "USB4/Thunderbolt topology candidate";
+        }
+
+        if (pnpId.StartsWith(@"SCSI\", StringComparison.OrdinalIgnoreCase))
+        {
+            return "SCSI/UASP external candidate";
         }
 
         return "";

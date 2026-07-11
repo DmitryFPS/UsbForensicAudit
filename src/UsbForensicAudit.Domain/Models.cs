@@ -16,6 +16,15 @@ public sealed class UsbDeviceRecord
     public string VisualCategory { get; set; } = "Unknown";
     public string UserMeaning { get; set; } = "";
     public string DeviceType { get; set; } = "";
+    public string Transport { get; set; } = "Unknown";
+    public string TransportConfidence { get; set; } = "Unknown";
+    public List<string> TransportProvenance { get; set; } = [];
+    public string Connection { get; set; } = "Unknown";
+    public string ConnectionConfidence { get; set; } = "Unknown";
+    public List<string> ConnectionProvenance { get; set; } = [];
+    public string Classification { get; set; } = "Unknown";
+    public string ClassificationConfidence { get; set; } = "Unknown";
+    public List<string> ClassificationProvenance { get; set; } = [];
     public string Vid { get; set; } = "";
     public string Pid { get; set; } = "";
     public string Serial { get; set; } = "";
@@ -25,6 +34,8 @@ public sealed class UsbDeviceRecord
     public string Revision { get; set; } = "";
     public string ClassGuid { get; set; } = "";
     public string Service { get; set; } = "";
+    public string HardwareIds { get; set; } = "";
+    public string CompatibleIds { get; set; } = "";
     public string ContainerId { get; set; } = "";
     public string ParentIdPrefix { get; set; } = "";
     public string LocationInformation { get; set; } = "";
@@ -80,6 +91,15 @@ public sealed class UsbDeviceRecord
 
     [JsonIgnore]
     public string DeviceTypeText => UserDisplayText.DeviceType(DeviceType);
+
+    [JsonIgnore]
+    public string ClassificationDisplayText =>
+        $"{Transport} / {Connection} / {Classification} ({ClassificationConfidence})";
+
+    [JsonIgnore]
+    public string ClassificationEvidenceText => string.Join("; ",
+        TransportProvenance.Concat(ConnectionProvenance).Concat(ClassificationProvenance)
+            .Distinct(StringComparer.OrdinalIgnoreCase));
 }
 
 public sealed class VolumeIdentity

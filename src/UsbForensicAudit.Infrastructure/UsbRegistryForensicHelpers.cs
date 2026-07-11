@@ -182,6 +182,8 @@ internal static class UsbRegistryForensicHelpers
         target.Revision = Prefer(target.Revision, candidate.Revision);
         target.ClassGuid = Prefer(target.ClassGuid, candidate.ClassGuid);
         target.Service = Prefer(target.Service, candidate.Service);
+        target.HardwareIds = MergeText(target.HardwareIds, candidate.HardwareIds);
+        target.CompatibleIds = MergeText(target.CompatibleIds, candidate.CompatibleIds);
         target.ContainerId = Prefer(target.ContainerId, candidate.ContainerId);
         target.ParentIdPrefix = Prefer(target.ParentIdPrefix, candidate.ParentIdPrefix);
         target.LocationInformation = Prefer(target.LocationInformation, candidate.LocationInformation);

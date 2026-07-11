@@ -47,6 +47,15 @@ public sealed class AuditStorage : IAuditStorage
                 product TEXT,
                 location_information TEXT,
                 location_paths TEXT,
+                transport TEXT,
+                transport_confidence TEXT,
+                connection TEXT,
+                connection_confidence TEXT,
+                classification TEXT,
+                classification_confidence TEXT,
+                classification_provenance TEXT,
+                hardware_ids TEXT,
+                compatible_ids TEXT,
                 raw_json TEXT
             );
             """);
@@ -72,6 +81,7 @@ public sealed class AuditStorage : IAuditStorage
             );
             """);
 
+        EnsureDeviceColumns(connection);
         EnsureEvidenceColumns(connection);
 
         Execute(connection, """
@@ -125,6 +135,33 @@ public sealed class AuditStorage : IAuditStorage
         }
     }
 
+    private static void EnsureDeviceColumns(SqliteConnection connection)
+    {
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "PRAGMA table_info(devices);";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                existing.Add(reader.GetString(1));
+            }
+        }
+
+        foreach (var name in new[]
+                 {
+                     "transport", "transport_confidence", "connection", "connection_confidence",
+                     "classification", "classification_confidence", "classification_provenance",
+                     "hardware_ids", "compatible_ids"
+                 })
+        {
+            if (!existing.Contains(name))
+            {
+                Execute(connection, $"ALTER TABLE devices ADD COLUMN {name} TEXT;");
+            }
+        }
+    }
+
     private void SaveSqlite(AuditResult result)
     {
         using var connection = new SqliteConnection($"Data Source={DatabasePath}");
@@ -136,8 +173,18 @@ public sealed class AuditStorage : IAuditStorage
             using var command = connection.CreateCommand();
             command.Transaction = tx;
             command.CommandText = """
-                INSERT INTO devices (collected_at_utc, source, device_instance_id, device_type, vid, pid, serial, friendly_name, manufacturer, product, location_information, location_paths, raw_json)
-                VALUES ($collected_at_utc, $source, $device_instance_id, $device_type, $vid, $pid, $serial, $friendly_name, $manufacturer, $product, $location_information, $location_paths, $raw_json);
+                INSERT INTO devices (
+                    collected_at_utc, source, device_instance_id, device_type, vid, pid, serial,
+                    friendly_name, manufacturer, product, location_information, location_paths,
+                    transport, transport_confidence, connection, connection_confidence,
+                    classification, classification_confidence, classification_provenance,
+                    hardware_ids, compatible_ids, raw_json)
+                VALUES (
+                    $collected_at_utc, $source, $device_instance_id, $device_type, $vid, $pid, $serial,
+                    $friendly_name, $manufacturer, $product, $location_information, $location_paths,
+                    $transport, $transport_confidence, $connection, $connection_confidence,
+                    $classification, $classification_confidence, $classification_provenance,
+                    $hardware_ids, $compatible_ids, $raw_json);
                 """;
             command.Parameters.AddWithValue("$collected_at_utc", device.CollectedAtUtc.ToString("O"));
             command.Parameters.AddWithValue("$source", device.Source);
@@ -151,6 +198,15 @@ public sealed class AuditStorage : IAuditStorage
             command.Parameters.AddWithValue("$product", device.Product);
             command.Parameters.AddWithValue("$location_information", device.LocationInformation);
             command.Parameters.AddWithValue("$location_paths", device.LocationPaths);
+            command.Parameters.AddWithValue("$transport", device.Transport);
+            command.Parameters.AddWithValue("$transport_confidence", device.TransportConfidence);
+            command.Parameters.AddWithValue("$connection", device.Connection);
+            command.Parameters.AddWithValue("$connection_confidence", device.ConnectionConfidence);
+            command.Parameters.AddWithValue("$classification", device.Classification);
+            command.Parameters.AddWithValue("$classification_confidence", device.ClassificationConfidence);
+            command.Parameters.AddWithValue("$classification_provenance", device.ClassificationEvidenceText);
+            command.Parameters.AddWithValue("$hardware_ids", device.HardwareIds);
+            command.Parameters.AddWithValue("$compatible_ids", device.CompatibleIds);
             command.Parameters.AddWithValue("$raw_json", device.RawJson);
             command.ExecuteNonQuery();
         }

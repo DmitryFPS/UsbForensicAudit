@@ -47,6 +47,11 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
                 match.Product = live.Product;
             }
 
+            match.Service = FirstNotEmpty(match.Service, live.Service);
+            match.HardwareIds = FirstNotEmpty(match.HardwareIds, live.HardwareIds);
+            match.CompatibleIds = FirstNotEmpty(match.CompatibleIds, live.CompatibleIds);
+            match.LocationInformation = FirstNotEmpty(match.LocationInformation, live.LocationInformation);
+            match.LocationPaths = FirstNotEmpty(match.LocationPaths, live.LocationPaths);
             match.IsCurrentlyConnected = true;
             foreach (var volume in live.Volumes)
             {
@@ -59,6 +64,7 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
             PopulateVolumeText(match);
         }
 
+        DeviceTransportClassifier.ClassifyAll(result.Devices);
         DeviceIdentityGraph.Process(result.Devices);
     }
 
@@ -69,19 +75,39 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
         try
         {
             using var searcher = new ManagementObjectSearcher(
-                "SELECT PNPDeviceID, Name, Caption, Description FROM Win32_PnPEntity WHERE PNPDeviceID LIKE 'USB%' OR PNPDeviceID LIKE 'USBSTOR%'");
+                "SELECT PNPDeviceID, Name, Caption, Description, Service, PNPClass FROM Win32_PnPEntity " +
+                "WHERE PNPDeviceID LIKE 'USB%' OR PNPDeviceID LIKE 'USBSTOR%' OR PNPDeviceID LIKE 'SCSI%' " +
+                "OR PNPDeviceID LIKE 'SWD%' OR PNPDeviceID LIKE 'USB4%' OR PNPDeviceID LIKE 'PCI%' " +
+                "OR Service='uaspstor' OR Service='Usb4HostRouter' OR Service='Usb4DeviceRouter' OR Service='Usb4P2PNetAdapter'");
 
             foreach (ManagementObject item in searcher.Get())
             {
-                AddLiveRecord(records, item["PNPDeviceID"]?.ToString(), Read(item, "Name"), Read(item, "Caption"), Read(item, "Description"), scanTime);
+                var pnpId = item["PNPDeviceID"]?.ToString();
+                var metadata = LiveDeviceMetadataReader.Read(pnpId ?? "");
+                if (!DeviceTransportClassifier.IsRelevantLiveCandidate(
+                        pnpId ?? "", Read(item, "Service"), metadata.HardwareIds, metadata.CompatibleIds,
+                        metadata.LocationPaths, FirstNotEmpty(Read(item, "Name"), Read(item, "Caption"), Read(item, "Description"))))
+                {
+                    continue;
+                }
+                AddLiveRecord(records, pnpId, Read(item, "Name"), Read(item, "Caption"), Read(item, "Description"), scanTime);
             }
 
             using var diskSearcher = new ManagementObjectSearcher(
-                "SELECT PNPDeviceID, Model, Caption FROM Win32_DiskDrive WHERE InterfaceType = 'USB'");
+                "SELECT PNPDeviceID, Model, Caption, InterfaceType, MediaType FROM Win32_DiskDrive " +
+                "WHERE InterfaceType='USB' OR MediaType='Removable Media' OR MediaType='External hard disk media' OR PNPDeviceID LIKE 'SCSI%'");
 
             foreach (ManagementObject disk in diskSearcher.Get())
             {
-                AddLiveRecord(records, disk["PNPDeviceID"]?.ToString(), Read(disk, "Model"), Read(disk, "Caption"), "", scanTime);
+                var pnpId = disk["PNPDeviceID"]?.ToString() ?? "";
+                var metadata = LiveDeviceMetadataReader.Read(pnpId);
+                if (!DeviceTransportClassifier.IsRelevantLiveCandidate(
+                        pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds, metadata.LocationPaths,
+                        FirstNotEmpty(Read(disk, "Model"), Read(disk, "Caption")), Read(disk, "MediaType")))
+                {
+                    continue;
+                }
+                AddLiveRecord(records, pnpId, Read(disk, "Model"), Read(disk, "Caption"), Read(disk, "MediaType"), scanTime);
             }
 
             AddLiveVolumes(records);
@@ -181,6 +207,11 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
             Manufacturer = metadata.Manufacturer,
             Product = metadata.Product,
             Revision = metadata.Revision,
+            Service = metadata.Service,
+            HardwareIds = metadata.HardwareIds,
+            CompatibleIds = metadata.CompatibleIds,
+            LocationInformation = metadata.LocationInformation,
+            LocationPaths = metadata.LocationPaths,
             IsCurrentlyConnected = true,
             FirstConnectedUtc = scanTime,
             LastSeenUtc = scanTime,
@@ -196,6 +227,7 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
             record.Pid = vidPid.Groups[2].Value.ToUpperInvariant();
         }
 
+        DeviceTransportClassifier.Classify(record);
         records.Add(record);
     }
 
