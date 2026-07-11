@@ -16,6 +16,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IAuditStorage, AuditStorage>();
         services.AddSingleton<ILiveDeviceMerger, LiveDeviceMerger>();
         services.AddSingleton<IUsbDeviceCollector, UsbRegistryCollector>();
+        services.AddSingleton<IHistoricalArtifactCollector, HistoricalArtifactCollector>();
 
         // Порядок регистрации сборщиков доказательств задаёт порядок шагов сканирования.
         services.AddSingleton<IEvidenceCollector, SetupApiLogCollector>();

@@ -24,6 +24,17 @@ public interface IEvidenceCollector
 }
 
 /// <summary>
+/// Безопасный сбор остаточных и offline-артефактов. Реализация не должна изменять
+/// исследуемые источники; все загружаемые hive-файлы предварительно копируются.
+/// </summary>
+public interface IHistoricalArtifactCollector
+{
+    string ProgressMessage { get; }
+
+    void Collect(AuditResult result, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// Порт хранилища результатов аудита (SQLite + JSONL).
 /// </summary>
 public interface IAuditStorage

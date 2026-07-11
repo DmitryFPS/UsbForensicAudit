@@ -9,6 +9,7 @@ public sealed class AuditOrchestrator
 {
     private readonly IUsbDeviceCollector _deviceCollector;
     private readonly IReadOnlyList<IEvidenceCollector> _evidenceCollectors;
+    private readonly IHistoricalArtifactCollector _historicalArtifactCollector;
     private readonly CorrelationService _correlationService;
     private readonly ILiveDeviceMerger _liveDeviceMerger;
     private readonly TimelineEnricher _timelineEnricher;
@@ -19,6 +20,7 @@ public sealed class AuditOrchestrator
     public AuditOrchestrator(
         IUsbDeviceCollector deviceCollector,
         IEnumerable<IEvidenceCollector> evidenceCollectors,
+        IHistoricalArtifactCollector historicalArtifactCollector,
         CorrelationService correlationService,
         ILiveDeviceMerger liveDeviceMerger,
         TimelineEnricher timelineEnricher,
@@ -28,6 +30,7 @@ public sealed class AuditOrchestrator
     {
         _deviceCollector = deviceCollector;
         _evidenceCollectors = evidenceCollectors.ToList();
+        _historicalArtifactCollector = historicalArtifactCollector;
         _correlationService = correlationService;
         _liveDeviceMerger = liveDeviceMerger;
         _timelineEnricher = timelineEnricher;
@@ -64,6 +67,10 @@ public sealed class AuditOrchestrator
                 result.Evidence.AddRange(collector.Collect(result.SourceWarnings));
                 cancellationToken.ThrowIfCancellationRequested();
             }
+
+            progress?.Report(_historicalArtifactCollector.ProgressMessage);
+            _historicalArtifactCollector.Collect(result, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
 
             progress?.Report("Сопоставление с устройствами, подключёнными прямо сейчас...");
             _liveDeviceMerger.Merge(result);

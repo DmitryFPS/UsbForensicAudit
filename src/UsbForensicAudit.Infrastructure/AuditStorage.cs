@@ -77,7 +77,10 @@ public sealed class AuditStorage : IAuditStorage
                 level TEXT,
                 device_hint TEXT,
                 summary TEXT,
-                raw_text TEXT
+                raw_text TEXT,
+                acquisition_timestamp_utc TEXT,
+                source_sha256 TEXT,
+                provenance TEXT
             );
             """);
 
@@ -125,7 +128,10 @@ public sealed class AuditStorage : IAuditStorage
                      ("source_file", "TEXT"),
                      ("source_record", "TEXT"),
                      ("evidence_category", "TEXT"),
-                     ("user_explanation", "TEXT")
+                     ("user_explanation", "TEXT"),
+                     ("acquisition_timestamp_utc", "TEXT"),
+                     ("source_sha256", "TEXT"),
+                     ("provenance", "TEXT")
                  })
         {
             if (!existing.Contains(name))
@@ -218,10 +224,12 @@ public sealed class AuditStorage : IAuditStorage
             command.CommandText = """
                 INSERT INTO evidence (
                     timestamp_utc, source, provider, channel, record_id, computer, source_file, source_record,
-                    evidence_category, user_explanation, event_id, level, device_hint, summary, raw_text)
+                    evidence_category, user_explanation, event_id, level, device_hint, summary, raw_text,
+                    acquisition_timestamp_utc, source_sha256, provenance)
                 VALUES (
                     $timestamp_utc, $source, $provider, $channel, $record_id, $computer, $source_file, $source_record,
-                    $evidence_category, $user_explanation, $event_id, $level, $device_hint, $summary, $raw_text);
+                    $evidence_category, $user_explanation, $event_id, $level, $device_hint, $summary, $raw_text,
+                    $acquisition_timestamp_utc, $source_sha256, $provenance);
                 """;
             command.Parameters.AddWithValue("$timestamp_utc", evidence.TimestampUtc.ToString("O"));
             command.Parameters.AddWithValue("$source", evidence.Source);
@@ -238,6 +246,9 @@ public sealed class AuditStorage : IAuditStorage
             command.Parameters.AddWithValue("$device_hint", evidence.DeviceHint);
             command.Parameters.AddWithValue("$summary", evidence.Summary);
             command.Parameters.AddWithValue("$raw_text", evidence.RawText);
+            command.Parameters.AddWithValue("$acquisition_timestamp_utc", evidence.AcquisitionTimestampUtc.ToString("O"));
+            command.Parameters.AddWithValue("$source_sha256", evidence.SourceSha256);
+            command.Parameters.AddWithValue("$provenance", evidence.Provenance);
             command.ExecuteNonQuery();
         }
 
