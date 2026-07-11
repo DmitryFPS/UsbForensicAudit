@@ -31,6 +31,22 @@ public sealed class ReportService : IReportService
         return path;
     }
 
+    public string CreateExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null)
+    {
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, $"UsbForensicAudit_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx");
+        ExcelReportGenerator.GenerateFull(path, ForensicReportContext.Create(result, externalUtilitySnapshot));
+        return path;
+    }
+
+    public string CreateBriefExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null)
+    {
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, $"UsbForensicAudit_Svodnyj_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx");
+        ExcelReportGenerator.GenerateBrief(path, ForensicReportContext.Create(result, externalUtilitySnapshot));
+        return path;
+    }
+
     public void OpenFile(string path)
     {
         Process.Start(new ProcessStartInfo

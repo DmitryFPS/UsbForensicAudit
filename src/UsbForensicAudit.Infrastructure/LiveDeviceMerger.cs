@@ -137,7 +137,9 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
             }
         }
 
-        foreach (var device in existing.Where(x => x.VisualCategory != "SupportArtifact"))
+        foreach (var device in existing.Where(x =>
+                     x.VisualCategory != "SupportArtifact"
+                     && x.VisualCategory != "UsbFlagsTrace"))
         {
             if (SameVidPid(device, live) && SameSerial(device, live))
             {

@@ -8,6 +8,7 @@ public class UserDisplayTextTests
     [Theory]
     [InlineData("RealUsb", "Реальное USB-устройство")]
     [InlineData("RelatedStorage", "Память или диск USB")]
+    [InlineData("UsbFlagsTrace", "Остаточный след USB (usbflags)")]
     [InlineData("SupportArtifact", "Служебная запись Windows")]
     public void Category_maps_visual_categories(string input, string expected)
     {

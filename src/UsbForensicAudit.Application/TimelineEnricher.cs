@@ -63,11 +63,13 @@ public sealed class TimelineEnricher
 
     private static void EnrichDevice(UsbDeviceRecord device, IReadOnlyList<EvidenceRecord> evidence, ConnectedDeviceIndex connectedDevices, DateTimeOffset scanStartedUtc)
     {
-        if (device.VisualCategory == "SupportArtifact")
+        if (device.VisualCategory is "SupportArtifact" or "UsbFlagsTrace")
         {
             device.IsCurrentlyConnected = false;
             device.DisconnectDisplayKind = "NotApplicable";
-            device.DateConfidence = "Служебная запись Windows — даты подключения здесь не показываются.";
+            device.DateConfidence = device.DeviceType.Equals("USBFlags", StringComparison.OrdinalIgnoreCase)
+                ? "Остаточный след usbflags. Последняя активность — ориентировочное время изменения ключа реестра; точное подключение этим источником не подтверждается."
+                : "Служебная запись Windows — даты подключения здесь не показываются.";
             return;
         }
 

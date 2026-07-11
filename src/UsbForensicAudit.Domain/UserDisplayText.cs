@@ -14,6 +14,7 @@ public static class UserDisplayText
     {
         "RealUsb" => "Реальное USB-устройство",
         "RelatedStorage" => "Память или диск USB",
+        "UsbFlagsTrace" => "Остаточный след USB (usbflags)",
         "SupportArtifact" => "Служебная запись Windows",
         _ => "Не определено"
     };
@@ -81,6 +82,11 @@ public static class UserDisplayText
         if (value.Equals("Registry: USB", StringComparison.OrdinalIgnoreCase))
         {
             return "Реестр Windows — USB-устройства";
+        }
+
+        if (value.Contains("usbflags", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Реестр Windows — кэш USB-дескрипторов (usbflags)";
         }
 
         if (value.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase))
@@ -382,6 +388,7 @@ public static class UserDisplayText
         "HID" => "Мышь, клавиатура и т.п.",
         "WPD" => "Телефон / камера (MTP)",
         "SCSI" => "Диск",
+        "USBFlags" => "Остаточный след usbflags",
         "VolumeMapping" => "Буква диска",
         _ => string.IsNullOrWhiteSpace(value) ? "не определено" : value
     };

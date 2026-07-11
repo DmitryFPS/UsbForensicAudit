@@ -138,6 +138,8 @@ public partial class MainWindow : Window
             BindResult(result);
             PdfReportButton.IsEnabled = true;
             BriefPdfReportButton.IsEnabled = true;
+            ExcelReportButton.IsEnabled = true;
+            BriefExcelReportButton.IsEnabled = true;
             AppendLog($"Дата установки Windows: {result.OsInstalledAtText}.");
             var suspiciousCount = result.CleanupFindings.Count(x => x.IsSuspicious);
             AppendLog($"Готово: устройств {result.Devices.Count}, доказательств {result.Evidence.Count}, записей об очистке {result.CleanupFindings.Count} (подозрительных {suspiciousCount}).");
@@ -350,6 +352,52 @@ public partial class MainWindow : Window
         {
             AppLog.Error(ex, "Brief PDF creation failed");
             MessageBox.Show(this, ex.Message, "Ошибка PDF", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void ExcelReportButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.LastResult is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var path = _vm.ReportService.CreateExcel(
+                _vm.LastResult,
+                _vm.Storage.DataDirectory,
+                GetExternalUtilitySnapshotForReport());
+            ReportStatusText.Text = $"Полный Excel создан: {path}";
+            _vm.ReportService.OpenFile(path);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error(ex, "Excel creation failed");
+            MessageBox.Show(this, ex.Message, "Ошибка Excel", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void BriefExcelReportButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.LastResult is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var path = _vm.ReportService.CreateBriefExcel(
+                _vm.LastResult,
+                _vm.Storage.DataDirectory,
+                GetExternalUtilitySnapshotForReport());
+            ReportStatusText.Text = $"Сводный Excel создан: {path}";
+            _vm.ReportService.OpenFile(path);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error(ex, "Brief Excel creation failed");
+            MessageBox.Show(this, ex.Message, "Ошибка Excel", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -1129,6 +1177,8 @@ public partial class MainWindow : Window
         ScanButton.IsEnabled = !busy;
         PdfReportButton.IsEnabled = !busy && _vm.LastResult is not null;
         BriefPdfReportButton.IsEnabled = !busy && _vm.LastResult is not null;
+        ExcelReportButton.IsEnabled = !busy && _vm.LastResult is not null;
+        BriefExcelReportButton.IsEnabled = !busy && _vm.LastResult is not null;
         UpdateExternalUtilityControls();
         Cursor = busy ? System.Windows.Input.Cursors.Wait : null;
     }
