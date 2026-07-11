@@ -275,6 +275,21 @@
                                        Foreground="#B8A9FF"
                                        TextWrapping="Wrap"
                                        Margin="0,4,0,0"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <TextBlock Text="Фильтр transport/classification:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <ComboBox x:Name="DeviceFilterCombo" Width="250" SelectionChanged="DeviceFilterCombo_SelectionChanged">
+                                    <ComboBoxItem Content="Все устройства" Tag="All" IsSelected="True"/>
+                                    <ComboBoxItem Content="Внешние" Tag="External"/>
+                                    <ComboBoxItem Content="Встроенные" Tag="BuiltIn"/>
+                                    <ComboBoxItem Content="Hub / infrastructure" Tag="Hub"/>
+                                    <ComboBoxItem Content="Composite interfaces" Tag="Composite"/>
+                                    <ComboBoxItem Content="Virtual" Tag="Virtual"/>
+                                    <ComboBoxItem Content="Не определено" Tag="Unknown"/>
+                                    <ComboBoxItem Content="UASP / SCSI" Tag="UASP/SCSI"/>
+                                    <ComboBoxItem Content="MTP / PTP / WPD" Tag="MTP/PTP/WPD"/>
+                                    <ComboBoxItem Content="USB4 / Thunderbolt" Tag="USB4/Thunderbolt"/>
+                                </ComboBox>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                     <DataGrid x:Name="DevicesGrid"
@@ -311,6 +326,10 @@
                             <DataGridTextColumn Header="Что это за запись" Binding="{Binding UserMeaning}" Width="250"/>
                             <DataGridTextColumn Header="Имя устройства" Binding="{Binding DisplayName}" Width="220"/>
                             <DataGridTextColumn Header="Тип" Binding="{Binding CategoryText}" Width="170"/>
+                            <DataGridTextColumn Header="Transport" Binding="{Binding Transport}" Width="170"/>
+                            <DataGridTextColumn Header="Connection" Binding="{Binding Connection}" Width="170"/>
+                            <DataGridTextColumn Header="Classification" Binding="{Binding Classification}" Width="130"/>
+                            <DataGridTextColumn Header="Confidence / evidence" Binding="{Binding ClassificationEvidenceText}" Width="300"/>
                             <DataGridTextColumn Header="Когда подключали" Binding="{Binding FirstConnectedText}" Width="170"/>
                             <DataGridTextColumn Header="Когда отключали" Binding="{Binding LastDisconnectedText}" Width="220"/>
                             <DataGridTextColumn Header="Последняя активность" Binding="{Binding LastSeenText}" Width="170"/>

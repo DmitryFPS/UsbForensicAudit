@@ -25,7 +25,7 @@ internal static class EventLogRecordParser
     private static readonly string[] DeviceMarkers =
     [
         @"USBSTOR\", @"USB\", "VID_", "PID_", @"SCSI\", @"STORAGE\", @"SWD\", @"USB4\",
-        "WPDBUSENUM", "WPD", "MTP", "UASP"
+        "WPDBUSENUM", "WPD", "MTP", "PTP", "UASP", "UASPSTOR", "THUNDERBOLT", "PCIe-tunneled"
     ];
 
     public static bool TryParse(string xml, out ParsedEventLogRecord? parsed)

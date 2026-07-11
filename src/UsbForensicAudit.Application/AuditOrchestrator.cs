@@ -70,6 +70,7 @@ public sealed class AuditOrchestrator
             cancellationToken.ThrowIfCancellationRequested();
 
             progress?.Report("Корреляция physical device -> volumes -> user artifacts...");
+            DeviceTransportClassifier.ClassifyAll(result.Devices);
             DeviceIdentityGraph.Process(result.Devices);
             VolumeCorrelationService.Process(result);
             result.Evidence.AddRange(_correlationService.BuildDeviceCorrelations(result));

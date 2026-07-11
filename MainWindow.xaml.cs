@@ -25,6 +25,7 @@ public partial class MainWindow : Window
     private ObservableCollection<HistoricalUtilityLaunch> _historicalUtilityLaunches => _vm.HistoricalUtilityLaunches;
     private readonly ICollectionView _cleanupFindingsView;
     private readonly ICollectionView _externalUtilityRowsView;
+    private readonly ICollectionView _devicesView;
     private ExternalUtilityReportSnapshot _externalUtilitySnapshot = new();
     private string _lastExternalUtilityAnalysisCopyText = "";
     private ExternalUtilityRow? _activeExternalUtilityRow;
@@ -49,6 +50,9 @@ public partial class MainWindow : Window
         _deviceChangeNotifier = new DeviceChangeNotifier(this);
         _monitor.AttachDeviceNotifier(_deviceChangeNotifier);
         DataContext = _vm;
+        _devicesView = CollectionViewSource.GetDefaultView(_devices);
+        _devicesView.Filter = FilterDevice;
+        DevicesGrid.ItemsSource = _devicesView;
         _cleanupFindingsView = CollectionViewSource.GetDefaultView(_cleanupFindings);
         _cleanupFindingsView.Filter = FilterCleanupFinding;
         FindingsGrid.ItemsSource = _cleanupFindingsView;
@@ -106,6 +110,25 @@ public partial class MainWindow : Window
 
         detailsWindow.ShowDialog();
         e.Handled = true;
+    }
+
+    private void DeviceFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        _devicesView?.Refresh();
+    }
+
+    private bool FilterDevice(object item)
+    {
+        if (item is not UsbDeviceRecord device)
+        {
+            return false;
+        }
+
+        var selected = (DeviceFilterCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
+        return selected == "All"
+               || device.Classification.Equals(selected, StringComparison.OrdinalIgnoreCase)
+               || device.Transport.Equals(selected, StringComparison.OrdinalIgnoreCase)
+               || device.Connection.Equals(selected, StringComparison.OrdinalIgnoreCase);
     }
 
     private async void ScanButton_Click(object sender, RoutedEventArgs e)

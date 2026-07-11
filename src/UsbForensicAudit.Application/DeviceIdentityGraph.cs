@@ -9,6 +9,9 @@ public static class DeviceIdentityGraph
     private static readonly Regex GeneratedInstanceRegex = new(
         @"^\d+&[0-9A-F]+&\d+(?:&\d+)+$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex CompositeInterfaceRegex = new(
+        @"&MI_[0-9A-F]{2}",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     public static void Process(IList<UsbDeviceRecord> devices)
     {
@@ -22,6 +25,7 @@ public static class DeviceIdentityGraph
         JoinByStrongKey(devices, union, "container", d => NormalizeContainer(d.ContainerId));
         JoinByStrongKey(devices, union, "serial", d => IsHardwareSerial(d.Serial) ? NormalizeSerial(d.Serial) : "");
         JoinByStrongKey(devices, union, "topology", d => NormalizeTopology(d.ParentIdPrefix, d.LocationPaths));
+        JoinByStrongKey(devices, union, "composite-parent", CompositeParentKey);
 
         var groups = Enumerable.Range(0, devices.Count)
             .GroupBy(union.Find)
@@ -170,6 +174,16 @@ public static class DeviceIdentityGraph
 
     private static string NormalizeInstance(string value) =>
         value.Trim().Replace('#', '\\').Replace(@"\\", @"\").ToUpperInvariant();
+
+    private static string CompositeParentKey(UsbDeviceRecord device)
+    {
+        if (!device.DeviceInstanceId.StartsWith(@"USB\VID_", StringComparison.OrdinalIgnoreCase))
+        {
+            return "";
+        }
+
+        return CompositeInterfaceRegex.Replace(NormalizeInstance(device.DeviceInstanceId), "");
+    }
 
     private static string NormalizeContainer(string value) =>
         Guid.TryParse(value.Trim(), out var parsed) ? parsed.ToString("D").ToUpperInvariant() : "";

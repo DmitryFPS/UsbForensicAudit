@@ -55,6 +55,12 @@
             <TextBlock Text="Имя устройства" Style="{StaticResource FieldLabel}"/>
             <TextBox Text="{Binding DisplayName, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
 
+            <TextBlock Text="Transport / connection / classification" Style="{StaticResource FieldLabel}"/>
+            <TextBox Text="{Binding ClassificationDisplayText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
+
+            <TextBlock Text="Evidence классификации" Style="{StaticResource FieldLabel}"/>
+            <TextBox Text="{Binding ClassificationEvidenceText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
+
             <TextBlock Text="Когда подключали" Style="{StaticResource FieldLabel}"/>
             <TextBox Text="{Binding FirstConnectedText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
 

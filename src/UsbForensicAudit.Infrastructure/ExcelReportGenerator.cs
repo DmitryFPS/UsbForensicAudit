@@ -179,7 +179,12 @@ internal static class ExcelReportGenerator
             Column<UsbDeviceRecord>("Буквы/тома", 36, x => string.Join("; ", new[] { x.DriveLetters, x.VolumeHints }.Where(v => v.Length > 0))),
             Column<UsbDeviceRecord>("Системный ID / путь", 54, x => x.DeviceInstanceId),
             Column<UsbDeviceRecord>("Canonical device", 30, x => x.CanonicalDeviceId + (x.IsCanonicalPrimary ? " (primary)" : "")),
-            Column<UsbDeviceRecord>("Связанные source IDs", 60, x => string.Join("; ", x.LinkedSourceIds))
+            Column<UsbDeviceRecord>("Связанные source IDs", 60, x => string.Join("; ", x.LinkedSourceIds)),
+            Column<UsbDeviceRecord>("Transport", 28, x => x.Transport),
+            Column<UsbDeviceRecord>("Connection", 28, x => x.Connection),
+            Column<UsbDeviceRecord>("Classification", 22, x => x.Classification),
+            Column<UsbDeviceRecord>("Confidence / provenance", 58, x =>
+                $"{x.TransportConfidence}/{x.ConnectionConfidence}/{x.ClassificationConfidence}: {x.ClassificationEvidenceText}")
         };
 
         var worksheet = AddDataSheet(workbook, sheetName, "История USB-устройств и связанных forensic-записей", rows, columns);

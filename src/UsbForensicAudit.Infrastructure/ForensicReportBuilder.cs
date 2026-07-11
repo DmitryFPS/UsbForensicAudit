@@ -99,8 +99,7 @@ internal sealed class ForensicReportContext
     private static UsbDeviceRecord[] BuildUsbScopeDevices(IReadOnlyList<UsbDeviceRecord> devices)
     {
         var coreUsb = devices
-            .Where(x => x.VisualCategory.Equals("RealUsb", StringComparison.OrdinalIgnoreCase))
-            .Where(x => !x.DeviceType.Equals("VolumeMapping", StringComparison.OrdinalIgnoreCase))
+            .Where(DeviceTransportClassifier.IsReportable)
             .ToArray();
 
         return devices
@@ -108,8 +107,7 @@ internal sealed class ForensicReportContext
                 coreUsb.Contains(x)
                 || x.VisualCategory.Equals("UsbFlagsTrace", StringComparison.OrdinalIgnoreCase)
                 || (x.VisualCategory.Equals("RelatedStorage", StringComparison.OrdinalIgnoreCase)
-                    && (x.Service.Contains("uasp", StringComparison.OrdinalIgnoreCase)
-                        || coreUsb.Any(usb => IsRelatedStorage(x, usb)))))
+                    && coreUsb.Any(usb => IsRelatedStorage(x, usb))))
             .Distinct()
             .OrderBy(x => x.CanonicalDeviceId)
             .ThenByDescending(x => x.IsCanonicalPrimary)
@@ -202,6 +200,11 @@ internal sealed class ForensicReportContext
                || value.Contains("VID_", StringComparison.OrdinalIgnoreCase)
                || value.Contains("PID_", StringComparison.OrdinalIgnoreCase)
                || value.Contains("WPDBUSENUM", StringComparison.OrdinalIgnoreCase)
+               || value.Contains("SCSI", StringComparison.OrdinalIgnoreCase)
+               || value.Contains("STORAGE", StringComparison.OrdinalIgnoreCase)
+               || value.Contains("WPD", StringComparison.OrdinalIgnoreCase)
+               || value.Contains("USB4", StringComparison.OrdinalIgnoreCase)
+               || value.Contains("THUNDERBOLT", StringComparison.OrdinalIgnoreCase)
                || value.Contains("removable", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -303,7 +306,7 @@ internal static class ForensicReportBuilder
         html.AppendLine($"<b>Окончание сканирования:</b> {E(DateDisplay.FormatMoscow(result.FinishedAtUtc))}<br>");
         html.AppendLine($"<b>Длительность:</b> {E(ctx.ScanDurationText)}<br>");
         html.AppendLine($"<b>Права администратора:</b> {(result.IsAdministrator ? "да" : "нет")}<br>");
-        html.AppendLine("<b>Область отчёта:</b> только USB/Type-C, включая встроенные устройства внутренней USB-шины; ОЗУ и внутренние SATA/NVMe исключены.<br>");
+        html.AppendLine("<b>Область отчёта:</b> USB/Type-C, UASP, MTP/WPD и подтверждённые USB4/Thunderbolt tunnels; встроенные USB явно маркируются, внутренние SATA/NVMe без external topology evidence исключены.<br>");
         html.AppendLine($"<span class=\"muted\">{E(result.OsInstallGraceNote)}</span>");
         html.AppendLine("</div>");
 
@@ -418,11 +421,11 @@ internal static class ForensicReportBuilder
     {
         html.AppendLine("<h2 id=\"devices\">4. USB-устройства</h2>");
         html.AppendLine("<p class=\"muted\">В отчёт включены реальные USB/Type-C устройства, подтверждённые связанные USB-диски и остаточные следы usbflags. Внутренние SATA/NVMe-диски и ОЗУ не относятся к USB и исключены.</p>");
-        html.AppendLine("<table><tr><th>Canonical device</th><th>Тип</th><th>Что это</th><th>Откуда</th><th>Имя</th><th>Производитель</th><th>Модель</th><th>VID/PID</th><th>Серийный номер</th><th>Когда подключали</th><th>Последняя активность</th><th>Когда отключали</th><th>Пояснение по датам</th><th>Расположение</th><th>Буквы дисков</th><th>Системный ID</th></tr>");
+        html.AppendLine("<table><tr><th>Canonical device</th><th>Тип</th><th>Transport / connection / classification</th><th>Confidence / evidence</th><th>Что это</th><th>Откуда</th><th>Имя</th><th>Производитель</th><th>Модель</th><th>VID/PID</th><th>Серийный номер</th><th>Когда подключали</th><th>Последняя активность</th><th>Когда отключали</th><th>Пояснение по датам</th><th>Расположение</th><th>Буквы дисков</th><th>Системный ID</th></tr>");
         foreach (var device in ctx.ReportableDevices)
         {
             html.AppendLine(
-                $"<tr><td>{E(device.CanonicalDeviceId)}{(device.IsCanonicalPrimary ? " (primary)" : "")}</td><td>{E(device.CategoryText)}</td><td>{E(device.UserMeaning)}</td><td>{E(device.SourceText)}</td>" +
+                $"<tr><td>{E(device.CanonicalDeviceId)}{(device.IsCanonicalPrimary ? " (primary)" : "")}</td><td>{E(device.CategoryText)}</td><td>{E(device.ClassificationDisplayText)}</td><td>{E(device.ClassificationEvidenceText)}</td><td>{E(device.UserMeaning)}</td><td>{E(device.SourceText)}</td>" +
                 $"<td>{E(device.DisplayName)}</td><td>{E(device.ManufacturerText)}</td><td>{E(device.ModelText)}</td>" +
                 $"<td>{E(device.VidPidText)}</td><td>{E(device.SerialText)}</td><td>{E(device.FirstConnectedText)}</td>" +
                 $"<td>{E(device.LastSeenText)}</td><td>{E(device.LastDisconnectedText)}</td><td>{E(device.DateConfidenceText)}</td>" +
@@ -448,6 +451,8 @@ internal static class ForensicReportBuilder
             html.AppendLine($"<b>Назначение:</b> {E(device.UserMeaning)}<br>");
             html.AppendLine($"<b>Источник записи:</b> {E(device.SourceText)}<br>");
             html.AppendLine($"<b>Тип устройства:</b> {E(device.DeviceTypeText)}<br>");
+            html.AppendLine($"<b>Transport / connection / classification:</b> {E(device.ClassificationDisplayText)}<br>");
+            html.AppendLine($"<b>Classification evidence:</b> {E(device.ClassificationEvidenceText)}<br>");
             html.AppendLine($"<b>Производитель:</b> {E(device.ManufacturerText)}<br>");
             html.AppendLine($"<b>Модель:</b> {E(device.ModelText)}<br>");
             html.AppendLine($"<b>VID/PID:</b> {E(device.VidPidText)}<br>");
@@ -550,7 +555,7 @@ internal static class ForensicReportBuilder
         html.AppendLine("<h2 id=\"methodology\">9. Источники данных</h2>");
         html.AppendLine("""
             <ul>
-            <li>Реестр Windows: USB, USBSTOR, SCSI, WPD, MountedDevices.</li>
+            <li>Реестр Windows: USB, USBSTOR, SCSI/UASP, WPD/MTP, USB4 и только релевантные Thunderbolt PCI instances, MountedDevices.</li>
             <li>Журнал setupapi.dev.log — установка и удаление устройств.</li>
             <li>Журналы Windows: System, Security, DeviceSetupManager, DriverFrameworks-UserMode.</li>
             <li>Журнал корпоративной защиты USB (если установлен).</li>

@@ -16,19 +16,37 @@ public sealed class WmiConnectedDeviceProbe : IConnectedDeviceProbe
         try
         {
             using var searcher = new ManagementObjectSearcher(
-                "SELECT PNPDeviceID FROM Win32_PnPEntity WHERE PNPDeviceID LIKE 'USB%' OR PNPDeviceID LIKE 'USBSTOR%'");
+                "SELECT PNPDeviceID, Service, Name FROM Win32_PnPEntity " +
+                "WHERE PNPDeviceID LIKE 'USB%' OR PNPDeviceID LIKE 'USBSTOR%' OR PNPDeviceID LIKE 'SCSI%' " +
+                "OR PNPDeviceID LIKE 'SWD%' OR PNPDeviceID LIKE 'USB4%' OR PNPDeviceID LIKE 'PCI%' " +
+                "OR Service='uaspstor' OR Service='Usb4HostRouter' OR Service='Usb4DeviceRouter' OR Service='Usb4P2PNetAdapter'");
 
             foreach (ManagementObject item in searcher.Get())
             {
-                pnpIdentifiers.Add(item["PNPDeviceID"]?.ToString());
+                var pnpId = item["PNPDeviceID"]?.ToString() ?? "";
+                var metadata = LiveDeviceMetadataReader.Read(pnpId);
+                if (DeviceTransportClassifier.IsRelevantLiveCandidate(
+                        pnpId, item["Service"]?.ToString() ?? "", metadata.HardwareIds,
+                        metadata.CompatibleIds, metadata.LocationPaths, item["Name"]?.ToString() ?? ""))
+                {
+                    pnpIdentifiers.Add(pnpId);
+                }
             }
 
             using var diskSearcher = new ManagementObjectSearcher(
-                "SELECT PNPDeviceID FROM Win32_DiskDrive WHERE InterfaceType = 'USB'");
+                "SELECT PNPDeviceID, InterfaceType, MediaType, Model FROM Win32_DiskDrive " +
+                "WHERE InterfaceType='USB' OR MediaType='Removable Media' OR MediaType='External hard disk media' OR PNPDeviceID LIKE 'SCSI%'");
 
             foreach (ManagementObject disk in diskSearcher.Get())
             {
-                pnpIdentifiers.Add(disk["PNPDeviceID"]?.ToString());
+                var pnpId = disk["PNPDeviceID"]?.ToString() ?? "";
+                var metadata = LiveDeviceMetadataReader.Read(pnpId);
+                if (DeviceTransportClassifier.IsRelevantLiveCandidate(
+                        pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds,
+                        metadata.LocationPaths, disk["Model"]?.ToString() ?? "", disk["MediaType"]?.ToString() ?? ""))
+                {
+                    pnpIdentifiers.Add(pnpId);
+                }
             }
 
             using var volumeSearcher = new ManagementObjectSearcher(

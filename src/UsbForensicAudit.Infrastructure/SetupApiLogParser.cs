@@ -9,7 +9,8 @@ internal static partial class SetupApiLogParser
     private static readonly string[] DeviceMarkers =
     [
         @"USBSTOR\", @"USB\", @"SCSI\", @"STORAGE\", @"SWD\", @"USB4\",
-        "VID_", "PID_", "WPDBUSENUM", "WPD", "MTP", "UASP"
+        "VID_", "PID_", "WPDBUSENUM", "WPD", "MTP", "PTP", "UASP", "UASPSTOR",
+        "THUNDERBOLT", "Usb4HostRouter", "Usb4DeviceRouter", "Usb4P2PNetAdapter"
     ];
 
     public static IReadOnlyList<EvidenceRecord> Parse(TextReader reader, string sourceName, string sourcePath = "")
