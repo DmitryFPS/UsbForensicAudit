@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.Eventing.Reader;
 
 namespace UsbForensicAudit;
@@ -10,9 +11,10 @@ public sealed class ProcessAttributionCollector : IEvidenceCollector
 
     IReadOnlyList<EvidenceRecord> IEvidenceCollector.Collect(List<string> warnings) => Collect(warnings);
 
-    public IReadOnlyList<EvidenceRecord> Collect(List<string> warnings, int maxEvents = 400)
+    public IReadOnlyList<EvidenceRecord> Collect(List<string> warnings, int maxEvents = 10_000)
     {
         var results = new List<EvidenceRecord>();
+        CollectRunningProcesses(results, warnings);
 
         try
         {
@@ -22,14 +24,17 @@ public sealed class ProcessAttributionCollector : IEvidenceCollector
             };
 
             using var reader = new EventLogReader(query);
-            var read = 0;
-            for (var record = reader.ReadEvent(); record is not null && read < maxEvents; record = reader.ReadEvent())
+            var inspected = 0;
+            for (var record = reader.ReadEvent(); record is not null && inspected < maxEvents; record = reader.ReadEvent())
             {
                 using (record)
                 {
+                    inspected++;
                     var xml = SafeXml(record);
                     var processPath = CleanupAttribution.ExtractProcessPath(xml);
-                    var toolPattern = CleanerToolCatalog.Match(processPath) ?? CleanerToolCatalog.Match(xml);
+                    var toolPattern = CleanerToolCatalog.MatchTrackedUtility(processPath)
+                                      ?? CleanerToolCatalog.MatchTrackedUtility(xml)
+                                      ?? CleanerToolCatalog.MatchExplicitCleanupCommand(xml);
                     if (toolPattern is null)
                     {
                         continue;
@@ -48,7 +53,7 @@ public sealed class ProcessAttributionCollector : IEvidenceCollector
                         EvidenceCategory = "Запуск процесса",
                         EvidenceStrength = "Direct",
                         Confidence = "High",
-                        UserExplanation = "Security Audit Process Creation: процесс, который мог очистить журналы или USB-следы.",
+                        UserExplanation = "Security Event 4688 зафиксировал создание процесса. Запуск сам по себе не доказывает выполненную очистку.",
                         EventId = "PROCESS_HINT",
                         Level = record.LevelDisplayName ?? "",
                         DeviceHint = processPath,
@@ -58,8 +63,12 @@ public sealed class ProcessAttributionCollector : IEvidenceCollector
                         CanEstablishConnectionDate = false,
                         RawText = xml
                     });
-                    read++;
                 }
+            }
+
+            if (inspected >= maxEvents)
+            {
+                warnings.Add($"Security Event ID 4688: проверены последние {maxEvents:N0} событий; более старые записи не анализировались.");
             }
         }
         catch (Exception ex)
@@ -68,6 +77,80 @@ public sealed class ProcessAttributionCollector : IEvidenceCollector
         }
 
         return results;
+    }
+
+    internal static void CollectRunningProcesses(
+        List<EvidenceRecord> results,
+        List<string> warnings)
+    {
+        try
+        {
+            foreach (var process in Process.GetProcesses())
+            {
+                using (process)
+                {
+                    try
+                    {
+                        var processName = process.ProcessName;
+                        var path = "";
+                        try
+                        {
+                            path = process.MainModule?.FileName ?? "";
+                        }
+                        catch
+                        {
+                            // Для защищённых процессов имя всё равно остаётся доступным.
+                        }
+
+                        var pattern = CleanerToolCatalog.MatchTrackedUtility(path)
+                                      ?? CleanerToolCatalog.MatchTrackedUtility(processName);
+                        if (pattern is null)
+                        {
+                            continue;
+                        }
+
+                        DateTimeOffset timestamp;
+                        try
+                        {
+                            timestamp = new DateTimeOffset(process.StartTime).ToUniversalTime();
+                        }
+                        catch
+                        {
+                            timestamp = DateTimeOffset.UtcNow;
+                        }
+
+                        var displayName = CleanerToolCatalog.DisplayName(pattern);
+                        results.Add(new EvidenceRecord
+                        {
+                            TimestampUtc = timestamp,
+                            AcquisitionTimestampUtc = DateTimeOffset.UtcNow,
+                            Source = "Live Process Snapshot",
+                            Provider = "System.Diagnostics.Process",
+                            Channel = "Live",
+                            SourceRecord = process.Id.ToString(),
+                            EvidenceCategory = "Запущенный процесс",
+                            EvidenceStrength = "Direct",
+                            Confidence = "High",
+                            UserExplanation = "Процесс работал во время сканирования. Это подтверждает запуск, но не выполненную очистку.",
+                            EventId = "LIVE_PROCESS",
+                            DeviceHint = string.IsNullOrWhiteSpace(path) ? processName : path,
+                            Summary = displayName,
+                            Provenance = $"Live process snapshot: pid={process.Id}; name={processName}",
+                            CanEstablishConnectionDate = false,
+                            RawText = $"ProcessName={processName}; Path={path}; Pid={process.Id}"
+                        });
+                    }
+                    catch
+                    {
+                        // Процесс мог завершиться между перечислением и чтением свойств.
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"Снимок запущенных cleaner-процессов недоступен: {ex.Message}");
+        }
     }
 
     private static string SafeXml(EventRecord record)

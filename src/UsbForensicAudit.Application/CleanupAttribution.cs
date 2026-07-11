@@ -88,22 +88,7 @@ public static class CleanupAttribution
 
     public static string? DetectToolFromEvidence(EvidenceRecord evidence)
     {
-        if (evidence.EventId == "PROCESS_HINT")
-        {
-            var match = CleanerToolCatalog.Match(evidence.Summary) ?? CleanerToolCatalog.Match(evidence.DeviceHint);
-            return match is null ? null : CleanerToolCatalog.DisplayName(match);
-        }
-
-        if (evidence.EventId != "CLEANER_HINT")
-        {
-            return null;
-        }
-
-        var fromSummary = CleanerToolCatalog.Match(evidence.Summary);
-        var fromHint = CleanerToolCatalog.Match(evidence.DeviceHint);
-        var fromRaw = CleanerToolCatalog.Match(evidence.RawText);
-        var pattern = fromSummary ?? fromHint ?? fromRaw;
-        return pattern is null ? null : CleanerToolCatalog.DisplayName(pattern);
+        return CleanerEvidenceClassifier.Analyze(evidence)?.Tool;
     }
 
     public static string DetermineConfidence(

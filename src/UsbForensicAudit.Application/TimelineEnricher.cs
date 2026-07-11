@@ -308,7 +308,10 @@ public sealed class TimelineEnricher
             return "Запуск/исполнение";
         }
 
-        if (evidence.EventId is "104" or "1102" or "CLEANER_HINT")
+        var cleanerAssessment = CleanerEvidenceClassifier.Analyze(evidence);
+        if (evidence.EventId is "104" or "1102"
+            || cleanerAssessment is not null
+            && CleanerToolCatalog.IsTraceRemovalTool(cleanerAssessment.Tool))
         {
             return "Очистка/антифорензика";
         }
@@ -320,8 +323,10 @@ public sealed class TimelineEnricher
     {
         if (evidence.Source.Contains("Prefetch", StringComparison.OrdinalIgnoreCase))
         {
-            return evidence.EventId == "CLEANER_HINT"
-                ? "Prefetch: Windows запускала утилиту очистки USB-следов — возможный признак anti-forensics."
+            var cleanerAssessment = CleanerEvidenceClassifier.Analyze(evidence);
+            return cleanerAssessment is not null
+                   && CleanerToolCatalog.IsTraceRemovalTool(cleanerAssessment.Tool)
+                ? $"Prefetch подтверждает запуск {cleanerAssessment.Tool}. Сам запуск не доказывает, что очистка была выполнена."
                 : "Prefetch: Windows сохранила след запуска программы. Пути к USB/дискам внутри .pf — подсказка об активности, не прямое подключение флешки.";
         }
 

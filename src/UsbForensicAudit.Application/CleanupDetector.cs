@@ -10,6 +10,7 @@ public sealed class CleanupDetector
         AnalyzeSetupApi(findings, result);
         AnalyzeEventLogEvidence(result, findings);
         AnalyzeCleanerEvidence(result, findings);
+        AnalyzeExecutionGaps(result, findings);
         UsbOblivionAttributionAnalyzer.Analyze(result, findings);
         AnalyzeContradictions(result, findings);
         return findings;
@@ -198,50 +199,237 @@ public sealed class CleanupDetector
         }
     }
 
+    private static void AnalyzeExecutionGaps(AuditResult result, List<CleanupFinding> findings)
+    {
+        var corroborationSources = new[] { "BAM_EXECUTION", "DAM_EXECUTION" };
+        var toolsWithCorroboration = result.Evidence
+            .Where(x => corroborationSources.Contains(x.EventId, StringComparer.OrdinalIgnoreCase)
+                        || x.Source.Contains("UserAssist", StringComparison.OrdinalIgnoreCase)
+                        || x.Source.Contains("MuiCache", StringComparison.OrdinalIgnoreCase))
+            .Select(x => new { Evidence = x, Assessment = CleanerEvidenceClassifier.Analyze(x) })
+            .Where(x => x.Assessment?.SupportsExecution == true
+                        && CleanerToolCatalog.IsTraceRemovalTool(x.Assessment.Tool))
+            .GroupBy(x => x.Assessment!.Tool, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        foreach (var group in toolsWithCorroboration)
+        {
+            var tool = group.Key;
+            var latest = group.OrderByDescending(x => x.Evidence.TimestampUtc).First();
+            var hasPrefetch = result.Evidence.Any(x =>
+                x.EventId is "CLEANER_EXECUTION" or "CLEANER_PREFETCH_TAMPER"
+                && string.Equals(CleanerEvidenceClassifier.Analyze(x)?.Tool, tool, StringComparison.OrdinalIgnoreCase));
+            if (hasPrefetch)
+            {
+                continue;
+            }
+
+            var alreadyCovered = findings.Any(x =>
+                x.PossibleTool.Equals(tool, StringComparison.OrdinalIgnoreCase)
+                && x.ActionKind is "ToolLaunch" or "ProbableCleanup" or "ToolPresence");
+            if (alreadyCovered)
+            {
+                continue;
+            }
+
+            findings.Add(new CleanupFinding
+            {
+                TimestampUtc = latest.Evidence.TimestampUtc,
+                Severity = "Medium",
+                Assessment = "Suspicious",
+                ActionKind = "ExecutionGap",
+                InitiatorKind = string.IsNullOrWhiteSpace(latest.Evidence.ResolvedUserName) ? "Unknown" : "User",
+                InitiatorAccount = string.IsNullOrWhiteSpace(latest.Evidence.ResolvedUserName)
+                    ? "не определено"
+                    : latest.Evidence.ResolvedUserName,
+                PossibleTool = tool,
+                Confidence = "Indirect",
+                Area = "Cleaner Artifacts",
+                Finding = $"{tool}: запуск подтверждён BAM/UserAssist/MuiCache, но Prefetch отсутствует",
+                Details =
+                    "BAM/DAM, UserAssist или MuiCache указывают на запуск утилиты очистки, однако соответствующий Prefetch не найден. " +
+                    "Это может быть следствием отключённого Prefetch, очистки каталога Prefetch или анти-forensic действий. " +
+                    $"{latest.Evidence.Source}: {latest.Evidence.Summary}."
+            });
+        }
+    }
+
     private static void AnalyzeCleanerEvidence(AuditResult result, List<CleanupFinding> findings)
     {
-        foreach (var evidence in result.Evidence.Where(x => x.EventId == "CLEANER_HINT"))
+        var candidates = result.Evidence
+            .Select(evidence => new
+            {
+                Evidence = evidence,
+                Assessment = CleanerEvidenceClassifier.Analyze(evidence)
+            })
+            .Where(x => x.Assessment is not null)
+            .Select(x => (x.Evidence, Assessment: x.Assessment!))
+            .OrderByDescending(x => x.Evidence.TimestampUtc)
+            .ToArray();
+        var toolsWithExecution = candidates
+            .Where(x => x.Assessment.SupportsExecution)
+            .Select(x => x.Assessment.Tool)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var presenceRecorded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var launchCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (evidence, assessment) in candidates)
         {
-            var tool = CleanupAttribution.DetectToolFromEvidence(evidence) ?? "не определено";
+            var tool = assessment.Tool;
+            if (!assessment.SupportsExecution)
+            {
+                if (toolsWithExecution.Contains(tool) || !presenceRecorded.Add(tool))
+                {
+                    continue;
+                }
+
+                findings.Add(CreateCleanerPresenceFinding(evidence, assessment));
+                continue;
+            }
+
+            launchCounts.TryGetValue(tool, out var launchCount);
+            if (launchCount >= 100)
+            {
+                continue;
+            }
+
+            launchCounts[tool] = launchCount + 1;
             var isUsbTool = CleanerToolCatalog.IsUsbForensicUtility(tool);
+            var removesTraces = CleanerToolCatalog.IsTraceRemovalTool(tool);
+            var explicitRemovalIntent = CleanerEvidenceClassifier.HasExplicitRemovalIntent(evidence, assessment);
+            var readOnlyPrefetchTamper = evidence.EventId == "CLEANER_PREFETCH_TAMPER";
             var correlatedLogClear = result.Evidence.Any(x =>
                 x.EventId is "104" or "1102"
                 && Math.Abs((x.TimestampUtc - evidence.TimestampUtc).TotalHours) <= 2);
-            var correlatedRegistryIssue = result.CleanupFindings.Any(x =>
+            var correlatedRegistryIssue = result.CleanupFindings.Concat(findings).Any(x =>
                 x.Area is "SetupAPI" or "Correlation"
                 && x.Assessment == "Suspicious"
                 && Math.Abs((x.TimestampUtc - evidence.TimestampUtc).TotalHours) <= 24);
 
-            var probableCleanup = isUsbTool
-                                  && (CleanerToolCatalog.IsOblivionTool(tool)
-                                      ? correlatedRegistryIssue || correlatedLogClear
-                                      : correlatedLogClear);
+            var hasDirectExecutionEvidence = result.Evidence.Any(x =>
+                x.EventId is "CLEANER_EXECUTION" or "CLEANER_PREFETCH_TAMPER" or "PROCESS_HINT" or "LIVE_PROCESS"
+                && string.Equals(CleanerEvidenceClassifier.Analyze(x)?.Tool, tool, StringComparison.OrdinalIgnoreCase));
+            var missingPrefetchNote = !hasDirectExecutionEvidence && !assessment.IsDirectExecution
+                ? " BAM/UserAssist/MuiCache подтверждают запуск, но Prefetch не найден — возможна очистка каталога Prefetch или отключённый Prefetch."
+                : "";
+            var probableCleanup = explicitRemovalIntent
+                                  || readOnlyPrefetchTamper
+                                  || (removesTraces && correlatedLogClear)
+                                  || (CleanerToolCatalog.IsOblivionTool(tool) && correlatedRegistryIssue);
+            var existing = findings.FirstOrDefault(x =>
+                x.PossibleTool.Equals(tool, StringComparison.OrdinalIgnoreCase)
+                && x.ActionKind is "ToolLaunch" or "ProbableCleanup"
+                && Math.Abs((x.TimestampUtc - evidence.TimestampUtc).TotalMinutes) <= 5);
+            if (existing is not null)
+            {
+                MergeCleanerEvidence(existing, evidence, assessment, probableCleanup);
+                continue;
+            }
 
+            var initiator = InitiatorFromEvidence(evidence);
+            var confidence = probableCleanup
+                ? "Probable"
+                : assessment.IsDirectExecution ? "Confirmed" : "Probable";
             findings.Add(new CleanupFinding
             {
                 TimestampUtc = evidence.TimestampUtc,
-                Severity = probableCleanup ? "High" : "Medium",
-                Assessment = "Suspicious",
+                Severity = probableCleanup ? "High" : removesTraces ? "Medium" : isUsbTool ? "Low" : "Medium",
+                Assessment = removesTraces || probableCleanup ? "Suspicious" : "Informational",
                 ActionKind = probableCleanup ? "ProbableCleanup" : "ToolLaunch",
-                InitiatorKind = "Unknown",
-                InitiatorAccount = "не определено",
+                InitiatorKind = initiator.Kind,
+                InitiatorAccount = initiator.Account,
                 PossibleTool = tool,
-                Confidence = probableCleanup ? "Probable" : "Indirect",
+                Confidence = confidence,
                 Area = "Cleaner Artifacts",
                 Finding = probableCleanup
-                    ? $"Вероятная очистка следов с участием {tool}"
+                    ? $"Запуск {tool} с дополнительными признаками возможной очистки"
+                    : removesTraces
+                        ? $"Зафиксирован запуск утилиты очистки {tool}"
                     : isUsbTool
                         ? $"Запуск USB-утилиты {tool}"
-                        : "Найден индикатор запуска/наличия утилиты очистки",
+                        : $"Зафиксирован запуск {tool}",
                 Details =
+                    $"{CleanerEvidenceClassifier.DescribeSource(evidence, assessment)} " +
                     $"{evidence.Source}: {evidence.Summary}; {evidence.DeviceHint}. " +
                     (probableCleanup
-                        ? "По времени рядом найдены очистка журналов или противоречия в реестре/setupapi."
-                        : "Запуск утилиты сам по себе не доказывает очистку в этот момент — смотрите тип действия и уверенность.") +
+                        ? explicitRemovalIntent
+                            ? "В командной строке найдены параметры или команда, явно направленные на удаление следов. Создание процесса не доказывает успешное завершение операции."
+                            : readOnlyPrefetchTamper
+                                ? "Prefetch помечен read-only — типичный признак попытки зафиксировать или скрыть след запуска."
+                            : "По времени рядом найдены независимые признаки очистки журналов или USB-артефактов."
+                        : removesTraces
+                            ? "Запуск подтверждён, но без независимого изменения системных артефактов нельзя утверждать, что очистка завершилась."
+                            : "Утилита может использоваться для просмотра или управления устройствами; её запуск не равен очистке.") +
                     " " +
-                    CleanupAttribution.BuildAttributionDetails(InitiatorInfo.Unknown, tool, probableCleanup ? "Probable" : "Indirect")
+                    CleanupAttribution.BuildAttributionDetails(initiator, tool, confidence) +
+                    missingPrefetchNote
             });
         }
+    }
+
+    private static CleanupFinding CreateCleanerPresenceFinding(
+        EvidenceRecord evidence,
+        CleanerEvidenceAssessment assessment)
+    {
+        return new CleanupFinding
+        {
+            TimestampUtc = evidence.TimestampUtc,
+            Severity = "Info",
+            Assessment = "Informational",
+            ActionKind = "ToolPresence",
+            InitiatorKind = "Unknown",
+            InitiatorAccount = "не определено",
+            PossibleTool = assessment.Tool,
+            Confidence = "Indirect",
+            Area = "Cleaner Artifacts",
+            Finding = $"Найден след наличия {assessment.Tool}, запуск не подтверждён",
+            Details =
+                $"{CleanerEvidenceClassifier.DescribeSource(evidence, assessment)} " +
+                $"{evidence.Source}: {evidence.Summary}; {evidence.DeviceHint}. " +
+                "Эта запись показывает наличие программы или пути к ней и не доказывает запуск либо очистку."
+        };
+    }
+
+    private static void MergeCleanerEvidence(
+        CleanupFinding existing,
+        EvidenceRecord evidence,
+        CleanerEvidenceAssessment assessment,
+        bool probableCleanup)
+    {
+        if (probableCleanup)
+        {
+            existing.Severity = "High";
+            existing.Assessment = "Suspicious";
+            existing.ActionKind = "ProbableCleanup";
+            existing.Confidence = "Probable";
+            existing.Finding = $"Запуск {assessment.Tool} с дополнительными признаками возможной очистки";
+        }
+        else if (assessment.IsDirectExecution && existing.Confidence != "Probable")
+        {
+            existing.Confidence = "Confirmed";
+        }
+
+        var sourceDetails =
+            $"{CleanerEvidenceClassifier.DescribeSource(evidence, assessment)} Источник: {evidence.Source}; {evidence.Summary}.";
+        if (!existing.Details.Contains(sourceDetails, StringComparison.OrdinalIgnoreCase))
+        {
+            existing.Details += $" Дополнительное подтверждение: {sourceDetails}";
+        }
+    }
+
+    private static InitiatorInfo InitiatorFromEvidence(EvidenceRecord evidence)
+    {
+        if (evidence.EventId == "PROCESS_HINT")
+        {
+            return CleanupAttribution.ParseEventLogInitiator(evidence.RawText);
+        }
+
+        if (!string.IsNullOrWhiteSpace(evidence.ResolvedUserName))
+        {
+            return new InitiatorInfo("User", evidence.ResolvedUserName, evidence.UserSid);
+        }
+
+        return InitiatorInfo.Unknown;
     }
 
     private static CleanupFinding ApplyAttribution(

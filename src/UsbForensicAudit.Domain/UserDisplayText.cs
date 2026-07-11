@@ -66,6 +66,8 @@ public static class UserDisplayText
     public static string ActionKind(string? value) => value switch
     {
         "ToolLaunch" => "Запуск утилиты",
+        "ToolPresence" => "След наличия утилиты",
+        "ExecutionGap" => "Запуск без Prefetch",
         "ProbableCleanup" => "Вероятная очистка",
         "LogClearing" => "Очистка журналов",
         "RegistryArtifact" => "Изменение реестра/файлов",

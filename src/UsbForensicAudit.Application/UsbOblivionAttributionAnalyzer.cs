@@ -26,19 +26,62 @@ public static class UsbOblivionAttributionAnalyzer
         var hasRegistryGap = usbStorCount > 0 && setupApiUsb == 0;
         var hasMountedWithoutUsb = result.Devices.Any(x => x.Source.Contains("MountedDevices", StringComparison.OrdinalIgnoreCase))
                                    && registryUsb == 0;
-        var setupApiMissing = result.CleanupFindings.Any(x =>
+        var knownFindings = result.CleanupFindings.Concat(findings).ToArray();
+        var setupApiMissing = knownFindings.Any(x =>
             x.Finding.Contains("setupapi.dev.log отсутствует", StringComparison.OrdinalIgnoreCase));
-        var setupApiSmall = result.CleanupFindings.Any(x =>
+        var setupApiSmall = knownFindings.Any(x =>
             x.Finding.Contains("setupapi.dev.log подозрительно мал", StringComparison.OrdinalIgnoreCase)
             || x.Finding.Contains("пересоздан", StringComparison.OrdinalIgnoreCase));
 
         foreach (var launch in oblivionLaunches.Take(10))
         {
+            var assessment = CleanerEvidenceClassifier.Analyze(launch)!;
             var correlatedLogClear = result.Evidence.Any(x =>
                 x.EventId is "104" or "1102"
                 && Math.Abs((x.TimestampUtc - launch.TimestampUtc).TotalHours) <= 2);
+            var correlatedRegistryIssue = result.CleanupFindings.Concat(findings).Any(x =>
+                x.Area is "SetupAPI" or "Correlation"
+                && x.Assessment == "Suspicious"
+                && Math.Abs((x.TimestampUtc - launch.TimestampUtc).TotalHours) <= 24);
+            var explicitRemovalIntent = CleanerEvidenceClassifier.HasExplicitRemovalIntent(launch, assessment);
 
-            var probableCleanup = hasRegistryGap || hasMountedWithoutUsb || setupApiMissing || setupApiSmall || correlatedLogClear;
+            var probableCleanup = explicitRemovalIntent || correlatedRegistryIssue || correlatedLogClear;
+            var details = BuildDetails(
+                launch,
+                probableCleanup,
+                explicitRemovalIntent,
+                correlatedRegistryIssue,
+                hasRegistryGap,
+                hasMountedWithoutUsb,
+                setupApiMissing,
+                setupApiSmall,
+                correlatedLogClear,
+                usbStorCount,
+                setupApiUsb);
+            var existing = findings.FirstOrDefault(x =>
+                x.PossibleTool.Contains("Oblivion", StringComparison.OrdinalIgnoreCase)
+                && x.ActionKind is "ToolLaunch" or "ProbableCleanup"
+                && Math.Abs((x.TimestampUtc - launch.TimestampUtc).TotalMinutes) <= 5);
+            if (existing is not null)
+            {
+                if (probableCleanup)
+                {
+                    existing.Severity = "High";
+                    existing.Assessment = "Suspicious";
+                    existing.ActionKind = "ProbableCleanup";
+                    existing.Confidence = "Probable";
+                    existing.Area = "USB Oblivion";
+                    existing.Finding = "USB Oblivion: запуск с дополнительными признаками возможной очистки";
+                }
+
+                if (!existing.Details.Contains("Специальная проверка USB Oblivion", StringComparison.OrdinalIgnoreCase))
+                {
+                    existing.Details += $" Специальная проверка USB Oblivion: {details}";
+                }
+
+                continue;
+            }
+
             findings.Add(new CleanupFinding
             {
                 TimestampUtc = launch.TimestampUtc,
@@ -48,67 +91,30 @@ public static class UsbOblivionAttributionAnalyzer
                 InitiatorKind = "Unknown",
                 InitiatorAccount = "не определено",
                 PossibleTool = "USB Oblivion",
-                Confidence = probableCleanup ? "Probable" : "Indirect",
+                Confidence = probableCleanup ? "Probable" : assessment.IsDirectExecution ? "Confirmed" : "Probable",
                 Area = probableCleanup ? "USB Oblivion" : "Cleaner Artifacts",
                 Finding = probableCleanup
-                    ? "USB Oblivion: вероятно выполнено удаление следов USB"
+                    ? "USB Oblivion: запуск с дополнительными признаками возможной очистки"
                     : "USB Oblivion: зафиксирован запуск утилиты удаления следов",
-                Details = BuildDetails(launch, probableCleanup, hasRegistryGap, setupApiMissing, setupApiSmall, correlatedLogClear, usbStorCount, setupApiUsb)
+                Details = details
             });
-        }
-
-        if ((hasRegistryGap || setupApiMissing) && oblivionLaunches.Length > 0)
-        {
-            var latest = oblivionLaunches[0].TimestampUtc;
-            if (!findings.Any(x =>
-                    x.PossibleTool.Contains("Oblivion", StringComparison.OrdinalIgnoreCase)
-                    && x.ActionKind == "ProbableCleanup"
-                    && Math.Abs((x.TimestampUtc - latest).TotalMinutes) < 5))
-            {
-                findings.Add(new CleanupFinding
-                {
-                    TimestampUtc = latest,
-                    Severity = "High",
-                    Assessment = "Suspicious",
-                    ActionKind = "ProbableCleanup",
-                    InitiatorKind = "Unknown",
-                    InitiatorAccount = "не определено",
-                    PossibleTool = "USB Oblivion",
-                    Confidence = "Probable",
-                    Area = "USB Oblivion",
-                    Finding = "Противоречие реестра USB и журналов после запуска USB Oblivion",
-                    Details =
-                        $"USBSTOR в реестре: {usbStorCount}; релевантных USB-записей в setupapi: {setupApiUsb}. " +
-                        "Сочетание похоже на удаление или пересоздание следов USB. " +
-                        CleanupAttribution.BuildAttributionDetails(InitiatorInfo.Unknown, "USB Oblivion", "Probable")
-                });
-            }
         }
     }
 
     private static bool IsOblivionEvidence(EvidenceRecord evidence)
     {
-        if (evidence.EventId == "PROCESS_HINT")
-        {
-            return CleanerToolCatalog.IsOblivionTool(evidence.Summary)
-                   || CleanerToolCatalog.IsOblivionTool(evidence.DeviceHint)
-                   || CleanerToolCatalog.IsOblivionTool(evidence.RawText);
-        }
-
-        if (evidence.EventId != "CLEANER_HINT")
-        {
-            return false;
-        }
-
-        return CleanerToolCatalog.IsOblivionTool(evidence.Summary)
-               || CleanerToolCatalog.IsOblivionTool(evidence.DeviceHint)
-               || CleanerToolCatalog.IsOblivionTool(evidence.RawText);
+        var assessment = CleanerEvidenceClassifier.Analyze(evidence);
+        return assessment?.SupportsExecution == true
+               && CleanerToolCatalog.IsOblivionTool(assessment.Tool);
     }
 
     private static string BuildDetails(
         EvidenceRecord launch,
         bool probableCleanup,
+        bool explicitRemovalIntent,
+        bool correlatedRegistryIssue,
         bool hasRegistryGap,
+        bool hasMountedWithoutUsb,
         bool setupApiMissing,
         bool setupApiSmall,
         bool correlatedLogClear,
@@ -122,9 +128,24 @@ public static class UsbOblivionAttributionAnalyzer
 
         if (probableCleanup)
         {
+            if (explicitRemovalIntent)
+            {
+                parts.Add("В командной строке найдены параметры реальной очистки (-enable) или иная явная команда удаления. Это подтверждает намерение, но не успешное завершение.");
+            }
+
+            if (correlatedRegistryIssue)
+            {
+                parts.Add("В пределах 24 часов найден независимый подозрительный признак в SetupAPI или реестре USB.");
+            }
+
             if (hasRegistryGap)
             {
                 parts.Add($"В реестре USBSTOR: {usbStorCount}, в setupapi.dev.log USB-записей: {setupApiUsb}.");
+            }
+
+            if (hasMountedWithoutUsb)
+            {
+                parts.Add("Найдены MountedDevices при отсутствии соответствующих USB-записей.");
             }
 
             if (setupApiMissing)
@@ -144,7 +165,11 @@ public static class UsbOblivionAttributionAnalyzer
         }
         else
         {
-            parts.Add("Запуск USB Oblivion сам по себе не доказывает удаление — нужны противоречия в реестре и журналах.");
+            parts.Add("Запуск USB Oblivion подтверждён, но фактическое удаление не установлено. Без параметра -enable программа могла работать в тестовом режиме.");
+            if (hasRegistryGap || hasMountedWithoutUsb || setupApiMissing || setupApiSmall)
+            {
+                parts.Add("Текущее состояние содержит отдельные расхождения, но они не привязаны ко времени запуска достаточно точно для вывода о причинной связи.");
+            }
         }
 
         parts.Add(CleanupAttribution.BuildAttributionDetails(

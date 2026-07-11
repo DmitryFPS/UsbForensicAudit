@@ -40,9 +40,21 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
             foreach (var path in paths.Take(maxPrefetchFiles))
             {
                 var fileName = Path.GetFileName(path);
-                var cleaner = CleanerToolCatalog.Match(fileName);
                 var hints = ArtifactStringExtractor.ExtractInterestingStrings(path, 800_000, 20);
+                var cleaner = CleanerToolCatalog.MatchTrackedUtility(fileName)
+                              ?? CleanerToolCatalog.MatchTrackedUtility(string.Join(" ", hints));
                 if (cleaner is null && hints.Count == 0) continue;
+
+                var isReadOnly = false;
+                try
+                {
+                    isReadOnly = (File.GetAttributes(path) & FileAttributes.ReadOnly) != 0;
+                }
+                catch
+                {
+                    // Атрибуты Prefetch не критичны для основного сценария.
+                }
+
                 evidence.Add(new EvidenceRecord
                 {
                     TimestampUtc = File.GetLastWriteTimeUtc(path),
@@ -50,15 +62,21 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
                     Provider = "Windows Prefetch",
                     Channel = "Execution",
                     SourceFile = path,
-                    EventId = cleaner is null ? "REMOVABLE_PATH" : "CLEANER_EXECUTION",
+                    EventId = cleaner is null ? "REMOVABLE_PATH" : isReadOnly ? "CLEANER_PREFETCH_TAMPER" : "CLEANER_EXECUTION",
                     EvidenceCategory = "Execution",
                     EvidenceStrength = ClassifyPrefetchEvidenceStrength(cleaner is not null),
                     Confidence = cleaner is null ? "Medium" : "High",
                     DeviceHint = string.Join("; ", hints),
-                    Summary = cleaner is null ? $"Prefetch removable-path correlation: {fileName}" : $"Prefetch: {CleanerToolCatalog.DisplayName(cleaner)}",
-                    UserExplanation = "Prefetch strongly supports program execution; embedded paths do not establish USB connection time.",
+                    Summary = cleaner is null
+                        ? $"Prefetch removable-path correlation: {fileName}"
+                        : isReadOnly
+                            ? $"Prefetch (read-only): {CleanerToolCatalog.DisplayName(cleaner)}"
+                            : $"Prefetch: {CleanerToolCatalog.DisplayName(cleaner)}",
+                    UserExplanation = isReadOnly
+                        ? "Prefetch file is marked read-only. Some anti-forensic tools do this after wiping or blocking further updates."
+                        : "Prefetch strongly supports program execution; embedded paths do not establish USB connection time.",
                     Provenance = $"Read-only Prefetch: {path}",
-                    RawText = $"Executable={fileName}; Hints={string.Join("; ", hints)}",
+                    RawText = $"Executable={fileName}; ReadOnly={isReadOnly}; Hints={string.Join("; ", hints)}",
                     CanEstablishConnectionDate = false
                 });
             }
@@ -86,7 +104,7 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
             }
             foreach (var item in parsed.Entries.Where(x =>
                          ArtifactStringExtractor.LooksInteresting(x.Path)
-                         || CleanerToolCatalog.LooksLikeCleaner(x.Path)).Take(10_000))
+                         || CleanerToolCatalog.LooksLikeTrackedUtility(x.Path)).Take(10_000))
             {
                 evidence.Add(new EvidenceRecord
                 {
@@ -151,7 +169,7 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
                     using var item = root.OpenSubKey(name);
                     if (item is null) continue;
                     var path = First(item, "LowerCaseLongPath", "LongPath", "RootDirPath", "Name");
-                    if (!ArtifactStringExtractor.LooksInteresting(path) && !CleanerToolCatalog.LooksLikeCleaner(path)) continue;
+                    if (!ArtifactStringExtractor.LooksInteresting(path) && !CleanerToolCatalog.LooksLikeTrackedUtility(path)) continue;
                     var lastWrite = RegistryKeyTimestamps.GetLastWriteUtc(item);
                     evidence.Add(new EvidenceRecord
                     {
@@ -201,7 +219,7 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
             {
                 foreach (var line in File.ReadLines(path).Take(100_000))
                 {
-                    if (!ArtifactStringExtractor.LooksInteresting(line) && !CleanerToolCatalog.LooksLikeCleaner(line)) continue;
+                    if (!ArtifactStringExtractor.LooksInteresting(line) && !CleanerToolCatalog.LooksLikeTrackedUtility(line)) continue;
                     var fields = line.Split('|');
                     var timestamp = fields.Select(TryDate).FirstOrDefault(x => x.HasValue);
                     var strength = ClassifyPcaEvidenceStrength(fileName);
@@ -248,7 +266,7 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
                     foreach (var executable in user.GetValueNames().Take(50_000))
                     {
                         if (!ArtifactStringExtractor.LooksInteresting(executable)
-                            && !CleanerToolCatalog.LooksLikeCleaner(executable)) continue;
+                            && !CleanerToolCatalog.LooksLikeTrackedUtility(executable)) continue;
                         var timestamp = TryFileTime(user.GetValue(executable) as byte[]);
                         evidence.Add(new EvidenceRecord
                         {

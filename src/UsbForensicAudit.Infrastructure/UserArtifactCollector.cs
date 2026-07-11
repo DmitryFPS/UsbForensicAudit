@@ -89,6 +89,7 @@ public sealed class UserArtifactCollector : IEvidenceCollector
                 CollectMruTree(users, sid, profile,
                     @"Software\Microsoft\Windows\CurrentVersion\Explorer\WordWheelQuery", "WordWheelQuery", evidence);
                 CollectUserAssist(users, sid, profile, evidence);
+                CollectMuiCache(users, sid, profile, evidence);
                 CollectShellBags(users, sid + "_Classes", profile, "Live HKU SID_Classes", evidence);
                 if (evidence.Count - before >= MaxRegistryRecordsPerSid)
                 {
@@ -119,6 +120,7 @@ public sealed class UserArtifactCollector : IEvidenceCollector
         CollectMruTree(users, mountName, profile,
             @"Software\Microsoft\Windows\CurrentVersion\Explorer\WordWheelQuery", "WordWheelQuery", evidence);
         CollectUserAssist(users, mountName, profile, evidence);
+        CollectMuiCache(users, mountName, profile, evidence);
         foreach (var item in evidence.Skip(start))
         {
             item.Source = $"{sourcePrefix} {item.Source}";
@@ -220,6 +222,38 @@ public sealed class UserArtifactCollector : IEvidenceCollector
         }
     }
 
+    private static void CollectMuiCache(
+        RegistryKey users, string sid, UserProfileIdentity profile, List<EvidenceRecord> evidence)
+    {
+        const string relative =
+            @"Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\MuiCache";
+        using var key = users.OpenSubKey($@"{sid}\{relative}");
+        if (key is null)
+        {
+            return;
+        }
+
+        foreach (var name in key.GetValueNames().Take(5000))
+        {
+            if (!ArtifactStringExtractor.LooksInteresting(name)
+                && !CleanerToolCatalog.LooksLikeTrackedUtility(name))
+            {
+                continue;
+            }
+
+            AddDeduplicated(evidence, NewRegistryEvidence(
+                "HKU MuiCache",
+                profile,
+                $@"HKU\{sid}\{relative}\{name}",
+                name,
+                "MuiCache records executables launched through the Windows shell.",
+                RegistryKeyTimestamps.GetLastWriteUtc(key),
+                "Corroborating",
+                "Medium",
+                $"FriendlyPath={name}"));
+        }
+    }
+
     private static void CollectUserAssist(
         RegistryKey users, string sid, UserProfileIdentity profile, List<EvidenceRecord> evidence)
     {
@@ -233,7 +267,7 @@ public sealed class UserArtifactCollector : IEvidenceCollector
             foreach (var encoded in count.GetValueNames().Take(5000))
             {
                 var decoded = Rot13(encoded);
-                if (!ArtifactStringExtractor.LooksInteresting(decoded) && !CleanerToolCatalog.LooksLikeCleaner(decoded)) continue;
+                if (!ArtifactStringExtractor.LooksInteresting(decoded) && !CleanerToolCatalog.LooksLikeTrackedUtility(decoded)) continue;
                 AddDeduplicated(evidence, NewRegistryEvidence(
                     "HKU UserAssist", profile, $@"HKU\{sid}\{relative}\{guid}\Count\{encoded}", decoded,
                     "UserAssist supports application interaction, but alone does not prove execution or USB connection.",

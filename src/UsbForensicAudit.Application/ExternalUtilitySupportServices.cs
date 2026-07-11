@@ -10,17 +10,17 @@ public static class ExternalUtilityHistoryService
         }
 
         return result.Evidence
-            .Where(x => x.EventId is "CLEANER_HINT" or "PROCESS_HINT")
             .Select(x => new
             {
                 Evidence = x,
-                Tool = CleanupAttribution.DetectToolFromEvidence(x)
+                Assessment = CleanerEvidenceClassifier.Analyze(x)
             })
-            .Where(x => CleanerToolCatalog.IsUsbForensicUtility(x.Tool))
+            .Where(x => x.Assessment?.SupportsExecution == true
+                        && CleanerToolCatalog.IsUsbForensicUtility(x.Assessment.Tool))
             .OrderByDescending(x => x.Evidence.TimestampUtc)
             .Select(x => new HistoricalUtilityLaunch
             {
-                ToolName = x.Tool ?? "USB-утилита",
+                ToolName = x.Assessment?.Tool ?? "USB-утилита",
                 Source = UserDisplayText.Source(x.Evidence.Source),
                 TimestampUtc = x.Evidence.TimestampUtc,
                 Summary = x.Evidence.SummaryText
