@@ -136,6 +136,34 @@ public class TimelineEnricherTests
     }
 
     [Fact]
+    public void Enrich_marks_internal_nvme_connected_when_wmi_index_contains_scsi_id()
+    {
+        var scanTime = new DateTimeOffset(2026, 7, 11, 17, 34, 1, TimeSpan.FromHours(3));
+        var result = new AuditResult { StartedAtUtc = scanTime };
+        result.Devices.Add(new UsbDeviceRecord
+        {
+            Source = "Registry: SCSI",
+            VisualCategory = "RelatedStorage",
+            DeviceInstanceId = @"SCSI\Disk&Ven_NVMe&Prod_T-FORCE_TM8FPL50\5&74ee85&0&000000",
+            DeviceType = "SCSI Storage",
+            Service = "disk",
+            FriendlyName = "T-FORCE TM8FPL500G",
+            HardwareIds = @"SCSI\DiskNVMe__________________________T-FORCE_TM8FPL500G\0GenDisk"
+        });
+
+        DeviceTransportClassifier.Classify(result.Devices[0]);
+        new TimelineEnricher(new FixedConnectedDeviceProbe(
+            ConnectedDeviceIndex.Build(
+                [@"SCSI\Disk&Ven_NVMe&Prod_T-FORCE_TM8FPL50\5&74ee85&0&000000"],
+                []))).Enrich(result);
+
+        Assert.True(result.Devices[0].IsCurrentlyConnected);
+        Assert.Equal("ConnectedNow", result.Devices[0].DisconnectDisplayKind);
+        Assert.Equal(scanTime, result.Devices[0].FirstConnectedUtc);
+        Assert.Equal("LiveAtScan", result.Devices[0].ConnectionDisplayKind);
+    }
+
+    [Fact]
     public void UserExplanationText_shows_mixed_russian_and_latin_terms()
     {
         var evidence = new EvidenceRecord
@@ -145,5 +173,10 @@ public class TimelineEnricherTests
 
         Assert.Contains("Prefetch", evidence.UserExplanationText, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Windows", evidence.UserExplanationText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class FixedConnectedDeviceProbe(ConnectedDeviceIndex index) : IConnectedDeviceProbe
+    {
+        public ConnectedDeviceIndex Capture() => index;
     }
 }

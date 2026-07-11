@@ -52,7 +52,7 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
             match.CompatibleIds = FirstNotEmpty(match.CompatibleIds, live.CompatibleIds);
             match.LocationInformation = FirstNotEmpty(match.LocationInformation, live.LocationInformation);
             match.LocationPaths = FirstNotEmpty(match.LocationPaths, live.LocationPaths);
-            match.IsCurrentlyConnected = true;
+            ApplyLiveConnectionState(match, live, result.StartedAtUtc);
             foreach (var volume in live.Volumes)
             {
                 if (!match.Volumes.Any(x => x.DriveLetter.Equals(volume.DriveLetter, StringComparison.OrdinalIgnoreCase)
@@ -86,6 +86,9 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
                 var metadata = LiveDeviceMetadataReader.Read(pnpId ?? "");
                 if (!DeviceTransportClassifier.IsRelevantLiveCandidate(
                         pnpId ?? "", Read(item, "Service"), metadata.HardwareIds, metadata.CompatibleIds,
+                        metadata.LocationPaths, FirstNotEmpty(Read(item, "Name"), Read(item, "Caption"), Read(item, "Description")))
+                    && !DeviceTransportClassifier.IsBuiltinStorageLiveCandidate(
+                        pnpId ?? "", Read(item, "Service"), metadata.HardwareIds, metadata.CompatibleIds,
                         metadata.LocationPaths, FirstNotEmpty(Read(item, "Name"), Read(item, "Caption"), Read(item, "Description"))))
                 {
                     continue;
@@ -105,10 +108,9 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
                 if (!DeviceTransportClassifier.IsRelevantLiveCandidate(
                         pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds, metadata.LocationPaths,
                         FirstNotEmpty(Read(disk, "Model"), Read(disk, "Caption")), mediaType)
-                    && !(pnpId.StartsWith(@"SCSI\", StringComparison.OrdinalIgnoreCase)
-                         && (mediaType.Contains("Removable", StringComparison.OrdinalIgnoreCase)
-                             || mediaType.Contains("External", StringComparison.OrdinalIgnoreCase)
-                             || metadata.Service.Equals("uaspstor", StringComparison.OrdinalIgnoreCase))))
+                    && !DeviceTransportClassifier.IsBuiltinStorageLiveCandidate(
+                        pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds, metadata.LocationPaths,
+                        FirstNotEmpty(Read(disk, "Model"), Read(disk, "Caption")), mediaType))
                 {
                     continue;
                 }
@@ -233,8 +235,45 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
         }
 
         DeviceTransportClassifier.Classify(record);
+        if (record.Classification == "BuiltIn" && record.Transport is "Internal NVMe" or "Internal Disk")
+        {
+            record.VisualCategory = "RelatedStorage";
+        }
+
         records.Add(record);
     }
+
+    internal static void ApplyLiveConnectionState(UsbDeviceRecord match, UsbDeviceRecord live, DateTimeOffset scanTime)
+    {
+        match.IsCurrentlyConnected = true;
+        match.LastSeenUtc = MaxNullable(match.LastSeenUtc, live.LastSeenUtc ?? scanTime);
+
+        if (!match.FirstConnectedUtc.HasValue)
+        {
+            match.FirstConnectedUtc = live.FirstConnectedUtc ?? scanTime;
+            match.ConnectionDisplayKind = string.IsNullOrWhiteSpace(live.ConnectionDisplayKind)
+                ? "LiveAtScan"
+                : live.ConnectionDisplayKind;
+        }
+
+        if (string.IsNullOrWhiteSpace(match.DisconnectDisplayKind)
+            || match.DisconnectDisplayKind.Equals("NotConnectedUnknown", StringComparison.OrdinalIgnoreCase))
+        {
+            match.DisconnectDisplayKind = "ConnectedNow";
+        }
+
+        if (string.IsNullOrWhiteSpace(match.DateConfidence)
+            || match.DateConfidence.Contains("неизвестно", StringComparison.OrdinalIgnoreCase)
+            || match.DateConfidence.Contains("не подключено", StringComparison.OrdinalIgnoreCase))
+        {
+            match.DateConfidence = !string.IsNullOrWhiteSpace(live.DateConfidence)
+                ? live.DateConfidence
+                : "Внутренний диск обнаружен через WMI во время сканирования.";
+        }
+    }
+
+    private static DateTimeOffset MaxNullable(DateTimeOffset? current, DateTimeOffset candidate) =>
+        current.HasValue ? (current.Value > candidate ? current.Value : candidate) : candidate;
 
     internal static UsbDeviceRecord? FindMatch(IEnumerable<UsbDeviceRecord> existing, UsbDeviceRecord live)
     {

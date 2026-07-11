@@ -27,6 +27,9 @@ public sealed class WmiConnectedDeviceProbe : IConnectedDeviceProbe
                 var metadata = LiveDeviceMetadataReader.Read(pnpId);
                 if (DeviceTransportClassifier.IsRelevantLiveCandidate(
                         pnpId, item["Service"]?.ToString() ?? "", metadata.HardwareIds,
+                        metadata.CompatibleIds, metadata.LocationPaths, item["Name"]?.ToString() ?? "")
+                    || DeviceTransportClassifier.IsBuiltinStorageLiveCandidate(
+                        pnpId, item["Service"]?.ToString() ?? "", metadata.HardwareIds,
                         metadata.CompatibleIds, metadata.LocationPaths, item["Name"]?.ToString() ?? ""))
                 {
                     pnpIdentifiers.Add(pnpId);
@@ -45,10 +48,9 @@ public sealed class WmiConnectedDeviceProbe : IConnectedDeviceProbe
                 if (DeviceTransportClassifier.IsRelevantLiveCandidate(
                         pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds,
                         metadata.LocationPaths, disk["Model"]?.ToString() ?? "", mediaType)
-                    || pnpId.StartsWith(@"SCSI\", StringComparison.OrdinalIgnoreCase)
-                       && (mediaType.Contains("Removable", StringComparison.OrdinalIgnoreCase)
-                           || mediaType.Contains("External", StringComparison.OrdinalIgnoreCase)
-                           || metadata.Service.Equals("uaspstor", StringComparison.OrdinalIgnoreCase)))
+                    || DeviceTransportClassifier.IsBuiltinStorageLiveCandidate(
+                        pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds,
+                        metadata.LocationPaths, disk["Model"]?.ToString() ?? "", mediaType))
                 {
                     pnpIdentifiers.Add(pnpId);
                 }
