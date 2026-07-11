@@ -6,6 +6,15 @@ namespace UsbForensicAudit;
 
 public sealed class UsbRegistryCollector : IUsbDeviceCollector
 {
+    private const string DeviceDatesPropertySet = "{83da6326-97a6-4088-9453-a1923f573b29}";
+    private static readonly (string Id, string Name)[] DeviceDateProperties =
+    [
+        ("0064", "InstallDate"),
+        ("0065", "FirstInstallDate"),
+        ("0066", "LastArrivalDate"),
+        ("0067", "LastRemovalDate")
+    ];
+
     private static readonly Regex VidPidRegex = new(@"VID_([0-9A-F]{4})&PID_([0-9A-F]{4})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex UsbFlagsCompactRegex = new(
         @"^([0-9A-F]{4})([0-9A-F]{4})[0-9A-F]{4}$",
@@ -19,12 +28,33 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
     public IReadOnlyList<UsbDeviceRecord> Collect(List<string> warnings)
     {
         var records = new List<UsbDeviceRecord>();
-        CollectEnumTree(@"SYSTEM\CurrentControlSet\Enum\USB", "Registry: USB", records, warnings);
-        CollectEnumTree(@"SYSTEM\CurrentControlSet\Enum\USBSTOR", "Registry: USBSTOR", records, warnings);
-        CollectEnumTree(@"SYSTEM\CurrentControlSet\Enum\SCSI", "Registry: SCSI", records, warnings);
-        CollectEnumTree(@"SYSTEM\CurrentControlSet\Enum\SWD\WPDBUSENUM", "Registry: WPD/MTP", records, warnings);
+        var controlSets = GetControlSetNames(warnings);
+        foreach (var path in UsbRegistryForensicHelpers.BuildControlSetEnumPaths(controlSets, "USB"))
+        {
+            CollectEnumTree(path, "Registry: USB", records, warnings);
+        }
+
+        foreach (var path in UsbRegistryForensicHelpers.BuildControlSetEnumPaths(controlSets, "USBSTOR"))
+        {
+            CollectEnumTree(path, "Registry: USBSTOR", records, warnings);
+        }
+
+        foreach (var path in UsbRegistryForensicHelpers.BuildControlSetEnumPaths(controlSets, "SCSI"))
+        {
+            CollectEnumTree(path, "Registry: SCSI", records, warnings);
+        }
+
+        foreach (var path in UsbRegistryForensicHelpers.BuildControlSetEnumPaths(controlSets, @"SWD\WPDBUSENUM"))
+        {
+            CollectEnumTree(path, "Registry: WPD/MTP", records, warnings);
+        }
+
+        CollectPortableDevices(records, warnings);
+        records = DeduplicateEnumRecords(records);
+        CorrelatePortableDevices(records);
         CollectUsbFlags(records, warnings);
         EnrichUsbStorVidPid(records);
+        EnrichUsbVendorNames(records);
         AddMountedDeviceEvidence(records, warnings);
         return records;
     }
@@ -77,7 +107,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         foreach (var trace in traces.Values)
         {
             var enumRecord = records.FirstOrDefault(x =>
-                x.Source.Equals("Registry: USB", StringComparison.OrdinalIgnoreCase)
+                x.Source.Contains("Registry: USB", StringComparison.OrdinalIgnoreCase)
                 && x.Vid.Equals(trace.Vid, StringComparison.OrdinalIgnoreCase)
                 && x.Pid.Equals(trace.Pid, StringComparison.OrdinalIgnoreCase));
             var vendorLookup = UsbVendorDatabase.Lookup(trace.Vid, trace.Pid);
@@ -164,6 +194,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
     {
         try
         {
+            var controlSet = path.Split('\\', StringSplitOptions.RemoveEmptyEntries).ElementAtOrDefault(1) ?? "";
             using var root = Registry.LocalMachine.OpenSubKey(path);
             if (root is null)
             {
@@ -188,6 +219,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                     }
 
                     var deviceId = $"{GetEnumPrefix(source)}\\{familyName}\\{instanceName}";
+                    var (dates, dateProperties) = ReadPnpDates(instance);
                     var record = new UsbDeviceRecord
                     {
                         Source = source,
@@ -206,7 +238,25 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                         LocationInformation = ReadString(instance, "LocationInformation"),
                         LocationPaths = ReadMultiString(instance, "LocationPaths"),
                         RegistryLastWriteUtc = RegistryKeyTimestamps.GetLastWriteUtc(instance),
-                        RawJson = JsonSerializer.Serialize(ReadValues(instance))
+                        FirstConnectedUtc = dates.FirstConnectedUtc,
+                        LastSeenUtc = dates.LastSeenUtc,
+                        LastDisconnectedUtc = dates.LastDisconnectedUtc,
+                        ConnectionDisplayKind = dates.FirstConnectedUtc.HasValue ? "PnpDevProperty" : "",
+                        DisconnectDisplayKind = dates.LastDisconnectedUtc.HasValue ? "PnpDevProperty" : "",
+                        DateConfidence = BuildPnpDateConfidence(dates),
+                        RawJson = JsonSerializer.Serialize(new
+                        {
+                            RegistryPath = $@"HKLM\{path}\{familyName}\{instanceName}",
+                            ControlSet = controlSet,
+                            Values = ReadValues(instance),
+                            PnpDevProperties = dateProperties,
+                            DateProvenance = new
+                            {
+                                FirstConnected = dates.FirstConnectedProvenance,
+                                LastSeen = dates.LastSeenProvenance,
+                                LastDisconnected = dates.LastDisconnectedProvenance
+                            }
+                        })
                     };
 
                     var vidPid = VidPidRegex.Match(familyName);
@@ -221,6 +271,11 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                         ParseUsbStorFamily(familyName, record);
                     }
 
+                    if (source.Equals("Registry: USB", StringComparison.OrdinalIgnoreCase))
+                    {
+                        EnrichUsbVendorName(record);
+                    }
+
                     records.Add(record);
                 }
             }
@@ -228,6 +283,277 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         catch (Exception ex)
         {
             warnings.Add($"Ошибка чтения HKLM\\{path}: {ex.Message}");
+        }
+    }
+
+    private static (PnpDateSelection Dates, Dictionary<string, object?> Properties) ReadPnpDates(RegistryKey instance)
+    {
+        var parsed = new Dictionary<string, DateTimeOffset?>(StringComparer.OrdinalIgnoreCase);
+        var provenance = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (id, name) in DeviceDateProperties)
+        {
+            var relativePath = $@"Properties\{DeviceDatesPropertySet}\{id}";
+            try
+            {
+                using var propertyKey = instance.OpenSubKey(relativePath);
+                if (propertyKey is null)
+                {
+                    parsed[name] = null;
+                    continue;
+                }
+
+                object? raw = propertyKey.GetValue(null, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
+                if (raw is null)
+                {
+                    raw = propertyKey.GetValueNames()
+                        .Select(valueName => propertyKey.GetValue(valueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames))
+                        .FirstOrDefault(value => UsbRegistryForensicHelpers.TryParseFileTime(value, out _));
+                }
+
+                var valid = UsbRegistryForensicHelpers.TryParseFileTime(raw, out var timestamp);
+                parsed[name] = valid ? timestamp : null;
+                provenance[name] = new
+                {
+                    PropertySet = DeviceDatesPropertySet,
+                    PropertyId = id,
+                    RegistryPath = relativePath,
+                    ParsedUtc = valid ? timestamp : (DateTimeOffset?)null,
+                    RegistryKind = TryGetRegistryKind(propertyKey)
+                };
+            }
+            catch
+            {
+                parsed[name] = null;
+            }
+        }
+
+        return (
+            UsbRegistryForensicHelpers.SelectPnpDates(
+                parsed.GetValueOrDefault("InstallDate"),
+                parsed.GetValueOrDefault("FirstInstallDate"),
+                parsed.GetValueOrDefault("LastArrivalDate"),
+                parsed.GetValueOrDefault("LastRemovalDate")),
+            provenance);
+    }
+
+    private static string TryGetRegistryKind(RegistryKey key)
+    {
+        try
+        {
+            return key.GetValueKind("").ToString();
+        }
+        catch
+        {
+            return "Unknown";
+        }
+    }
+
+    private static string BuildPnpDateConfidence(PnpDateSelection dates)
+    {
+        var sources = new[]
+        {
+            dates.FirstConnectedProvenance,
+            dates.LastSeenProvenance,
+            dates.LastDisconnectedProvenance
+        }.Where(x => !string.IsNullOrWhiteSpace(x));
+
+        var joined = string.Join(", ", sources);
+        return string.IsNullOrWhiteSpace(joined)
+            ? ""
+            : $"Точные PnP DevProperties Windows: {joined}.";
+    }
+
+    private static void CollectPortableDevices(List<UsbDeviceRecord> records, List<string> warnings)
+    {
+        const string path = @"SOFTWARE\Microsoft\Windows Portable Devices\Devices";
+        try
+        {
+            using var root = Registry.LocalMachine.OpenSubKey(path);
+            if (root is null)
+            {
+                warnings.Add($"Источник недоступен или отсутствует: HKLM\\{path}");
+                return;
+            }
+
+            foreach (var keyName in root.GetSubKeyNames())
+            {
+                using var deviceKey = root.OpenSubKey(keyName);
+                if (deviceKey is null)
+                {
+                    continue;
+                }
+
+                var identityText = FirstNotEmpty(
+                    ReadString(deviceKey, "DeviceInstanceId"),
+                    ReadString(deviceKey, "DeviceID"),
+                    keyName);
+                var identity = UsbRegistryForensicHelpers.ParseWpdIdentity(identityText);
+                var deviceId = string.IsNullOrWhiteSpace(identity.DeviceInstanceId)
+                    ? $@"WPD\{keyName}"
+                    : identity.DeviceInstanceId;
+
+                var record = new UsbDeviceRecord
+                {
+                    Source = "Registry: Portable Devices",
+                    VisualCategory = "RealUsb",
+                    UserMeaning = "Portable/MTP устройство из основного каталога Windows Portable Devices.",
+                    DeviceInstanceId = deviceId,
+                    DeviceType = "Portable/MTP",
+                    Serial = identity.Serial,
+                    FriendlyName = FirstNotEmpty(
+                        ReadString(deviceKey, "FriendlyName"),
+                        ReadString(deviceKey, "Name")),
+                    Manufacturer = FirstNotEmpty(
+                        ReadString(deviceKey, "Manufacturer"),
+                        ReadString(deviceKey, "Mfg")),
+                    Product = FirstNotEmpty(
+                        ReadString(deviceKey, "Description"),
+                        ReadString(deviceKey, "DeviceDesc"),
+                        ReadString(deviceKey, "Model")),
+                    ContainerId = FirstNotEmpty(
+                        ReadString(deviceKey, "ContainerId"),
+                        ReadString(deviceKey, "ContainerID")),
+                    RegistryLastWriteUtc = RegistryKeyTimestamps.GetLastWriteUtc(deviceKey),
+                    RawJson = JsonSerializer.Serialize(new
+                    {
+                        RegistryPath = $@"HKLM\{path}\{keyName}",
+                        IdentitySource = identityText,
+                        ParsedIdentity = identity,
+                        Values = ReadValues(deviceKey)
+                    })
+                };
+
+                var vidPid = VidPidRegex.Match(deviceId);
+                if (vidPid.Success)
+                {
+                    record.Vid = vidPid.Groups[1].Value.ToUpperInvariant();
+                    record.Pid = vidPid.Groups[2].Value.ToUpperInvariant();
+                    EnrichUsbVendorName(record);
+                }
+
+                records.Add(record);
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"Ошибка чтения HKLM\\{path}: {ex.Message}");
+        }
+    }
+
+    private static List<UsbDeviceRecord> DeduplicateEnumRecords(IEnumerable<UsbDeviceRecord> records)
+    {
+        var result = new List<UsbDeviceRecord>();
+        var byInstance = new Dictionary<string, UsbDeviceRecord>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var record in records)
+        {
+            if (string.IsNullOrWhiteSpace(record.DeviceInstanceId)
+                || !record.Source.StartsWith("Registry:", StringComparison.OrdinalIgnoreCase))
+            {
+                result.Add(record);
+                continue;
+            }
+
+            var key = record.DeviceInstanceId.Trim().Replace(@"\\", @"\");
+            if (!byInstance.TryGetValue(key, out var existing))
+            {
+                byInstance[key] = record;
+                result.Add(record);
+                continue;
+            }
+
+            UsbRegistryForensicHelpers.MergeRecord(existing, record);
+            existing.RawJson = MergeRawJson(existing.RawJson, record.RawJson);
+        }
+
+        return result;
+    }
+
+    private static string MergeRawJson(string first, string second)
+    {
+        var entries = new List<JsonElement>();
+        foreach (var json in new[] { first, second }.Where(x => !string.IsNullOrWhiteSpace(x)))
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(json);
+                if (document.RootElement.ValueKind == JsonValueKind.Object
+                    && document.RootElement.TryGetProperty("MergedRegistryEvidence", out var merged)
+                    && merged.ValueKind == JsonValueKind.Array)
+                {
+                    entries.AddRange(merged.EnumerateArray().Select(x => x.Clone()));
+                }
+                else
+                {
+                    entries.Add(document.RootElement.Clone());
+                }
+            }
+            catch (JsonException)
+            {
+                entries.Add(JsonSerializer.SerializeToElement(new { Raw = json }));
+            }
+        }
+
+        return JsonSerializer.Serialize(new { MergedRegistryEvidence = entries });
+    }
+
+    private static void CorrelatePortableDevices(List<UsbDeviceRecord> records)
+    {
+        var portable = records
+            .Where(x => x.Source.Contains("Portable Devices", StringComparison.OrdinalIgnoreCase)
+                        || x.Source.Contains("WPD", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var usb = records
+            .Where(x => x.Source.Contains("Registry: USB", StringComparison.OrdinalIgnoreCase)
+                        || x.Source.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        foreach (var wpd in portable)
+        {
+            var match = usb.FirstOrDefault(candidate =>
+                !ReferenceEquals(candidate, wpd)
+                && UsbRegistryForensicHelpers.IdentitiesCorrelate(wpd, candidate));
+            if (match is null)
+            {
+                continue;
+            }
+
+            UsbRegistryForensicHelpers.MergeRecord(wpd, match);
+            UsbRegistryForensicHelpers.MergeRecord(match, wpd);
+        }
+    }
+
+    private static void EnrichUsbVendorNames(IEnumerable<UsbDeviceRecord> records)
+    {
+        foreach (var record in records.Where(x =>
+                     x.Source.Contains("Registry: USB", StringComparison.OrdinalIgnoreCase)))
+        {
+            EnrichUsbVendorName(record);
+        }
+    }
+
+    private static void EnrichUsbVendorName(UsbDeviceRecord record)
+    {
+        if (string.IsNullOrWhiteSpace(record.Vid))
+        {
+            return;
+        }
+
+        var lookup = UsbVendorDatabase.Lookup(record.Vid, record.Pid);
+        if (string.IsNullOrWhiteSpace(record.Manufacturer))
+        {
+            record.Manufacturer = lookup.VendorName ?? "";
+        }
+
+        if (string.IsNullOrWhiteSpace(record.Product))
+        {
+            record.Product = lookup.ProductName ?? "";
+        }
+
+        if (string.IsNullOrWhiteSpace(record.FriendlyName))
+        {
+            record.FriendlyName = record.Product;
         }
     }
 
@@ -409,7 +735,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
     private static void EnrichUsbStorVidPid(List<UsbDeviceRecord> records)
     {
         var usbRecords = records
-            .Where(x => x.Source.Equals("Registry: USB", StringComparison.OrdinalIgnoreCase)
+            .Where(x => x.Source.Contains("Registry: USB", StringComparison.OrdinalIgnoreCase)
                         && !string.IsNullOrWhiteSpace(x.Vid)
                         && !string.IsNullOrWhiteSpace(x.Pid))
             .ToArray();
