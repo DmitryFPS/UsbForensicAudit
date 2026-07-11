@@ -108,17 +108,18 @@ internal sealed class ForensicReportContext
                 coreUsb.Contains(x)
                 || x.VisualCategory.Equals("UsbFlagsTrace", StringComparison.OrdinalIgnoreCase)
                 || (x.VisualCategory.Equals("RelatedStorage", StringComparison.OrdinalIgnoreCase)
-                    && coreUsb.Any(usb => IsRelatedStorage(x, usb))))
+                    && (x.Service.Contains("uasp", StringComparison.OrdinalIgnoreCase)
+                        || coreUsb.Any(usb => IsRelatedStorage(x, usb)))))
             .Distinct()
+            .OrderBy(x => x.CanonicalDeviceId)
+            .ThenByDescending(x => x.IsCanonicalPrimary)
             .ToArray();
     }
 
     private static bool IsRelatedStorage(UsbDeviceRecord storage, UsbDeviceRecord usb)
     {
-        if (!string.IsNullOrWhiteSpace(storage.Vid)
-            && !string.IsNullOrWhiteSpace(storage.Pid)
-            && storage.Vid.Equals(usb.Vid, StringComparison.OrdinalIgnoreCase)
-            && storage.Pid.Equals(usb.Pid, StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(storage.CanonicalDeviceId)
+            && storage.CanonicalDeviceId.Equals(usb.CanonicalDeviceId, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
@@ -129,12 +130,10 @@ internal sealed class ForensicReportContext
             return true;
         }
 
-        var storageSerial = NormalizeHardwareId(storage.Serial);
-        var usbSerial = NormalizeHardwareId(usb.Serial);
-        if (storageSerial.Length >= 8
-            && usbSerial.Length >= 8
-            && (storageSerial.Contains(usbSerial, StringComparison.OrdinalIgnoreCase)
-                || usbSerial.Contains(storageSerial, StringComparison.OrdinalIgnoreCase)))
+        if (DeviceIdentityGraph.IsHardwareSerial(storage.Serial)
+            && DeviceIdentityGraph.IsHardwareSerial(usb.Serial)
+            && DeviceIdentityGraph.NormalizeSerial(storage.Serial)
+                .Equals(DeviceIdentityGraph.NormalizeSerial(usb.Serial), StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
@@ -419,11 +418,11 @@ internal static class ForensicReportBuilder
     {
         html.AppendLine("<h2 id=\"devices\">4. USB-устройства</h2>");
         html.AppendLine("<p class=\"muted\">В отчёт включены реальные USB/Type-C устройства, подтверждённые связанные USB-диски и остаточные следы usbflags. Внутренние SATA/NVMe-диски и ОЗУ не относятся к USB и исключены.</p>");
-        html.AppendLine("<table><tr><th>Тип</th><th>Что это</th><th>Откуда</th><th>Имя</th><th>Производитель</th><th>Модель</th><th>VID/PID</th><th>Серийный номер</th><th>Когда подключали</th><th>Последняя активность</th><th>Когда отключали</th><th>Пояснение по датам</th><th>Расположение</th><th>Буквы дисков</th><th>Системный ID</th></tr>");
+        html.AppendLine("<table><tr><th>Canonical device</th><th>Тип</th><th>Что это</th><th>Откуда</th><th>Имя</th><th>Производитель</th><th>Модель</th><th>VID/PID</th><th>Серийный номер</th><th>Когда подключали</th><th>Последняя активность</th><th>Когда отключали</th><th>Пояснение по датам</th><th>Расположение</th><th>Буквы дисков</th><th>Системный ID</th></tr>");
         foreach (var device in ctx.ReportableDevices)
         {
             html.AppendLine(
-                $"<tr><td>{E(device.CategoryText)}</td><td>{E(device.UserMeaning)}</td><td>{E(device.SourceText)}</td>" +
+                $"<tr><td>{E(device.CanonicalDeviceId)}{(device.IsCanonicalPrimary ? " (primary)" : "")}</td><td>{E(device.CategoryText)}</td><td>{E(device.UserMeaning)}</td><td>{E(device.SourceText)}</td>" +
                 $"<td>{E(device.DisplayName)}</td><td>{E(device.ManufacturerText)}</td><td>{E(device.ModelText)}</td>" +
                 $"<td>{E(device.VidPidText)}</td><td>{E(device.SerialText)}</td><td>{E(device.FirstConnectedText)}</td>" +
                 $"<td>{E(device.LastSeenText)}</td><td>{E(device.LastDisconnectedText)}</td><td>{E(device.DateConfidenceText)}</td>" +
@@ -454,6 +453,8 @@ internal static class ForensicReportBuilder
             html.AppendLine($"<b>VID/PID:</b> {E(device.VidPidText)}<br>");
             html.AppendLine($"<b>Серийный номер:</b> {E(device.SerialText)}<br>");
             html.AppendLine($"<b>Container ID:</b> {E(device.ContainerId)}<br>");
+            html.AppendLine($"<b>Canonical device:</b> {E(device.CanonicalDeviceId)} ({E(device.IdentityConfidence)})<br>");
+            html.AppendLine($"<b>Связанные source IDs:</b> {E(string.Join("; ", device.LinkedSourceIds))}<br>");
             html.AppendLine($"<b>Когда подключали:</b> {E(device.FirstConnectedText)}<br>");
             html.AppendLine($"<b>Последняя активность:</b> {E(device.LastSeenText)}<br>");
             html.AppendLine($"<b>Когда отключали:</b> {E(device.LastDisconnectedText)}<br>");

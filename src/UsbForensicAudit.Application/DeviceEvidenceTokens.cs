@@ -44,6 +44,15 @@ internal static class DeviceEvidenceTokens
             }
         }
 
+        foreach (var linkedId in device.LinkedSourceIds)
+        {
+            var normalized = NormalizeStrong(linkedId);
+            if (IsStrong(normalized))
+            {
+                tokens.Add(normalized);
+            }
+        }
+
         return tokens.ToArray();
     }
 

@@ -64,7 +64,8 @@ public sealed class CorrelationService
     {
         return !device.Source.Contains("MountedDevices", StringComparison.OrdinalIgnoreCase)
                && !string.IsNullOrWhiteSpace(device.DeviceInstanceId)
-               && !device.DeviceType.Equals("VolumeMapping", StringComparison.OrdinalIgnoreCase);
+               && !device.DeviceType.Equals("VolumeMapping", StringComparison.OrdinalIgnoreCase)
+               && (string.IsNullOrWhiteSpace(device.CanonicalDeviceId) || device.IsCanonicalPrimary);
     }
 
     private static string GetConfidence(int tokenCount, int matchCount, int sourceCount)

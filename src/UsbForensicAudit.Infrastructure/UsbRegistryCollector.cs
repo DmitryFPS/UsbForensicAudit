@@ -56,6 +56,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         EnrichUsbStorVidPid(records);
         EnrichUsbVendorNames(records);
         AddMountedDeviceEvidence(records, warnings);
+        DeviceIdentityGraph.Process(records);
         return records;
     }
 
@@ -568,34 +569,68 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                 return;
             }
 
-            var hints = mounted.GetValueNames()
-                .Where(x => x.Contains(@"\DosDevices\", StringComparison.OrdinalIgnoreCase) || x.Contains("Volume", StringComparison.OrdinalIgnoreCase))
-                .Take(500)
+            const int safetyLimit = 10_000;
+            var allNames = mounted.GetValueNames()
+                .Where(x => x.Contains(@"\DosDevices\", StringComparison.OrdinalIgnoreCase)
+                            || x.Contains("Volume", StringComparison.OrdinalIgnoreCase))
                 .ToArray();
+            var hints = allNames.Take(safetyLimit).ToArray();
+            if (allNames.Length > safetyLimit)
+            {
+                warnings.Add($"MountedDevices содержит {allNames.Length} mappings; обработаны первые {safetyLimit}, остальные явно пропущены по защитному лимиту.");
+            }
 
             if (hints.Length == 0)
             {
                 return;
             }
 
-            var mountedRecord = new UsbDeviceRecord
+            foreach (var valueName in hints)
             {
-                Source = "Registry: MountedDevices",
-                VisualCategory = "SupportArtifact",
-                UserMeaning = "Служебная запись: соответствие томов и букв дисков. Это не отдельное USB-устройство.",
-                DeviceType = "VolumeMapping",
-                DeviceInstanceId = @"HKLM\SYSTEM\MountedDevices",
-                FriendlyName = "Mounted device mappings",
-                VolumeHints = string.Join("; ", hints),
-                RawJson = JsonSerializer.Serialize(hints)
-            };
-
-            records.Add(mountedRecord);
+                var bytes = mounted.GetValue(valueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames) as byte[] ?? [];
+                var volume = MountedDevicesParser.Parse(valueName, bytes);
+                records.Add(new UsbDeviceRecord
+                {
+                    Source = "Registry: MountedDevices",
+                    VisualCategory = "SupportArtifact",
+                    UserMeaning = "Служебная запись: соответствие конкретного тома, диска или буквы. Это не отдельное USB-устройство.",
+                    DeviceType = "VolumeMapping",
+                    DeviceInstanceId = $@"HKLM\SYSTEM\MountedDevices\{valueName}",
+                    FriendlyName = valueName,
+                    DriveLetters = volume.DriveLetter,
+                    VolumeHints = BuildVolumeHint(volume),
+                    Volumes = [volume],
+                    RawJson = JsonSerializer.Serialize(new
+                    {
+                        volume.MappingName,
+                        volume.VolumeGuid,
+                        volume.VolumeSerialNumber,
+                        volume.DiskSignature,
+                        volume.DiskId,
+                        volume.PartitionOffset,
+                        volume.DriveLetter,
+                        volume.DevicePath,
+                        RawBinaryBase64 = Convert.ToBase64String(bytes)
+                    })
+                });
+            }
         }
         catch (Exception ex)
         {
             warnings.Add($"Ошибка чтения MountedDevices: {ex.Message}");
         }
+    }
+
+    private static string BuildVolumeHint(VolumeIdentity volume)
+    {
+        return string.Join("; ", new[]
+        {
+            volume.VolumeGuid.Length > 0 ? $"VolumeGuid={volume.VolumeGuid}" : "",
+            volume.DiskSignature.Length > 0 ? $"DiskSignature={volume.DiskSignature}" : "",
+            volume.DiskId.Length > 0 ? $"DiskId={volume.DiskId}" : "",
+            volume.PartitionOffset.HasValue ? $"Offset={volume.PartitionOffset}" : "",
+            volume.DevicePath
+        }.Where(x => x.Length > 0));
     }
 
     private static string ReadString(RegistryKey key, string valueName)
@@ -661,6 +696,11 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         if (source.Contains("WPD", StringComparison.OrdinalIgnoreCase))
         {
             return "Portable/MTP";
+        }
+
+        if (source.Contains("SCSI", StringComparison.OrdinalIgnoreCase))
+        {
+            return "SCSI/UASP Storage";
         }
 
         if (familyName.Contains("HID", StringComparison.OrdinalIgnoreCase))

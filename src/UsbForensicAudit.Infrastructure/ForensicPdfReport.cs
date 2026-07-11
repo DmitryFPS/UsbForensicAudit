@@ -295,6 +295,8 @@ internal static class ForensicPdfReport
                 ("VID/PID", device.VidPidText),
                 ("Серийный номер", device.SerialText),
                 ("Container ID", device.ContainerId),
+                ("Canonical device", $"{device.CanonicalDeviceId} ({device.IdentityConfidence})"),
+                ("Связанные source IDs", string.Join("; ", device.LinkedSourceIds)),
                 ("Подключали", device.FirstConnectedText),
                 ("Последняя активность", device.LastSeenText),
                 ("Отключали", device.LastDisconnectedText),

@@ -188,6 +188,15 @@ internal static class UsbRegistryForensicHelpers
         target.LocationPaths = Prefer(target.LocationPaths, candidate.LocationPaths);
         target.DriveLetters = MergeText(target.DriveLetters, candidate.DriveLetters);
         target.VolumeHints = MergeText(target.VolumeHints, candidate.VolumeHints);
+        foreach (var volume in candidate.Volumes)
+        {
+            if (!target.Volumes.Any(existing =>
+                    existing.MappingName.Equals(volume.MappingName, StringComparison.OrdinalIgnoreCase)
+                    && existing.Source.Equals(volume.Source, StringComparison.OrdinalIgnoreCase)))
+            {
+                target.Volumes.Add(volume);
+            }
+        }
 
         target.FirstConnectedUtc = PreferFirstConnected(target, candidate);
         target.LastSeenUtc = Max(target.LastSeenUtc, candidate.LastSeenUtc);
@@ -242,13 +251,14 @@ internal static class UsbRegistryForensicHelpers
             return true;
         }
 
-        var leftSerial = NormalizeIdentity(left.Serial);
-        var rightSerial = NormalizeIdentity(right.Serial);
-        return leftSerial.Length >= 5
-               && rightSerial.Length >= 5
-               && (leftSerial.Equals(rightSerial, StringComparison.OrdinalIgnoreCase)
-                   || left.DeviceInstanceId.Contains(rightSerial, StringComparison.OrdinalIgnoreCase)
-                   || right.DeviceInstanceId.Contains(leftSerial, StringComparison.OrdinalIgnoreCase));
+        if (!DeviceIdentityGraph.IsHardwareSerial(left.Serial)
+            || !DeviceIdentityGraph.IsHardwareSerial(right.Serial))
+        {
+            return false;
+        }
+
+        return DeviceIdentityGraph.NormalizeSerial(left.Serial)
+            .Equals(DeviceIdentityGraph.NormalizeSerial(right.Serial), StringComparison.OrdinalIgnoreCase);
     }
 
     private static string NormalizeIdentity(string value) =>

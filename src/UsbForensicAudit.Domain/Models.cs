@@ -5,6 +5,13 @@ namespace UsbForensicAudit;
 public sealed class UsbDeviceRecord
 {
     public string DeviceInstanceId { get; set; } = "";
+    public string CanonicalDeviceId { get; set; } = "";
+    public string PhysicalDeviceGroup { get; set; } = "";
+    public bool IsCanonicalPrimary { get; set; }
+    public string IdentityConfidence { get; set; } = "";
+    public List<string> LinkedSourceIds { get; set; } = [];
+    public List<string> IdentityProvenance { get; set; } = [];
+    public List<VolumeIdentity> Volumes { get; set; } = [];
     public string Source { get; set; } = "";
     public string VisualCategory { get; set; } = "Unknown";
     public string UserMeaning { get; set; } = "";
@@ -73,6 +80,21 @@ public sealed class UsbDeviceRecord
 
     [JsonIgnore]
     public string DeviceTypeText => UserDisplayText.DeviceType(DeviceType);
+}
+
+public sealed class VolumeIdentity
+{
+    public string MappingName { get; set; } = "";
+    public string VolumeGuid { get; set; } = "";
+    public string VolumeSerialNumber { get; set; } = "";
+    public string DiskSignature { get; set; } = "";
+    public string DiskId { get; set; } = "";
+    public long? PartitionOffset { get; set; }
+    public string DriveLetter { get; set; } = "";
+    public string DevicePath { get; set; } = "";
+    public string Source { get; set; } = "";
+    public string Confidence { get; set; } = "";
+    public List<string> Provenance { get; set; } = [];
 }
 
 public sealed class EvidenceRecord
