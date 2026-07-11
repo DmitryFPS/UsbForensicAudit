@@ -8,6 +8,29 @@ namespace UsbForensicAudit.Tests;
 public sealed class ExcelReportTests
 {
     [Fact]
+    public void Full_and_brief_pdf_reports_are_generated_as_valid_pdf_files()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var service = new ReportService();
+            var fullPath = service.CreatePdf(CreateResult(), directory, CreateExternalSnapshot());
+            var briefPath = service.CreateBriefPdf(CreateResult(), directory);
+
+            foreach (var path in new[] { fullPath, briefPath })
+            {
+                Assert.True(File.Exists(path));
+                Assert.True(new FileInfo(path).Length > 1000);
+                Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(File.ReadAllBytes(path), 0, 4));
+            }
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Full_excel_report_is_valid_structured_and_readable()
     {
         var directory = CreateTemporaryDirectory();
@@ -129,6 +152,7 @@ public sealed class ExcelReportTests
             Severity = "High",
             Confidence = "Probable",
             ActionKind = "RegistryCleanup",
+            PossibleTool = "USB Oblivion",
             Finding = "Тестовый признак очистки",
             Details = "Требуется ручная проверка."
         });
