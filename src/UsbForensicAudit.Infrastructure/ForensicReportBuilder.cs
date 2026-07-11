@@ -9,7 +9,19 @@ internal sealed class ForensicReportContext
     {
         Result = result;
         ExternalUtilitySnapshot = externalUtilitySnapshot;
-        SuspiciousFindings = result.CleanupFindings
+        ReportableDevices = BuildUsbScopeDevices(result.Devices);
+        RealDevices = ReportableDevices
+            .Where(x => x.VisualCategory.Equals("RealUsb", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        Timeline = result.Evidence
+            .Where(x => IsUsbScopeEvidence(x, ReportableDevices))
+            .OrderByDescending(x => x.TimestampUtc)
+            .ToArray();
+        CleanupFindings = result.CleanupFindings
+            .Where(IsUsbScopeCleanupFinding)
+            .OrderByDescending(x => x.TimestampUtc)
+            .ToArray();
+        SuspiciousFindings = CleanupFindings
             .Where(x => x.IsSuspicious)
             .OrderByDescending(x => SeverityRank(x.Severity))
             .ThenByDescending(x => x.TimestampUtc)
@@ -17,21 +29,12 @@ internal sealed class ForensicReportContext
         HighRiskFindings = SuspiciousFindings
             .Where(x => x.Severity.Equals("High", StringComparison.OrdinalIgnoreCase))
             .ToArray();
-        Timeline = result.Evidence
-            .OrderByDescending(x => x.TimestampUtc)
-            .ToArray();
-        ReportableDevices = result.Devices
-            .Where(x => !x.DeviceType.Equals("VolumeMapping", StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-        RealDevices = ReportableDevices
-            .Where(x => x.VisualCategory.Equals("RealUsb", StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-        EvidenceBySource = result.Evidence
+        EvidenceBySource = Timeline
             .GroupBy(x => x.SourceText)
             .OrderByDescending(g => g.Count())
             .Select(g => (Source: g.Key, Count: g.Count()))
             .ToArray();
-        DevicesByCategory = result.Devices
+        DevicesByCategory = ReportableDevices
             .GroupBy(x => x.CategoryText)
             .OrderByDescending(g => g.Count())
             .Select(g => (Category: g.Key, Count: g.Count()))
@@ -40,6 +43,7 @@ internal sealed class ForensicReportContext
 
     public AuditResult Result { get; }
     public ExternalUtilityReportSnapshot? ExternalUtilitySnapshot { get; }
+    public IReadOnlyList<CleanupFinding> CleanupFindings { get; }
     public IReadOnlyList<CleanupFinding> SuspiciousFindings { get; }
     public IReadOnlyList<CleanupFinding> HighRiskFindings { get; }
     public IReadOnlyList<EvidenceRecord> Timeline { get; }
@@ -65,7 +69,7 @@ internal sealed class ForensicReportContext
     public static ForensicReportContext Create(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null) =>
         new(result, externalUtilitySnapshot);
 
-    public static IEnumerable<EvidenceRecord> GetRelatedEvidence(AuditResult result, UsbDeviceRecord device)
+    public static IEnumerable<EvidenceRecord> GetRelatedEvidence(ForensicReportContext context, UsbDeviceRecord device)
     {
         var tokens = BuildSearchTokens(device).ToArray();
         if (tokens.Length == 0)
@@ -73,7 +77,7 @@ internal sealed class ForensicReportContext
             yield break;
         }
 
-        foreach (var evidence in result.Evidence
+        foreach (var evidence in context.Timeline
                      .Where(x => !x.Source.Equals("Correlation", StringComparison.OrdinalIgnoreCase))
                      .OrderByDescending(x => x.TimestampUtc))
         {
@@ -84,13 +88,126 @@ internal sealed class ForensicReportContext
         }
     }
 
-    public static IEnumerable<EvidenceRecord> GetCorrelationEvidence(AuditResult result, UsbDeviceRecord device)
+    public static IEnumerable<EvidenceRecord> GetCorrelationEvidence(ForensicReportContext context, UsbDeviceRecord device)
     {
-        return result.Evidence
+        return context.Timeline
             .Where(x => x.Source.Equals("Correlation", StringComparison.OrdinalIgnoreCase)
                         && ContainsIgnoreCase(x.DeviceHint, device.DeviceInstanceId))
             .OrderByDescending(x => x.TimestampUtc);
     }
+
+    private static UsbDeviceRecord[] BuildUsbScopeDevices(IReadOnlyList<UsbDeviceRecord> devices)
+    {
+        var coreUsb = devices
+            .Where(x => x.VisualCategory.Equals("RealUsb", StringComparison.OrdinalIgnoreCase))
+            .Where(x => !x.DeviceType.Equals("VolumeMapping", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        return devices
+            .Where(x =>
+                coreUsb.Contains(x)
+                || x.VisualCategory.Equals("UsbFlagsTrace", StringComparison.OrdinalIgnoreCase)
+                || (x.VisualCategory.Equals("RelatedStorage", StringComparison.OrdinalIgnoreCase)
+                    && coreUsb.Any(usb => IsRelatedStorage(x, usb))))
+            .Distinct()
+            .ToArray();
+    }
+
+    private static bool IsRelatedStorage(UsbDeviceRecord storage, UsbDeviceRecord usb)
+    {
+        if (!string.IsNullOrWhiteSpace(storage.Vid)
+            && !string.IsNullOrWhiteSpace(storage.Pid)
+            && storage.Vid.Equals(usb.Vid, StringComparison.OrdinalIgnoreCase)
+            && storage.Pid.Equals(usb.Pid, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(storage.ContainerId)
+            && storage.ContainerId.Equals(usb.ContainerId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var storageSerial = NormalizeHardwareId(storage.Serial);
+        var usbSerial = NormalizeHardwareId(usb.Serial);
+        if (storageSerial.Length >= 8
+            && usbSerial.Length >= 8
+            && (storageSerial.Contains(usbSerial, StringComparison.OrdinalIgnoreCase)
+                || usbSerial.Contains(storageSerial, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(storage.ParentIdPrefix)
+               && (usb.Serial.Contains(storage.ParentIdPrefix, StringComparison.OrdinalIgnoreCase)
+                   || usb.ParentIdPrefix.Contains(storage.ParentIdPrefix, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsUsbScopeEvidence(EvidenceRecord evidence, IReadOnlyList<UsbDeviceRecord> devices)
+    {
+        if (evidence.EventId is "104" or "1102")
+        {
+            return true;
+        }
+
+        if (evidence.Source.Contains("setupapi", StringComparison.OrdinalIgnoreCase)
+            || evidence.Source.Contains("Журнал контроля USB", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var text = string.Join(
+            " ",
+            evidence.Source,
+            evidence.EvidenceCategory,
+            evidence.DeviceHint,
+            evidence.Summary,
+            evidence.RawText,
+            evidence.UserExplanation);
+        if (ContainsUsbMarker(text))
+        {
+            return true;
+        }
+
+        return devices.Any(device => BuildSearchTokens(device).Any(token => ContainsToken(evidence, token)));
+    }
+
+    private static bool IsUsbScopeCleanupFinding(CleanupFinding finding)
+    {
+        if (finding.ActionKind.Equals("LogClearing", StringComparison.OrdinalIgnoreCase)
+            || finding.Area.Equals("SetupAPI", StringComparison.OrdinalIgnoreCase)
+            || finding.Assessment.Equals("OsInstall", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (finding.IsUsbUtilityTool)
+        {
+            return true;
+        }
+
+        return ContainsUsbMarker(string.Join(
+            " ",
+            finding.Area,
+            finding.Finding,
+            finding.Details,
+            finding.PossibleTool));
+    }
+
+    private static bool ContainsUsbMarker(string value)
+    {
+        return value.Contains("USB", StringComparison.OrdinalIgnoreCase)
+               || value.Contains("Type-C", StringComparison.OrdinalIgnoreCase)
+               || value.Contains("USB-C", StringComparison.OrdinalIgnoreCase)
+               || value.Contains("VID_", StringComparison.OrdinalIgnoreCase)
+               || value.Contains("PID_", StringComparison.OrdinalIgnoreCase)
+               || value.Contains("WPDBUSENUM", StringComparison.OrdinalIgnoreCase)
+               || value.Contains("removable", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeHardwareId(string value) =>
+        value.Trim().Trim('{', '}').Replace("&0", "", StringComparison.OrdinalIgnoreCase);
 
     private static IEnumerable<string> BuildSearchTokens(UsbDeviceRecord device)
     {
@@ -105,7 +222,7 @@ internal sealed class ForensicReportContext
             yield return $"{device.Vid}:{device.Pid}";
         }
 
-        if (!string.IsNullOrWhiteSpace(device.Serial) && device.Serial.Length > 3)
+        if (!string.IsNullOrWhiteSpace(device.Serial) && device.Serial.Length >= 8)
         {
             yield return device.Serial;
         }
@@ -115,10 +232,6 @@ internal sealed class ForensicReportContext
             yield return device.ContainerId;
         }
 
-        if (!string.IsNullOrWhiteSpace(device.FriendlyName) && device.FriendlyName.Length > 4)
-        {
-            yield return device.FriendlyName;
-        }
     }
 
     private static bool ContainsToken(EvidenceRecord evidence, string token)
@@ -191,6 +304,7 @@ internal static class ForensicReportBuilder
         html.AppendLine($"<b>Окончание сканирования:</b> {E(DateDisplay.FormatMoscow(result.FinishedAtUtc))}<br>");
         html.AppendLine($"<b>Длительность:</b> {E(ctx.ScanDurationText)}<br>");
         html.AppendLine($"<b>Права администратора:</b> {(result.IsAdministrator ? "да" : "нет")}<br>");
+        html.AppendLine("<b>Область отчёта:</b> только USB/Type-C, включая встроенные устройства внутренней USB-шины; ОЗУ и внутренние SATA/NVMe исключены.<br>");
         html.AppendLine($"<span class=\"muted\">{E(result.OsInstallGraceNote)}</span>");
         html.AppendLine("</div>");
 
@@ -212,8 +326,8 @@ internal static class ForensicReportBuilder
 
         AppendSummarySection(html, ctx);
         AppendIncidentSection(html, ctx);
-        AppendCleanupSection(html, result);
-        AppendDevicesSection(html, result);
+        AppendCleanupSection(html, ctx);
+        AppendDevicesSection(html, ctx);
         AppendDossiersSection(html, ctx);
         AppendTimelineSection(html, ctx);
         AppendEvidenceSection(html, ctx);
@@ -233,10 +347,10 @@ internal static class ForensicReportBuilder
         var result = ctx.Result;
         html.AppendLine("<h2 id=\"summary\">1. Сводка для расследования</h2>");
         html.AppendLine("<div class=\"note\">");
-        html.AppendLine($"<b>Устройств всего:</b> {result.Devices.Count}; ");
+        html.AppendLine($"<b>USB/Type-C записей:</b> {ctx.ReportableDevices.Count}; ");
         html.AppendLine($"<b>реальных USB:</b> {ctx.RealDevices.Count}; ");
-        html.AppendLine($"<b>доказательств:</b> {result.Evidence.Count}; ");
-        html.AppendLine($"<b>признаков очистки:</b> {result.CleanupFindings.Count}; ");
+        html.AppendLine($"<b>USB-доказательств:</b> {ctx.Timeline.Count}; ");
+        html.AppendLine($"<b>релевантных признаков очистки:</b> {ctx.CleanupFindings.Count}; ");
         html.AppendLine($"<b>подозрительных:</b> {ctx.SuspiciousCount}; ");
         html.AppendLine($"<b>высокого риска:</b> {ctx.HighRiskCount}; ");
         html.AppendLine($"<b>предупреждений:</b> {result.SourceWarnings.Count}");
@@ -280,17 +394,17 @@ internal static class ForensicReportBuilder
         html.AppendLine("</table>");
     }
 
-    private static void AppendCleanupSection(StringBuilder html, AuditResult result)
+    private static void AppendCleanupSection(StringBuilder html, ForensicReportContext ctx)
     {
         html.AppendLine("<h2 id=\"cleanup\">3. Все признаки очистки</h2>");
-        if (result.CleanupFindings.Count == 0)
+        if (ctx.CleanupFindings.Count == 0)
         {
             html.AppendLine("<p>Записей не найдено.</p>");
             return;
         }
 
         html.AppendLine("<table><tr><th>Дата и время</th><th>Тип действия</th><th>Статус</th><th>Инициатор</th><th>Инструмент</th><th>Уверенность</th><th>Риск</th><th>Где искали</th><th>Что найдено</th><th>Подробности</th></tr>");
-        foreach (var finding in result.CleanupFindings.OrderByDescending(x => x.TimestampUtc))
+        foreach (var finding in ctx.CleanupFindings)
         {
             html.AppendLine(
                 $"<tr><td>{E(finding.TimestampText)}</td><td>{E(finding.ActionKindText)}</td><td>{E(finding.AssessmentText)}</td><td>{E(finding.InitiatorText)}</td>" +
@@ -301,12 +415,12 @@ internal static class ForensicReportBuilder
         html.AppendLine("</table>");
     }
 
-    private static void AppendDevicesSection(StringBuilder html, AuditResult result)
+    private static void AppendDevicesSection(StringBuilder html, ForensicReportContext ctx)
     {
         html.AppendLine("<h2 id=\"devices\">4. USB-устройства</h2>");
-        html.AppendLine("<p class=\"muted\">Зелёные строки в программе — реальные устройства. Жёлтые — связанные диски. Серые — служебные записи Windows.</p>");
+        html.AppendLine("<p class=\"muted\">В отчёт включены реальные USB/Type-C устройства, подтверждённые связанные USB-диски и остаточные следы usbflags. Внутренние SATA/NVMe-диски и ОЗУ не относятся к USB и исключены.</p>");
         html.AppendLine("<table><tr><th>Тип</th><th>Что это</th><th>Откуда</th><th>Имя</th><th>Производитель</th><th>Модель</th><th>VID/PID</th><th>Серийный номер</th><th>Когда подключали</th><th>Последняя активность</th><th>Когда отключали</th><th>Пояснение по датам</th><th>Расположение</th><th>Буквы дисков</th><th>Системный ID</th></tr>");
-        foreach (var device in result.Devices)
+        foreach (var device in ctx.ReportableDevices)
         {
             html.AppendLine(
                 $"<tr><td>{E(device.CategoryText)}</td><td>{E(device.UserMeaning)}</td><td>{E(device.SourceText)}</td>" +
@@ -325,8 +439,8 @@ internal static class ForensicReportBuilder
 
         foreach (var device in ctx.ReportableDevices)
         {
-            var related = ForensicReportContext.GetRelatedEvidence(ctx.Result, device).ToArray();
-            var correlations = ForensicReportContext.GetCorrelationEvidence(ctx.Result, device).ToArray();
+            var related = ForensicReportContext.GetRelatedEvidence(ctx, device).ToArray();
+            var correlations = ForensicReportContext.GetCorrelationEvidence(ctx, device).ToArray();
 
             html.AppendLine("<section class=\"card\">");
             html.AppendLine($"<h3>{E(device.DisplayName)}</h3>");

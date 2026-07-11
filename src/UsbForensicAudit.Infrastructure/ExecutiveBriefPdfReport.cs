@@ -75,6 +75,7 @@ internal static class ExecutiveBriefPdfReport
             ("Сканирование", DateDisplay.FormatMoscow(result.StartedAtUtc)),
             ("Длительность", ctx.ScanDurationText),
             ("Права администратора", adminRights),
+            ("Область отчёта", "Только USB/Type-C, включая встроенную USB-периферию"),
             ("Общая оценка риска", risk.Label)
         ]);
 
@@ -85,9 +86,9 @@ internal static class ExecutiveBriefPdfReport
         SubTitle(column, "3. Ключевые показатели");
         AddMetricsTable(column,
         [
-            ("USB-устройств", result.Devices.Count.ToString()),
+            ("USB/Type-C записей", ctx.ReportableDevices.Count.ToString()),
             ("Реальных USB", ctx.RealDevices.Count.ToString()),
-            ("Доказательств", result.Evidence.Count.ToString()),
+            ("USB-доказательств", ctx.Timeline.Count.ToString()),
             ("Подозрительных", ctx.SuspiciousCount.ToString()),
             ("Высокий риск", ctx.HighRiskCount.ToString()),
             ("Предупреждений", result.SourceWarnings.Count.ToString())
@@ -249,7 +250,7 @@ internal static class ExecutiveBriefPdfReport
             return
                 $"На компьютере {result.ComputerName} выявлено {ctx.HighRiskCount} признак(ов) высокого риска " +
                 $"и {ctx.SuspiciousCount} подозрительных записей, связанных с возможным сокрытием следов работы с USB. " +
-                $"В истории зафиксировано {ctx.RealDevices.Count} реальных USB-устройств и {result.Evidence.Count} доказательств. " +
+                $"В истории зафиксировано {ctx.RealDevices.Count} реальных USB-устройств и {ctx.Timeline.Count} связанных доказательств. " +
                 "Рекомендуется детальная проверка и сохранение полного отчёта.";
         }
 
@@ -258,13 +259,13 @@ internal static class ExecutiveBriefPdfReport
             return
                 $"На компьютере {result.ComputerName} обнаружено {ctx.SuspiciousCount} подозрительных записей, " +
                 $"требующих внимания специалиста. Критических находок: {ctx.HighRiskCount}. " +
-                $"Всего устройств: {result.Devices.Count}, реальных USB: {ctx.RealDevices.Count}. " +
+                $"Всего USB/Type-C записей: {ctx.ReportableDevices.Count}, реальных USB: {ctx.RealDevices.Count}. " +
                 "Общая оценка риска: средний.";
         }
 
         return
             $"Проверка USB-устройств на компьютере {result.ComputerName} завершена без признаков сокрытия следов. " +
-            $"Зафиксировано {ctx.RealDevices.Count} реальных USB-устройств, собрано {result.Evidence.Count} доказательств. " +
+            $"Зафиксировано {ctx.RealDevices.Count} реальных USB-устройств, собрано {ctx.Timeline.Count} связанных доказательств. " +
             "Общая оценка риска: низкий. Детальный отчёт рекомендуется сохранить для архива.";
     }
 
@@ -289,7 +290,9 @@ internal static class ExecutiveBriefPdfReport
 
         yield return
             $"В истории системы учтено {ctx.RealDevices.Count} реальных USB-устройств; " +
-            $"собрано {ctx.Result.Evidence.Count} записей из реестра, журналов Windows и пользовательских артефактов.";
+            $"собрано {ctx.Timeline.Count} связанных записей из реестра, журналов Windows и пользовательских артефактов.";
+        yield return
+            "ОЗУ и внутренние SATA/NVMe-накопители не относятся к USB/Type-C и в данный отчёт не включены.";
 
         if (!ctx.Result.IsAdministrator)
         {

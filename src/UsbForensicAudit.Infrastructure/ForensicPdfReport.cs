@@ -98,10 +98,13 @@ internal static class ForensicPdfReport
             ("Начало сканирования", DateDisplay.FormatMoscow(result.StartedAtUtc)),
             ("Окончание сканирования", DateDisplay.FormatMoscow(result.FinishedAtUtc)),
             ("Длительность", ctx.ScanDurationText),
-            ("Права администратора", result.IsAdministrator ? "да" : "нет")
+            ("Права администратора", result.IsAdministrator ? "да" : "нет"),
+            ("Область отчёта", "USB/Type-C, включая встроенные устройства внутренней USB-шины")
         ]);
 
         column.Item().PaddingTop(2).Text(T(result.OsInstallGraceNote)).FontSize(7.5f).FontColor(Colors.Grey.Darken2);
+        column.Item().Text(T("ОЗУ и внутренние SATA/NVMe-накопители не относятся к USB и в отчёт не включаются."))
+            .FontSize(7.5f).FontColor(Colors.Grey.Darken2);
     }
 
     private static void AppendSummarySection(ColumnDescriptor column, ForensicReportContext ctx, bool pageBreakBefore)
@@ -116,10 +119,10 @@ internal static class ForensicPdfReport
         column.Item().Row(row =>
         {
             row.Spacing(8);
-            StatBox(row, "Устройств", ctx.Result.Devices.Count.ToString());
+            StatBox(row, "USB/Type-C записей", ctx.ReportableDevices.Count.ToString());
             StatBox(row, "Реальных USB", ctx.RealDevices.Count.ToString());
-            StatBox(row, "Доказательств", ctx.Result.Evidence.Count.ToString());
-            StatBox(row, "Признаков очистки", ctx.Result.CleanupFindings.Count.ToString());
+            StatBox(row, "USB-доказательств", ctx.Timeline.Count.ToString());
+            StatBox(row, "Признаков очистки", ctx.CleanupFindings.Count.ToString());
             StatBox(row, "Подозрительных", ctx.SuspiciousCount.ToString());
             StatBox(row, "Высокий риск", ctx.HighRiskCount.ToString());
             StatBox(row, "Предупреждений", ctx.Result.SourceWarnings.Count.ToString());
@@ -184,7 +187,7 @@ internal static class ForensicPdfReport
         }
 
         SectionTitle(column, "3. Все признаки очистки");
-        if (ctx.Result.CleanupFindings.Count == 0)
+        if (ctx.CleanupFindings.Count == 0)
         {
             column.Item().Text(T("Записей не найдено."));
             return;
@@ -203,7 +206,7 @@ internal static class ForensicPdfReport
             ("Что найдено", 1.2f),
             ("Подробности", 1.6f)
         ],
-        ctx.Result.CleanupFindings
+        ctx.CleanupFindings
             .OrderByDescending(x => x.TimestampUtc)
             .Select(f => new[]
             {
@@ -228,6 +231,11 @@ internal static class ForensicPdfReport
         }
 
         SectionTitle(column, "4. USB-устройства");
+        column.Item().Text(T(
+                "Показаны реальные USB/Type-C устройства, подтверждённые связанные USB-диски и остаточные следы usbflags. " +
+                "Внутренние SCSI/SATA/NVMe записи без подтверждённой связи с USB исключены."))
+            .FontSize(7.5f)
+            .FontColor(Colors.Grey.Darken2);
         AddDataTable(column,
         [
             ("Тип", 1f),
@@ -241,7 +249,7 @@ internal static class ForensicPdfReport
             ("Отключение", 1.1f),
             ("Системный ID", 1.7f)
         ],
-        ctx.Result.Devices.Select(d => new[]
+        ctx.ReportableDevices.Select(d => new[]
         {
             d.CategoryText,
             d.DisplayName,
@@ -297,7 +305,7 @@ internal static class ForensicPdfReport
                 ("Системный ID", device.DeviceInstanceId)
             ]);
 
-            var correlations = ForensicReportContext.GetCorrelationEvidence(ctx.Result, device).ToArray();
+            var correlations = ForensicReportContext.GetCorrelationEvidence(ctx, device).ToArray();
             if (correlations.Length > 0)
             {
                 SubTitle(column, "Корреляция");
@@ -306,7 +314,7 @@ internal static class ForensicPdfReport
                     correlations.Select(c => new[] { c.EventId, c.SummaryText }));
             }
 
-            var related = ForensicReportContext.GetRelatedEvidence(ctx.Result, device).ToArray();
+            var related = ForensicReportContext.GetRelatedEvidence(ctx, device).ToArray();
             SubTitle(column, $"Связанные доказательства ({related.Length})");
             if (related.Length == 0)
             {

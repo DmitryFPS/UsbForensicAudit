@@ -21,9 +21,9 @@ internal static class ExcelReportGenerator
             "Полные результаты forensic-аудита USB-устройств");
 
         AddSummarySheet(workbook, context, isBrief: false);
-        AddDevicesSheet(workbook, context.Result.Devices, "USB устройства");
-        AddEvidenceSheet(workbook, context.Result.Evidence);
-        AddCleanupSheet(workbook, context.Result.CleanupFindings, brief: false);
+        AddDevicesSheet(workbook, context.ReportableDevices, "USB устройства");
+        AddEvidenceSheet(workbook, context.Timeline);
+        AddCleanupSheet(workbook, context.CleanupFindings, brief: false);
         AddWarningsSheet(workbook, context.Result.SourceWarnings);
         AddExternalUtilitiesSheet(workbook, context.ExternalUtilitySnapshot);
 
@@ -88,7 +88,9 @@ internal static class ExcelReportGenerator
                      ("Начало сканирования", DateDisplay.FormatMoscow(result.StartedAtUtc)),
                      ("Окончание сканирования", DateDisplay.FormatMoscow(result.FinishedAtUtc)),
                      ("Длительность", context.ScanDurationText),
-                     ("Права администратора", result.IsAdministrator ? "да" : "нет")
+                     ("Права администратора", result.IsAdministrator ? "да" : "нет"),
+                     ("Область отчёта", "Только USB/Type-C, включая встроенные устройства внутренней USB-шины"),
+                     ("Исключено", "ОЗУ и внутренние SATA/NVMe-накопители — они не относятся к USB")
                  })
         {
             AddKeyValueRow(worksheet, row++, 1, label, value);
@@ -103,10 +105,10 @@ internal static class ExcelReportGenerator
         AddSectionHeader(worksheet, metricRow++, 4, 6, "Ключевые показатели");
         foreach (var (label, value) in new[]
                  {
-                     ("Всего записей устройств", result.Devices.Count),
+                     ("USB/Type-C записей", context.ReportableDevices.Count),
                      ("Реальных USB-устройств", context.RealDevices.Count),
-                     ("Доказательств", result.Evidence.Count),
-                     ("Признаков очистки", result.CleanupFindings.Count),
+                     ("USB-доказательств", context.Timeline.Count),
+                     ("Релевантных признаков очистки", context.CleanupFindings.Count),
                      ("Подозрительных", context.SuspiciousCount),
                      ("Высокий риск", context.HighRiskCount),
                      ("Предупреждений", result.SourceWarnings.Count)
