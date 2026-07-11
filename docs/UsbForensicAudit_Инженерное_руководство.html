@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>UsbForensicAudit — инженерное руководство</title>
+<style>
+  @page { size: A4; margin: 17mm 15mm 18mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: #172033; font-size: 10.2pt; line-height: 1.48; }
+  h1 { font-size: 25pt; line-height: 1.12; margin: 0 0 10mm; color: #123a63; }
+  h2 { font-size: 17pt; margin: 10mm 0 4mm; color: #123a63; border-bottom: 1px solid #b9c7d5; padding-bottom: 2mm; break-after: avoid; }
+  h3 { font-size: 13pt; margin: 7mm 0 2.5mm; color: #174f80; break-after: avoid; }
+  h4 { font-size: 11pt; margin: 5mm 0 2mm; color: #263f59; break-after: avoid; }
+  p { margin: 0 0 3mm; }
+  ul, ol { margin: 1.5mm 0 4mm 6mm; padding-left: 5mm; }
+  li { margin: 1mm 0; }
+  a { color: #075b9b; text-decoration: none; overflow-wrap: anywhere; }
+  table { width: 100%; border-collapse: collapse; margin: 3mm 0 5mm; font-size: 9.1pt; break-inside: auto; }
+  tr { break-inside: avoid; }
+  th { background: #dce8f2; color: #173653; text-align: left; font-weight: 650; }
+  th, td { border: 1px solid #afbfce; padding: 2.1mm 2.4mm; vertical-align: top; }
+  code { font-family: Consolas, monospace; font-size: 8.8pt; background: #edf2f6; padding: 0.3mm 1mm; border-radius: 1mm; overflow-wrap: anywhere; }
+  .cover { min-height: 250mm; display: flex; flex-direction: column; justify-content: center; page-break-after: always; }
+  .subtitle { font-size: 15pt; color: #3a536b; max-width: 155mm; margin-bottom: 14mm; }
+  .meta { border-left: 4px solid #2b74a8; padding: 4mm 0 4mm 5mm; color: #41566a; }
+  .lead { font-size: 11.2pt; color: #31465b; }
+  .note, .warning, .critical, .sources { padding: 3mm 4mm; margin: 4mm 0; break-inside: avoid; }
+  .note { background: #edf5fb; border-left: 4px solid #2b74a8; }
+  .warning { background: #fff7df; border-left: 4px solid #d59b18; }
+  .critical { background: #fff0ee; border-left: 4px solid #b64a3b; }
+  .sources { background: #f3f6f8; border: 1px solid #ccd6df; font-size: 8.8pt; }
+  .sources b { color: #2f4f69; }
+  .feature { border: 1px solid #c6d2dc; padding: 4mm; margin: 5mm 0; break-inside: avoid-page; }
+  .feature h3 { margin-top: 0; }
+  .flow { display: grid; grid-template-columns: 1fr; gap: 2.4mm; margin: 5mm 0; }
+  .flow div { border: 1px solid #9fb6c8; background: #f4f8fb; padding: 3mm 4mm; break-inside: avoid; }
+  .flow b { color: #174f80; }
+  .arrow { text-align: center; color: #48718f; font-weight: 700; }
+  .toc a { display: block; padding: 1.2mm 0; border-bottom: 1px dotted #c4ced7; }
+  .tag { display: inline-block; padding: 0.5mm 1.8mm; border: 1px solid #9bb4c8; border-radius: 10px; margin: 0 1mm 1mm 0; font-size: 8.5pt; }
+  .page-break { page-break-before: always; }
+  .small { font-size: 8.6pt; color: #4d6174; }
+  .footer-note { margin-top: 10mm; font-size: 8pt; color: #687b8d; border-top: 1px solid #d4dde4; padding-top: 2mm; }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div class="tag">Windows 10/11</div>
+  <div class="tag">USB / Type-C</div>
+  <div class="tag">DFIR</div>
+  <div class="tag">Инженерная эксплуатация</div>
+  <h1>UsbForensicAudit<br>Архитектура, принцип работы и интерпретация результатов</h1>
+  <div class="subtitle">Подробное руководство для инженера: что именно сканирует приложение, зачем нужен каждый источник, как выполняется сопоставление и где заканчивается достоверный вывод.</div>
+  <div class="meta">
+    <p><b>Назначение:</b> эксплуатация, технический аудит и проверка истории USB/Type‑C устройств на работающей Windows.</p>
+    <p><b>Состояние проекта:</b> 11 июля 2026 года; руководство сверено с текущей архитектурой приложения.</p>
+    <p><b>Уровень:</b> Senior Engineer / DFIR-aware system engineer.</p>
+    <p><b>Принцип:</b> ни один отдельный артефакт (след или запись) не даёт полной картины. Вывод строится по нескольким независимым источникам.</p>
+  </div>
+</section>
+
+<h2>Как пользоваться этим руководством</h2>
+<p class="lead">Документ отвечает не на вопрос «в каком классе написан метод», а на практические вопросы инженера: <b>что ищется, почему это ищется, как записи связываются между собой, насколько им можно доверять и что нельзя утверждать по результату</b>.</p>
+<div class="critical"><b>Главное правило интерпретации.</b> Наличие следа обычно доказывает, что Windows или пользовательская оболочка когда‑то видели объект. Оно не всегда доказывает физическое подключение в конкретную секунду, копирование файла или умышленную очистку. Приложение специально разделяет прямые, подтверждающие и косвенные доказательства.</div>
+
+<div class="toc">
+  <a href="#purpose">1. Назначение и границы</a>
+  <a href="#architecture">2. Архитектура простыми словами</a>
+  <a href="#pipeline">3. Полный конвейер сканирования</a>
+  <a href="#functions">4. Что проверяет каждый функциональный блок</a>
+  <a href="#correlation">5. Как выполняется сопоставление</a>
+  <a href="#interpretation">6. Как читать даты, силу доказательства и уверенность</a>
+  <a href="#cleanup">7. Как ищутся признаки очистки</a>
+  <a href="#operation">8. Практический порядок работы инженера</a>
+  <a href="#storage">9. Хранение, отчёты и проверяемость</a>
+  <a href="#limits">10. Ограничения и запрещённые выводы</a>
+  <a href="#sources-list">11. Каталог проверенных источников</a>
+</div>
+
+<h2 id="purpose">1. Назначение и границы приложения</h2>
+<p><b>UsbForensicAudit</b> — локальная программа с графическим интерфейсом (GUI) для Windows 10/11. Она собирает сохранившиеся в системе сведения об устройствах USB/Type‑C, текущих подключениях, установке драйверов, томах, действиях пользователя и возможных признаках удаления следов. Затем программа приводит сведения к общей форме, объединяет записи одного физического устройства, строит временную шкалу и формирует инженерные отчёты.</p>
+
+<h3>Какие вопросы приложение помогает закрыть</h3>
+<ul>
+  <li>Какие USB‑устройства Windows знает сейчас или помнит исторически?</li>
+  <li>Каковы VID/PID, серийный номер, модель, драйвер, ContainerID и топологическое расположение?</li>
+  <li>Какие записи относятся к одному физическому устройству, хотя Windows показывает несколько интерфейсов?</li>
+  <li>Какой том и буква диска могли быть связаны с накопителем?</li>
+  <li>Есть ли подтверждённые даты установки, появления или удаления устройства?</li>
+  <li>Какие пользовательские файлы, ярлыки и списки недавних объектов указывают на работу со съёмным томом?</li>
+  <li>Есть ли признаки запуска утилит очистки или очистки журналов?</li>
+  <li>Какие источники прочитаны полностью, частично или недоступны?</li>
+</ul>
+
+<h3>Чем приложение не является</h3>
+<ul>
+  <li>Это не блокиратор записи (write blocker), не средство создания криминалистического образа (forensic image) и не замена EnCase, X‑Ways, Magnet AXIOM или Autopsy.</li>
+  <li>Оно не выполняет полноценное восстановление удалённых ячеек реестра (carving), MFT/USN‑анализ или повторное применение журналов LOG1/LOG2 (replay).</li>
+  <li>Оно не доказывает сам факт копирования файла на USB только по LNK, Jump List или букве диска.</li>
+  <li>Оно не гарантирует восстановление событий, если Windows их не писала, перезаписала или источник был уничтожен.</li>
+  <li>Оно не блокирует устройства и не меняет политики доступа.</li>
+</ul>
+
+<div class="sources"><b>Основа методики:</b>
+  <a href="https://www.magnetforensics.com/blog/artifact-profile-usb-devices/">Magnet Forensics — USB Devices Artifact Profile</a> ·
+  <a href="https://artefacts.help/windows_etw_usb_activity.html">artefacts.help — Windows ETW USB activity</a> ·
+  <a href="https://dfir.pubpub.org/pub/h78di10n/release/1">DFIR Review — Partition/Diagnostic 1006 и VSN</a>
+</div>
+
+<h2 id="architecture">2. Архитектура простыми словами</h2>
+<p>Приложение построено по слоистой схеме, близкой к Clean Architecture. Это нужно не ради терминологии, а чтобы отделить <b>правила анализа</b> от <b>доступа к Windows</b> и от <b>интерфейса пользователя</b>.</p>
+
+<table>
+  <tr><th>Слой</th><th>Роль</th><th>Что это даёт инженеру</th></tr>
+  <tr><td><b>Presentation</b><br>WPF + MVVM</td><td>Окна, вкладки, таблицы, кнопки, статусы, сортировка и экспорт.</td><td>Интерфейс не решает, что считать доказательством; он показывает уже рассчитанный результат и пояснения.</td></tr>
+  <tr><td><b>Application</b></td><td>Оркестратор сканирования, граф идентичности, сопоставление, временная шкала, поиск очистки.</td><td>В одном месте задаются порядок анализа и правила, которые не зависят от конкретного API Windows.</td></tr>
+  <tr><td><b>Domain</b></td><td>Модели устройства, доказательства, выявленные проблемы (findings), покрытие проверки и словари отображения.</td><td>Все источники приводятся к общей форме, поэтому их можно одинаково сравнивать и сохранять.</td></tr>
+  <tr><td><b>Infrastructure</b></td><td>Чтение реестра, Event Log, WMI, файлов и автономных кустов реестра (offline hive); SQLite, JSONL, PDF/Excel/HTML, Procmon и Win32.</td><td>Ошибка одного источника не прерывает весь аудит. Она отдельно отражается в покрытии проверки (coverage).</td></tr>
+</table>
+
+<div class="flow">
+  <div><b>Интерфейс</b> принимает команду «Полное сканирование» и показывает прогресс.</div>
+  <div class="arrow">↓</div>
+  <div><b>Оркестратор</b> запускает источники в фиксированном порядке и собирает предупреждения.</div>
+  <div class="arrow">↓</div>
+  <div><b>Сборщики Windows</b> создают записи устройств и доказательств без окончательных выводов.</div>
+  <div class="arrow">↓</div>
+  <div><b>Аналитические сервисы</b> классифицируют транспорт, объединяют идентичности, связывают тома и рассчитывают даты.</div>
+  <div class="arrow">↓</div>
+  <div><b>Хранилище и отчёты</b> сохраняют исходный контекст, происхождение данных (provenance), силу доказательства и сведения о неполноте источников.</div>
+</div>
+
+<h3>Почему используется порт/адаптерный подход</h3>
+<p>Оркестратор знает, что ему нужен «сборщик доказательств» или «хранилище», но не привязан к конкретному реестру, WMI или SQLite. Благодаря этому новый источник можно добавить отдельно; существующая последовательность анализа остаётся понятной и тестируемой.</p>
+<div class="sources"><b>Архитектурные материалы:</b>
+  <a href="https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection">Microsoft — Dependency injection in .NET</a> ·
+  <a href="https://learn.microsoft.com/en-us/dotnet/desktop/wpf/data/">Microsoft — WPF data binding</a>
+</div>
+
+<h2 id="pipeline">3. Полный конвейер сканирования</h2>
+<p>Полное сканирование идёт последовательно в фоновом задании. Порядок важен: сначала собираются первичные записи, затем исторические данные и сведения о текущем состоянии (live‑данные). После этого запускается анализ.</p>
+
+<table>
+  <tr><th>Шаг</th><th>Что происходит</th><th>Зачем</th></tr>
+  <tr><td>1</td><td>Фиксируется время начала, версия Windows, имя компьютера, пользователь, права администратора и дата установки ОС.</td><td>Создать контекст сессии и отделить штатные действия Windows Setup от подозрительной очистки.</td></tr>
+  <tr><td>2</td><td>Реестр PnP: USB, USBSTOR, SCSI, WPD, usbflags и MountedDevices во всех ControlSet.</td><td>Получить основной инвентарь, идентификаторы, даты и остаточные следы.</td></tr>
+  <tr><td>3</td><td>SetupAPI: текущий и архивные журналы установки устройств.</td><td>Подтвердить установку/инициализацию PnP и сохранить текст секции.</td></tr>
+  <tr><td>4</td><td>Windows Event Log и журналы endpoint‑защиты.</td><td>Получить события с системным временем и конкретными DeviceInstanceId.</td></tr>
+  <tr><td>5</td><td>Профили пользователей: реестр, LNK, Jump Lists, Shellbags, Recycle Bin.</td><td>Понять, с какими томами и путями взаимодействовал пользователь.</td></tr>
+  <tr><td>6</td><td>Автономные кусты реестра (offline hive) активных и неактивных профилей.</td><td>Получить данные, недоступные через обычный HKU, не изменяя исходный куст реестра.</td></tr>
+  <tr><td>7</td><td>Prefetch, Amcache, Shimcache, PCA, BAM/DAM и Security 4688.</td><td>Найти исполнение утилит и контекст, но не подменять им дату подключения USB.</td></tr>
+  <tr><td>8</td><td>Удаляются дубли пользовательских артефактов.</td><td>Один и тот же профиль может быть прочитан через live HKU и offline hive.</td></tr>
+  <tr><td>9</td><td>DeviceMigration, сравнение ControlSet, Windows.old, существующие VSS, transaction logs.</td><td>Найти более старые или остаточные записи и показать границы восстановления.</td></tr>
+  <tr><td>10</td><td>Live WMI‑снимок добавляет состояние «подключено сейчас».</td><td>Отделить исторически известное устройство от физически присутствующего в момент аудита.</td></tr>
+  <tr><td>11</td><td>Классификация транспорта и роли.</td><td>Не путать UASP, MTP, USB4, хабы, встроенные и виртуальные устройства.</td></tr>
+  <tr><td>12</td><td>Граф идентичности создаёт основные объединённые записи (canonical) физических устройств.</td><td>Свести несколько записей устройства Windows (devnode) для одного устройства и не объединить два одинаковых экземпляра.</td></tr>
+  <tr><td>13</td><td>Связываются MountedDevices, Event 1006, VSN, буквы дисков и пользовательские артефакты.</td><td>Построить цепочку «физическое устройство → том → пользовательский след».</td></tr>
+  <tr><td>14</td><td>Временная шкала назначает точные и оценочные даты.</td><td>Использовать только разрешённые источники для connection date.</td></tr>
+  <tr><td>15</td><td>Поиск очистки и противоречий.</td><td>Показать признаки, но не объявлять умышленную очистку без подтверждения.</td></tr>
+  <tr><td>16</td><td>Расчёт покрытия и сохранение сессии.</td><td>Инженер видит не только результат, но и что не удалось проверить.</td></tr>
+</table>
+
+<h2 id="functions" class="page-break">4. Функциональные блоки: что, зачем и как проверяется</h2>
+
+<div class="feature">
+<h3>4.1. Права администратора и контекст системы</h3>
+<p><b>Что проверяется.</b> Приложение нужно запускать с повышенными правами (elevated). В начале сессии фиксируются сведения о Windows и время установки ОС.</p>
+<p><b>Зачем.</b> Без повышения прав могут быть недоступны Security log, часть PnP‑свойств, автономные кусты реестра, чужие профили и Procmon. Дата установки нужна для трёхчасового льготного периода (grace period): очистка или пересоздание журналов во время Windows Setup не должны автоматически считаться ручной зачисткой.</p>
+<p><b>Что означает результат.</b> Статус администратора говорит о полноте доступа, но не гарантирует, что все журналы включены политикой или сохранились.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://learn.microsoft.com/en-us/windows/security/application-security/application-control/user-account-control/how-it-works">Microsoft — как работает UAC</a> ·
+  <a href="https://learn.microsoft.com/en-us/sysinternals/downloads/procmon">Microsoft Sysinternals — Process Monitor</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.2. Инвентаризация PnP‑реестра: USB, USBSTOR, SCSI и WPD</h3>
+<p><b>Что сканируется.</b> Во всех доступных <code>ControlSet*</code> читаются ветви <code>Enum\USB</code>, <code>Enum\USBSTOR</code>, <code>Enum\SCSI</code> и <code>Enum\SWD\WPDBUSENUM</code>. Извлекаются DeviceInstanceId, VID/PID, серийный номер (serial), manufacturer/product, service, Hardware/Compatible IDs, ContainerID, parent, location и даты.</p>
+<p><b>Зачем.</b> Разные классы устройств проявляются по‑разному. Обычная флешка чаще видна в USBSTOR; UASP‑накопитель может иметь SCSI‑представление; телефон — WPD/MTP; составное устройство создаёт несколько интерфейсов.</p>
+<p><b>Что сопоставляется.</b> Одинаковые записи из разных ControlSet и ветвей не объединяются по одному VID/PID. Для физической идентичности требуются более сильные признаки: точный instance ID, ContainerID, аппаратный serial или топология.</p>
+<p><b>Как понимать результат.</b> Запись в Enum означает, что PnP знает или помнит запись устройства Windows (devnode). Это не обязательно означает, что устройство подключено сейчас.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/device-identification-strings">Microsoft — Device identification strings</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/devpkey-device-instanceid">Microsoft — DEVPKEY_Device_InstanceId</a> ·
+  <a href="https://www.magnetforensics.com/blog/artifact-profile-usb-devices/">Magnet Forensics — USB registry artifacts</a> ·
+  <a href="https://belkasoft.com/windows-registry-analysis-techniques">Belkasoft — Windows Registry forensics</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.3. PnP DevProperties 0064–0067: даты устройства</h3>
+<p><b>Что читается.</b> FILETIME‑свойства семейства <code>{83da6326-97a6-4088-9453-a1923f573b29}</code>: FirstInstallDate, InstallDate, LastArrivalDate и LastRemovalDate.</p>
+<p><b>Зачем.</b> Они дают структурированные системные даты без разбора локализованного текста.</p>
+<p><b>Как понимать:</b></p>
+<ul>
+  <li><b>FirstInstallDate</b> — когда Windows впервые установила данный экземпляр устройства; обновление драйвера её не меняет.</li>
+  <li><b>InstallDate</b> — последняя установка/обновление драйвера; это не обязательно новое физическое подключение.</li>
+  <li><b>LastArrivalDate / LastRemovalDate</b> — последнее появление/удаление devnode, если Windows сохранила свойства.</li>
+</ul>
+<div class="warning"><b>Не путать:</b> «первая установка экземпляра» и «самое первое физическое подключение устройства в его жизни» — разные утверждения. Свойства относятся к данной установке Windows и devnode.</div>
+<div class="critical"><b>Ограничение текущей версии интерфейса.</b> Приложение сохраняет PnP‑дату и учитывает её как точную в Coverage, но форматтер поля «Когда подключали» сейчас не обрабатывает тип <code>PnpDevProperty</code>. Поэтому GUI и отчёт могут показать «точное время неизвестно», хотя значение <code>FirstConnectedUtc</code> внутри сессии заполнено. До исправления интерфейса проверяйте raw device record/SQLite и Coverage, а отсутствие видимой даты не трактуйте как отсутствие PnP‑свойства.</div>
+<div class="sources"><b>Источники:</b>
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/devpkey-device-firstinstalldate">Microsoft — FirstInstallDate</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/devpkey-device-installdate">Microsoft — InstallDate</a> ·
+  <a href="https://learn.microsoft.com/en-us/powershell/module/pnpdevice/get-pnpdeviceproperty">Microsoft — Get‑PnpDeviceProperty</a> ·
+  <a href="https://www.nirsoft.net/utils/usb_devices_view.html">NirSoft USBDeview — описание свойств 0064–0067 и оговорки</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.4. ContainerID, parent и LocationPaths</h3>
+<p><b>Что проверяется.</b> ContainerID группирует несколько devnode одного физического устройства. ParentId и LocationPaths показывают положение в PnP‑дереве и помогают связать USB‑часть с SCSI/UASP‑представлением.</p>
+<p><b>Зачем.</b> Телефон, док‑станция или составное устройство (composite) могут создать несколько интерфейсов <code>MI_xx</code>. Без группировки инженер увидит дубли и может завысить число устройств.</p>
+<p><b>Ограничение.</b> ContainerID зависит от корректной реализации прошивки и эвристик Windows. LocationPaths может отсутствовать или меняться при подключении к другому порту.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/overview-of-container-ids">Microsoft — Overview of Container IDs</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/usb-containerids-in-windows">Microsoft — USB ContainerIDs</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/devpkey-device-parent">Microsoft — Device Parent</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/devpkey-device-locationpaths">Microsoft — LocationPaths</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.5. usbflags как остаточный продуктовый след</h3>
+<p><b>Что сканируется.</b> <code>ControlSet*\Control\usbflags</code>. Имена ключей разбираются как возможные VID/PID/revision и обогащаются встроенной базой USB Vendor IDs.</p>
+<p><b>Зачем.</b> Запись может сохраниться, когда основная PnP‑ветвь уже отсутствует, и указать на модель/семейство устройства.</p>
+<p><b>Как понимать результат.</b> Это <b>слабый след на уровне модели продукта (product‑level trace)</b>. VID/PID описывает тип продукта, а не уникальный экземпляр. Запись присоединяется к физическому устройству, только если в текущем наборе есть ровно одна однозначная группа‑кандидат.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://usb-ids.gowdy.us/">USB ID Repository — usb.ids</a> ·
+  <a href="https://github.com/usbids/usbids">usbids/usbids — репозиторий</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/usbview">Microsoft USBView</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.6. MountedDevices: буквы, Volume GUID и подпись диска</h3>
+<p><b>Что сканируется.</b> <code>HKLM\SYSTEM\MountedDevices</code>. Бинарные значения расшифровываются как буква диска (drive letter), Volume GUID, MBR signature + partition offset, GPT GUID или путь устройства.</p>
+<p><b>Зачем.</b> Эта ветвь связывает логическое имя Windows — например, <code>E:</code> — с идентичностью тома/диска. Она служит мостом от устройства к LNK и Jump Lists.</p>
+<p><b>Правило безопасности.</b> Одна буква диска не является доказательством: Windows переиспользует буквы. Привязка к физическому устройству строится по точному PnP instance ID, аппаратному serial, DiskId/signature или подтверждённой WMI‑ассоциации.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://www.magnetforensics.com/blog/artifact-profile-usb-devices/">Magnet Forensics — MountedDevices и USBSTOR</a> ·
+  <a href="https://vortexforensic.com/repository/USB/usb_registry.html">Vortex Forensic Repository — USB Registry Tracks</a> ·
+  <a href="https://dfir.pubpub.org/pub/h78di10n/release/1">DFIR Review — VSN correlation</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.7. SetupAPI.dev.log и архивы</h3>
+<p><b>Что сканируется.</b> Текущий <code>%SystemRoot%\INF\setupapi.dev.log</code>, сменяемые журналы <code>setupapi.*.log</code> и доступные исторические копии. Парсер выделяет разделы с отметкой времени (timestamp) и USB/PnP‑идентификаторами, сохраняя исходный текст и номер раздела.</p>
+<p><b>Зачем.</b> SetupAPI документирует установку устройств и драйверов и полезен для подтверждения первого знакомства Windows с экземпляром.</p>
+<p><b>Что означает дата.</b> Это дата операции установки/инициализации, а не универсальный журнал каждого последующего plug/unplug. Удаление устройства или обслуживание драйвера тоже может создавать секции.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/setupapi-text-logs">Microsoft — SetupAPI Text Logs</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/setupapi-device-installation-log-entries">Microsoft — Device Installation Log Entries</a> ·
+  <a href="https://www.magnetforensics.com/blog/artifact-profile-usb-devices/">Magnet Forensics — forensic use of SetupAPI</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.8. Windows Event Logs</h3>
+<p><b>Какие каналы читаются.</b> System, Security, Kernel‑PnP Configuration/Device Configuration, Storage‑ClassPnP, Partition/Diagnostic, WPD‑MTPClassDriver, DeviceSetupManager и DriverFrameworks‑UserMode.</p>
+<p><b>Как фильтруется.</b> Запись должна содержать признак устройства (device marker) USB/WPD/UASP/USB4. XML разбирается по структуре: provider, channel, Event ID, Record ID, timestamp, computer и именованные поля. Локализованное сообщение служит дополнительным текстом, а не единственным источником.</p>
+<p><b>Какие события могут задавать дату.</b> Используется явный список разрешённых событий (allowlist): например, Security 6416, Partition 1006, Kernel‑PnP 400/410 и определённые события Storage‑ClassPnP, если запись идентифицирует конкретное устройство.</p>
+<p><b>Какие не задают дату.</b> Kernel‑PnP 411 (ошибка запуска), 420 (удаление конфигурации), 430 (нужна дополнительная установка) и общие WPD/driver events остаются подтверждающими. Они не объявляются физическим отключением.</p>
+<div class="warning"><b>Важная оговорка:</b> Event 6416 означает распознавание внешнего PnP‑устройства, а не обязательно USB‑накопителя. Встречаются принтеры и программные устройства; поэтому нужна проверка Device ID и класса.</div>
+<div class="sources"><b>Источники:</b>
+  <a href="https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-6416">Microsoft — Event 6416</a> ·
+  <a href="https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/audit-pnp-activity">Microsoft — Audit PNP Activity</a> ·
+  <a href="https://artefacts.help/windows_etw_usb_activity.html">artefacts.help — Kernel‑PnP, Storage‑ClassPnP, Partition</a> ·
+  <a href="https://vortexforensic.com/repository/USB/usb_events.html">Vortex — USB Event Log Traces</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.9. Partition/Diagnostic Event 1006 и VSN</h3>
+<p><b>Что извлекается.</b> Идентификаторы устройства, DiskId/signature, geometry/partition data и найденные Volume Serial Numbers.</p>
+<p><b>Зачем.</b> VSN из системного события можно сопоставить с VSN внутри LNK или Jump List. Это позволяет связать пользовательский файл‑артефакт с конкретным томом даже после смены буквы.</p>
+<p><b>Как понимать результат.</b> VSN — идентификатор файловой системы тома, а не аппаратный серийный номер накопителя. Форматирование может изменить VSN. У одного устройства может быть несколько томов и несколько VSN.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://dfir.pubpub.org/pub/h78di10n/release/1">DFIR Review — Recover more VSNs with Event 1006</a> ·
+  <a href="https://artefacts.help/windows_etw_usb_activity.html">artefacts.help — Partition/Diagnostic</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.10. Endpoint Protection / DLP</h3>
+<p><b>Что проверяется.</b> Если обнаружена поддерживаемая система защиты конечных устройств (endpoint‑среда), приложение читает относящиеся к проверке сообщения Application log и классифицирует их как connect, disconnect, denied или generic.</p>
+<p><b>Зачем.</b> Корпоративный агент может видеть подключение или блокировку там, где стандартный журнал неполон.</p>
+<p><b>Ограничение.</b> Текст и семантика зависят от продукта и версии. «Удалено из политики» не считается физическим отключением; denied/blocked обрабатывается раньше общих слов удаления. Результат всегда нужно сверять с документацией конкретного DLP/EDR.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://learn.microsoft.com/en-us/windows/win32/eventlog/event-logging">Microsoft — Windows Event Logging</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows/win32/wes/querying-for-events">Microsoft — Querying for Events</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.11. Пользовательские профили и MountPoints2</h3>
+<p><b>Что сканируется.</b> Загруженные HKU и автономные NTUSER.DAT/UsrClass.dat не более чем для 256 профилей: MountPoints2, RecentDocs/MRU, ComDlg32, TypedPaths и связанные структуры оболочки (shell). SID сопоставляется с ProfileList и понятным именем профиля.</p>
+<p><b>Зачем.</b> Системные артефакты отвечают «какое устройство знала Windows», а профиль пользователя — «какой пользователь видел том или путь».</p>
+<p><b>Как понимать результат.</b> MountPoints2 связывает профиль с пространством имён тома или удалённого ресурса (volume/remote namespace). Это подтверждает пользовательский контекст, но само по себе не доказывает чтение или копирование конкретного файла.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://www.magnetforensics.com/blog/artifact-profile-usb-devices/">Magnet Forensics — MountPoints2</a> ·
+  <a href="https://vortexforensic.com/repository/USB/usb_registry.html">Vortex — user attribution through MountPoints2</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.12. LNK, PIDL и Jump Lists</h3>
+<p><b>Что сканируется.</b> Ярлыки в Recent, Desktop, Start Menu и SendTo; AutomaticDestinations и CustomDestinations. Структуры читаются с контролем длины; извлекаются target path, volume information, VSN и PIDL‑фрагменты.</p>
+<p><b>Зачем.</b> Ярлык или встроенный LNK может сохранять путь и информацию о томе после отключения носителя или удаления исходного файла.</p>
+<p><b>Как сопоставляется.</b> Если в артефакте есть VSN и он точно совпадает с томом устройства, создаётся подтверждающая связь. Одна буква диска намеренно недостаточна.</p>
+<p><b>Как понимать результат.</b> LNK/Jump List показывает, что Windows Shell или приложение создали ссылку или запись на объект. Это не доказывает направление копирования и полный объём действий.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-shllink/16cb4ca1-9339-4d0c-a68d-bf1d6cc0f943">Microsoft [MS‑SHLLINK]</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows/win32/shell/links">Microsoft — Shell Links</a> ·
+  <a href="https://github.com/EricZimmerman/LECmd">Eric Zimmerman — LECmd</a> ·
+  <a href="https://github.com/EricZimmerman/JLECmd">Eric Zimmerman — JLECmd</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.13. Shellbags</h3>
+<p><b>Что проверяется.</b> BagMRU‑структуры в UsrClass.dat/HKU Classes. Приложение оставляет только узлы с USB/removable/volume marker и извлекает читаемые PIDL‑фрагменты.</p>
+<p><b>Зачем.</b> Shellbags могут показать, что пользователь навигировал по папке, даже если папка уже отсутствует.</p>
+<p><b>Как понимать результат.</b> Наличие shellbag подтверждает след навигации. LastWrite конкретного BagMRU нельзя автоматически считать точным временем открытия папки. Его нужно подтверждать LNK, Jump List и другими источниками.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://ericzimmerman.github.io/">Eric Zimmerman — ShellBags Explorer / SBECmd</a> ·
+  <a href="https://www.registryparser.com/en/blog/shellbags-forensics">Registry Parser — Shellbags caveats</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.14. Recycle Bin metadata</h3>
+<p><b>Что сканируется.</b> Только метаданные <code>$I*</code> в <code>$Recycle.Bin\SID</code> на доступных дисках: исходный путь, размер и время удаления, если структура валидна.</p>
+<p><b>Зачем.</b> Путь может указывать на букву или том и дать контекст удаления файла.</p>
+<p><b>Ограничение.</b> Приложение не заявляет восстановление содержимого <code>$R</code> и не доказывает, что файл находился на конкретном физическом USB без дополнительного сопоставления тома.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://ericzimmerman.github.io/">Eric Zimmerman — RBCmd</a> ·
+  <a href="https://github.com/EricZimmerman/RBCmd">RBCmd repository</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.15. Prefetch</h3>
+<p><b>Что сканируется.</b> Файлы <code>%SystemRoot%\Prefetch\*.pf</code>, связанные с известными утилитами очистки или removable path indicators.</p>
+<p><b>Зачем.</b> Prefetch может подтвердить запуск исполняемого файла и сохранить имя/путь после удаления программы.</p>
+<p><b>Интерпретация.</b> Для известной cleaner‑утилиты факт её запуска — прямое доказательство запуска, но не очистки. Обычный removable path имеет косвенную силу. Prefetch никогда не устанавливает дату подключения USB.</p>
+<div class="critical"><b>Ограничение текущей автоматической аналитики.</b> Prefetch‑сборщик помечает cleaner как <code>CLEANER_EXECUTION</code>, а CleanupDetector в текущей версии ищет <code>CLEANER_HINT</code>. Поэтому такая Prefetch‑запись видна в журнале доказательств, но автоматически не превращается в finding «запуск/вероятная очистка». Инженер должен проверить её вручную вместе с 4688, Event 104/1102 и противоречиями источников.</div>
+<div class="sources"><b>Источники:</b>
+  <a href="https://ericzimmerman.github.io/">Eric Zimmerman — PECmd</a> ·
+  <a href="https://github.com/Psmths/windows-forensic-artifacts">Windows Forensic Artifacts knowledge base</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.16. Amcache и Shimcache</h3>
+<p><b>Что сканируется.</b> Копия <code>Amcache.hve</code> и AppCompatCache из SYSTEM. Ищутся пути/метаданные исполняемых файлов, релевантные USB или cleaner‑инструментам.</p>
+<p><b>Зачем.</b> Эти источники помогают подтвердить присутствие или совместимость исполняемого файла и расширяют историю исполнения.</p>
+<p><b>Как понимать результат.</b> Особенно для Shimcache наличие записи не означает доказанный запуск. Поэтому записи маркируются Indirect и не участвуют во временной шкале подключений (connection timeline).</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://github.com/EricZimmerman/AmcacheParser">Eric Zimmerman — AmcacheParser</a> ·
+  <a href="https://github.com/EricZimmerman/AppCompatCacheParser">Eric Zimmerman — AppCompatCacheParser</a> ·
+  <a href="https://ericzimmerman.github.io/">Eric Zimmerman Tools — назначение парсеров</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.17. PCA и BAM/DAM</h3>
+<p><b>Что сканируется.</b> <code>C:\Windows\AppCompat\PCA\PcaAppLaunchDic.txt</code>, PcaGeneralDb0/1 и registry‑ветви BAM/DAM по SID.</p>
+<p><b>Зачем.</b> PCA и BAM/DAM дают дополнительные отметки времени запуска программ и путь к исполняемому файлу (executable). Это помогает установить, с какой утилитой очистки связано событие.</p>
+<p><b>Как понимать результат.</b> PcaAppLaunchDic и BAM/DAM дают подтверждающие сведения о запуске (corroborating execution evidence); общие записи базы PCA (database records) считаются косвенными (Indirect). Доступность зависит от версии Windows, политики и жизненного цикла записи.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://docs.velociraptor.app/exchange/artifacts/pages/windows.system.appcompatpca/">Velociraptor — AppCompat PCA artifact</a> ·
+  <a href="https://docs.velociraptor.app/artifact_references/pages/windows.forensics.bam/">Velociraptor — BAM artifact</a> ·
+  <a href="https://github.com/Psmths/windows-forensic-artifacts/blob/main/execution/bam-dam.md">Windows Forensic Artifacts — BAM/DAM caveats</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.18. Security Event 4688: атрибуция процесса</h3>
+<p><b>Что проверяется.</b> Security log на Event 4688 для путей известных cleaner/USB‑утилит.</p>
+<p><b>Зачем.</b> Если аудит Process Creation был включён, событие содержит исполняемый файл (executable) и учётную запись создателя процесса. Это сильнее, чем косвенное наличие артефакта (artifact presence).</p>
+<p><b>Ограничение.</b> Событие отсутствует, если политика не была включена или журнал перезаписан. Командная строка появляется только при отдельной политике и может содержать чувствительные данные.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4688">Microsoft — Event 4688</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/component-updates/command-line-process-auditing">Microsoft — Command line process auditing</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.19. Исторические источники: DeviceMigration и ControlSet</h3>
+<p><b>Что сканируется.</b> DeviceMigration, различия между ControlSet и текущим выбором <code>SYSTEM\Select</code>.</p>
+<p><b>Зачем.</b> После обновления Windows или штатной PnP‑очистки старые устройства могут исчезнуть из текущего Enum, но сохраниться в migration‑ветвях или другом ControlSet.</p>
+<p><b>Как понимать результат.</b> Это исторический остаточный след (historical residual). LastPresentDate может дать полезную отметку времени, но различие ControlSet само по себе не означает антифорензику. Возможны LastKnownGood, обновление (upgrade) или обычная смена записей.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://www.hecfblog.com/2017/04/windows-now-built-in-anti-forensics.html">Hacking Exposed CF — PnP cleanup and DeviceMigration</a> ·
+  <a href="https://www.ilyakobzar.com/p/windows-updates-and-anti-forensics">Ilya Kobzar — Windows updates and USB artifacts</a> ·
+  <a href="https://windows.dfirhandbook.com/windows-artifacts/usb-usage/key-identification">DFIR Handbook — DeviceMigration</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.20. Windows.old, offline hive и VSS</h3>
+<p><b>Что сканируется.</b> Известные кусты SYSTEM/SOFTWARE и журналы SetupAPI в Windows.old, а также до восьми уже существующих теневых копий (shadow copies). Исходный куст сначала копируется и хешируется. Только после этого копия временно подключается для чтения.</p>
+<p><b>Зачем.</b> Предыдущая Windows или снимок (snapshot) может хранить записи, которых уже нет в работающей системе.</p>
+<p><b>Безопасность.</b> Приложение не создаёт новый снимок VSS и не загружает исходный куст напрямую. Журналы транзакций (transaction logs) копируются и хешируются, но подтверждённое повторное применение журналов или восстановление удалённых ячеек (replay/deleted‑cell carving) не выполняется.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://learn.microsoft.com/en-us/windows/win32/vss/volume-shadow-copy-service-portal">Microsoft — Volume Shadow Copy Service</a> ·
+  <a href="https://learn.microsoft.com/en-us/previous-versions/windows/desktop/vsswmi/win32-shadowcopy">Microsoft — Win32_ShadowCopy</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows/win32/vss/registry-backup-and-restore-operations-under-vss">Microsoft — Registry backup under VSS</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.21. Live‑снимок и мониторинг</h3>
+<p><b>Что проверяется сейчас.</b> WMI‑классы Win32_PnPEntity, Win32_DiskDrive и Win32_LogicalDisk; PnP metadata читается для USB, USBSTOR, SCSI/UASP, WPD и USB4 candidates. Буква диска связывается через WMI associations.</p>
+<p><b>Как работает мониторинг.</b> Win32_DeviceChangeEvent типов 2/3 и оконные PnP‑уведомления запускают обновление с задержкой устранения дребезга (debounce) 750 мс. Это обновление по событию (event‑driven refresh), а не постоянное полное сканирование.</p>
+<p><b>Ограничение fallback.</b> Если WMI watcher не запускается, код выставляет флаг <code>UsesPollingFallback</code>, но отдельный периодический polling‑цикл в текущей версии не реализован. Остаются оконные PnP‑уведомления, если они доступны.</p>
+<p><b>Интерпретация.</b> «Подключено сейчас» подтверждает присутствие во время запроса. «Время подключения» в live‑окне — first seen текущей сессией мониторинга, а не историческое время Windows.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-pnpentity">Microsoft — Win32_PnPEntity</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-devicechangeevent">Microsoft — Win32_DeviceChangeEvent</a> ·
+  <a href="https://learn.microsoft.com/en-us/powershell/module/pnpdevice/get-pnpdevice">Microsoft — PresentOnly semantics</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.22. Классификация UASP, MTP/WPD, USB4 и роли устройства</h3>
+<p><b>Что анализируется.</b> Service, instance ID, hardware/compatible IDs, LocationPaths и имя. Определяются транспорт (transport), подключение (connection) и роль/классификация (role/classification).</p>
+<ul>
+  <li><b>MSC/USBSTOR</b> — классический USB mass storage.</li>
+  <li><b>UASP/SCSI</b> — <code>uaspstor</code> или SCSI‑узел с подтверждённым USB‑bridge/topology.</li>
+  <li><b>MTP/PTP/WPD</b> — телефоны/камеры и portable devices, которые не обязаны иметь drive letter.</li>
+  <li><b>USB4/Thunderbolt</b> — явные router/service/ID markers; PCIe‑узел без достаточного подтверждения остаётся candidate.</li>
+  <li><b>Hub, BuiltIn, Composite, Virtual, External</b> — роль, чтобы инфраструктура шины не выглядела как пользовательская флешка.</li>
+</ul>
+<p><b>Принцип.</b> Если признаков недостаточно, выбирается Unknown, а не догадка по названию продукта.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/supported-usb-classes">Microsoft — USB class drivers, Usbstor/Uaspstor</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/portable/architecture-overview">Microsoft — WPD architecture</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/design/component-guidelines/usb4-intro-to-connection-manager">Microsoft — USB4 Connection Manager</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/ucsi">Microsoft — UCSI / USB‑C</a>
+</div>
+</div>
+
+<div class="feature">
+<h3>4.23. Сторонние утилиты и Procmon‑трассировка</h3>
+<p><b>Что делает блок.</b> Находит запущенные USBDetector, USBDeview или USB Oblivion. Считывает видимые таблицы через Win32/UI Automation или резервное чтение буфера обмена (clipboard fallback), приводит столбцы к общей форме и позволяет выполнить строгую трассировку операций с реестром через Procmon.</p>
+<p><b>Зачем.</b> Это независимое сравнение с внешним инструментом и способ понять, из каких ключей конкретная строка могла быть получена.</p>
+<p><b>Интерпретация.</b> Захваченная строка — вывод сторонней программы, а не первичный артефакт UsbForensicAudit. Procmon показывает обращения процесса после старта трассировки и не восстанавливает прошлые обращения.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://www.nirsoft.net/utils/usb_devices_view.html">NirSoft — USBDeview</a> ·
+  <a href="https://learn.microsoft.com/en-us/sysinternals/downloads/procmon">Microsoft Sysinternals — Process Monitor</a> ·
+  <a href="https://learn.microsoft.com/en-us/dotnet/framework/ui-automation/ui-automation-overview">Microsoft — UI Automation</a>
+</div>
+</div>
+
+<h2 id="correlation" class="page-break">5. Как приложение сопоставляет записи</h2>
+
+<h3>5.1. Граф физической идентичности</h3>
+<p>Windows часто создаёт несколько записей для одного корпуса: USB parent, USBSTOR disk, SCSI/UASP disk, WPD interface, volume и несколько <code>MI_xx</code>. Приложение строит группы по сильным ключам:</p>
+<ol>
+  <li>точный нормализованный DeviceInstanceId;</li>
+  <li>валидный ContainerID;</li>
+  <li>аппаратный serial, если он не похож на сгенерированный Windows instance string;</li>
+  <li>совпадающая топология: ParentIdPrefix или LocationPaths;</li>
+  <li>composite parent после удаления интерфейсной части <code>MI_xx</code>.</li>
+</ol>
+<p>По самому сильному доступному ключу вычисляется стабильный идентификатор основной объединённой записи (canonical ID) вида <code>DEV-…</code>. Он нужен для внутреннего объединения и не является заводским идентификатором устройства.</p>
+<div class="critical"><b>Защита от ложного объединения (merge).</b> Два устройства одной модели имеют одинаковые VID/PID. Поэтому VID/PID не используются как самостоятельный ключ физической идентичности и не переносят даты между serial A и serial B.</div>
+
+<h3>5.2. Связь «устройство → том»</h3>
+<p>Сопоставления MountedDevices (mappings) сначала объединяются по двоичному отпечатку (binary fingerprint). Затем сопоставление присоединяется к физическому устройству только при наличии сильного основания: точного пути PnP (exact PnP path), аппаратного serial в device path или подтверждённой текущей связи WMI (live WMI association).</p>
+
+<h3>5.3. Связь «том → пользовательский артефакт»</h3>
+<p>LNK/Jump List/PIDL должен содержать VSN. Если он совпадает с VSN уже привязанного тома, создаётся производная подтверждающая запись сопоставления (derived correlation evidence). Совпадение VSN и буквы диска даёт уверенность High; один VSN — Medium. Одна буква диска не используется.</p>
+
+<h3>5.4. Общее сопоставление доказательств</h3>
+<p>Для каждой основной объединённой записи устройства выбираются до 30 относящихся к ней записей по сильным признакам: instance ID, serial, ContainerID, ParentId и linked source IDs. Производные записи маркируются <b>Corroborating</b>, содержат происхождение данных (provenance) и не могут назначать дату подключения.</p>
+
+<div class="sources"><b>Источники принципов:</b>
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/devpkey-device-containerid">Microsoft — ContainerID grouping</a> ·
+  <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/device-instance-ids">Microsoft — Device Instance IDs</a> ·
+  <a href="https://dfir.pubpub.org/pub/h78di10n/release/1">DFIR Review — VSN attribution to LNK/Jump Lists</a>
+</div>
+
+<h2 id="interpretation">6. Как читать результаты</h2>
+
+<h3>6.1. EvidenceStrength</h3>
+<table>
+  <tr><th>Уровень</th><th>Практический смысл</th><th>Пример</th></tr>
+  <tr><td><b>Direct</b></td><td>Источник прямо фиксирует описанное действие или системное событие.</td><td>Event 4688 прямо фиксирует запуск процесса; PnP allowlist event прямо фиксирует конфигурацию/появление конкретного instance ID.</td></tr>
+  <tr><td><b>Corroborating</b></td><td>Подтверждает цепочку, но не является достаточным в одиночку.</td><td>VSN‑совпадение LNK с томом, BAM/PCA, событие драйвера без разрешения задавать connection date.</td></tr>
+  <tr><td><b>Indirect</b></td><td>Косвенный или остаточный след; требует независимого подтверждения.</td><td>Shimcache presence, общий MRU, исторический residual.</td></tr>
+</table>
+<p><b>Важно:</b> Direct относится к утверждению записи. Например, Prefetch может прямо доказать запуск cleaner‑программы, но не доказать, что программа действительно очистила USB‑следы.</p>
+
+<h3>6.2. Confidence</h3>
+<p>Уровень уверенности (Confidence) High/Medium/Low характеризует качество конкретного сопоставления. Это не математическая вероятность. В отчёте всегда нужно читать сведения о происхождении данных (provenance): почему выставлен этот уровень и какие ключи совпали.</p>
+
+<h3>6.3. Типы дат</h3>
+<table>
+  <tr><th>Отображение</th><th>Что означает</th><th>Что проверить</th></tr>
+  <tr><td><b>PnpDevProperty</b></td><td>Дата взята из структурированного свойства PnP.</td><td>Какое именно свойство: FirstInstall, LastArrival или LastRemoval; учесть текущий дефект отображения FirstConnectedText.</td></tr>
+  <tr><td><b>ExactEvent</b></td><td>Дата взята из разрешённого события/SetupAPI, идентифицирующего устройство.</td><td>Provider, Event ID, Record ID, DeviceHint и raw XML/text.</td></tr>
+  <tr><td><b>LiveAtScan</b></td><td>Устройство впервые увидено приложением в текущей live‑сессии.</td><td>Не выдавать за историческую дату подключения.</td></tr>
+  <tr><td><b>LastActivityEstimate</b></td><td>Точного отключения нет; показана последняя активность как оценка.</td><td>Искать LastRemoval или disconnect event.</td></tr>
+  <tr><td><b>Unknown</b></td><td>Windows помнит устройство, но достоверная дата отсутствует.</td><td>Проверить coverage и исторические источники.</td></tr>
+</table>
+
+<h3>6.4. Категории строк устройства</h3>
+<ul>
+  <li><b>RealUsb</b> — полноценный USB/Type‑C device record.</li>
+  <li><b>RelatedStorage</b> — disk/volume record, связанный с USB, но не отдельный физический корпус.</li>
+  <li><b>UsbFlagsTrace</b> — слабый остаточный VID/PID trace.</li>
+  <li><b>SupportArtifact</b> — инфраструктурная запись Windows; её нельзя считать пользовательским носителем.</li>
+</ul>
+
+<h2 id="cleanup">7. Как ищутся признаки очистки</h2>
+<p>CleanupDetector не «угадывает виновного». Он формирует выявленные проблемы (findings) из наблюдаемых сигналов и явно показывает assessment, severity, initiator, possible tool, confidence и provenance.</p>
+
+<table>
+  <tr><th>Сигнал</th><th>Почему интересен</th><th>Почему не является автоматическим приговором</th></tr>
+  <tr><td>Security Event 1102 / System Event 104</td><td>Журнал был очищен.</td><td>Очистка может быть административной, установочной или штатной; важны account и время.</td></tr>
+  <tr><td>setupapi.dev.log отсутствует, мал или создан значительно позже Windows</td><td>Возможна ротация/пересоздание.</td><td>Обновление, восстановление ОС или обслуживание также меняют файл.</td></tr>
+  <tr><td>USBSTOR есть, а SetupAPI‑секции отсутствуют</td><td>Источники противоречат друг другу.</td><td>SetupAPI мог ротироваться; Windows.old/DeviceMigration объясняют разницу.</td></tr>
+  <tr><td>MountedDevices есть, а Enum USB отсутствует</td><td>Остался volume mapping без device record.</td><td>Это может быть нормальный stale mapping или миграция.</td></tr>
+  <tr><td>Запуск USB Oblivion/cleaner в 4688 или execution artifacts</td><td>Инструмент способен удалять следы.</td><td>Сам запуск не доказывает использование функции очистки; Prefetch cleaner сейчас требует ручной проверки из-за несовпадения внутренних меток.</td></tr>
+  <tr><td>Cleaner рядом по времени с 104/1102 или registry contradiction</td><td>Несколько независимых сигналов могут образовать вероятную цепочку.</td><td>Автоматическая ветка Prefetch cleaner сейчас не срабатывает; статус Probable допустим только после фактического сопоставления доступных записей.</td></tr>
+</table>
+
+<p>События в первые три часа после установки Windows маркируются как <b>OsInstall / Informational</b>, если совпадают с контекстом Windows Setup. Это снижает ложные обвинения.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-1102">Microsoft — Event 1102</a> ·
+  <a href="https://attack.mitre.org/techniques/T1070/001/">MITRE ATT&amp;CK — Clear Windows Event Logs</a> ·
+  <a href="https://learn.microsoft.com/en-us/sysinternals/downloads/procmon">Microsoft — Procmon for registry/process correlation</a>
+</div>
+
+<h2 id="operation" class="page-break">8. Практический порядок работы инженера</h2>
+
+<h3>8.1. Перед запуском</h3>
+<ol>
+  <li>Зафиксировать цель: инвентаризация, реагирование на инцидент (incident response), проверка конкретного serial или поиск очистки.</li>
+  <li>Записать локальное время, часовой пояс и состояние ПК. Приложение хранит UTC и показывает МСК; для другой зоны учитывать преобразование.</li>
+  <li>Не подключать новые устройства без необходимости: это создаёт новые PnP и SetupAPI‑следы.</li>
+  <li>Запустить от имени администратора. Если исследование юридически значимо, сначала создать forensic‑образ штатным процессом организации.</li>
+</ol>
+
+<h3>8.2. После полного сканирования</h3>
+<ol>
+  <li><b>Сначала Coverage.</b> Если EventLog, SetupAPI или профили Partial/Error, нельзя делать вывод «следов нет».</li>
+  <li><b>Затем USB Devices.</b> Отфильтровать RealUsb, проверить canonical ID, serial, ContainerID, transport и происхождение классификации (classification provenance).</li>
+  <li><b>Проверить даты.</b> Различать PnpDevProperty, ExactEvent и оценку (estimate); открыть связанные доказательства (evidence).</li>
+  <li><b>Проверить тома.</b> Сверить VSN, Volume GUID, DiskId и drive letter. Не использовать одну букву как идентификатор.</li>
+  <li><b>Проверить пользователя.</b> Искать MountPoints2, LNK, Jump List и Shellbags с совпадающим VSN/путём.</li>
+  <li><b>Проверить Cleanup Findings.</b> Начинать с High/Probable, затем читать происхождение данных (provenance) и исходные доказательства (raw evidence).</li>
+  <li><b>Сформировать полный отчёт.</b> Сводный отчёт удобен руководителю, но не заменяет журнал доказательств.</li>
+</ol>
+
+<h3>8.3. Как расследовать конкретную флешку</h3>
+<ol>
+  <li>Найти аппаратный serial и DeviceInstanceId в USBSTOR/USB.</li>
+  <li>Проверить ContainerID и linked source IDs — нет ли UASP/SCSI или composite‑узлов.</li>
+  <li>Открыть evidence с точным serial/instance ID.</li>
+  <li>Проверить FirstInstall/LastArrival/LastRemoval и SetupAPI.</li>
+  <li>Найти volumes: VSN, DiskId, drive letter.</li>
+  <li>Перейти к LNK/Jump Lists/MountPoints2 с тем же VSN.</li>
+  <li>Сопоставить с пользователем и временем, учитывая силу доказательства.</li>
+  <li>Если есть cleaner finding — проверить 4688, Prefetch/PCA/BAM и Event 104/1102 в окне времени.</li>
+</ol>
+
+<h3>8.4. Что писать в инженерном заключении</h3>
+<div class="note">
+  <p><b>Корректно:</b> «Windows хранит запись устройства USBSTOR с serial X. PnP LastArrivalDate указывает на 10.07.2026 14:03 МСК. Событие Kernel‑PnP 410 с тем же DeviceInstanceId подтверждает запуск devnode. LNK пользователя Y содержит VSN тома Z, совпадающий с привязанным томом устройства».</p>
+  <p><b>Некорректно:</b> «Пользователь Y скопировал файл на флешку в 14:03», если нет отдельного файлового журнала или иных прямых доказательств копирования.</p>
+</div>
+
+<h2 id="storage">9. Хранение, отчёты и проверяемость</h2>
+
+<h3>9.1. Где сохраняются данные</h3>
+<p>Если рядом с EXE разрешена запись, используется <code>{exe}\data</code>. Иначе применяется резервный путь (fallback) <code>%LOCALAPPDATA%\UsbForensicAudit</code>. Инженер должен записать фактический путь из интерфейса (UI) или журнала.</p>
+
+<h3>9.2. SQLite</h3>
+<p><code>audit.sqlite</code> хранит сессии, devices, evidence, cleanup findings, coverage и JSON‑представление записей. SessionId отделяет один аудит от другого; уникальные record keys защищают от повторной вставки той же записи внутри сессии.</p>
+
+<h3>9.3. JSONL hash chain</h3>
+<p><code>evidence.jsonl</code> — журнал только для добавления записей (append‑only). Каждая строка связана с предыдущей через SHA‑256. Это позволяет при обычной проверке обнаружить разрыв или изменение цепочки.</p>
+<div class="warning"><b>Граница гарантии.</b> Цепочка хешей (hash chain) не является цифровой подписью и не защищает от атакующего, который может полностью переписать файл и пересчитать всю цепочку. Для юридической сохранности нужны внешний хеш (hash), защищённое хранилище, журнал передачи и процедура контроля сохранности доказательств (chain of custody).</div>
+
+<h3>9.4. Coverage</h3>
+<p>Для каждого сборщика (collector) показываются Complete, Partial, Error или NotRun, число записей, сработавший лимит и текст ошибки. ExactDateCoveragePercent — доля основных объединённых записей устройств, у которых дата получена из ExactEvent или PnP property.</p>
+<p>Нулевой результат при Error/NotRun означает «источник не проверен», а не «артефактов нет».</p>
+
+<h3>9.5. Отчёты</h3>
+<ul>
+  <li><b>HTML</b> — генератор реализован программно и содержит timeline, dossiers, evidence и coverage, но отдельной кнопки HTML в текущем GUI нет.</li>
+  <li><b>Полный PDF/Excel</b> — инженерный результат с устройствами, доказательствами, provenance и coverage.</li>
+  <li><b>Сводный PDF/Excel</b> — краткая управленческая выборка; не содержит всей глубины первичных записей.</li>
+</ul>
+<p>Область отчёта (Report scope) отфильтровывает внутренние SATA/NVMe и RAM. USB hubs, composite и support artifacts могут присутствовать как инфраструктурный контекст, но не должны считаться пользовательскими накопителями.</p>
+<div class="sources"><b>Источники:</b>
+  <a href="https://sqlite.org/fileformat.html">SQLite — Database File Format</a> ·
+  <a href="https://csrc.nist.gov/pubs/fips/180-4/upd1/final">NIST FIPS 180‑4 — SHA‑256</a> ·
+  <a href="https://www.rfc-editor.org/rfc/rfc3227">RFC 3227 — Evidence Collection and Archiving Guidelines</a>
+</div>
+
+<h2 id="limits">10. Ограничения и запрещённые выводы</h2>
+
+<table>
+  <tr><th>Наблюдение</th><th>Что допустимо утверждать</th><th>Что нельзя утверждать без дополнительных данных</th></tr>
+  <tr><td>USBSTOR/Enum запись</td><td>Windows знает или знала этот devnode.</td><td>Устройство подключено сейчас; пользователь копировал файлы.</td></tr>
+  <tr><td>FirstInstallDate</td><td>Экземпляр впервые установлен в данной Windows.</td><td>Это первое подключение устройства вообще.</td></tr>
+  <tr><td>LastArrivalDate</td><td>Последнее системно записанное появление devnode.</td><td>Это гарантированно каждое физическое подключение.</td></tr>
+  <tr><td>SetupAPI timestamp</td><td>В это время шла установка/инициализация PnP.</td><td>Это универсальный plug event.</td></tr>
+  <tr><td>Kernel‑PnP 420</td><td>Удалена конфигурация устройства.</td><td>Пользователь физически выдернул кабель в эту секунду.</td></tr>
+  <tr><td>Drive letter</td><td>Windows связывала букву с mapping.</td><td>Буква всегда принадлежала одному устройству.</td></tr>
+  <tr><td>LNK/Jump List</td><td>Shell/приложение создали ссылку на объект/том.</td><td>Файл был скопирован именно на USB.</td></tr>
+  <tr><td>Shellbag</td><td>Профиль хранит след навигации по папке.</td><td>LastWrite — точное время открытия или копирования.</td></tr>
+  <tr><td>Prefetch/4688</td><td>Программа запускалась.</td><td>Она выполнила очистку или конкретную операцию.</td></tr>
+  <tr><td>Отсутствующий артефакт</td><td>Источник не содержит доступной записи.</td><td>Устройство никогда не подключалось или след умышленно удалён.</td></tr>
+  <tr><td>VID/PID совпадает</td><td>Совпадает модель/семейство продукта.</td><td>Это один и тот же физический экземпляр.</td></tr>
+  <tr><td>VSS/Windows.old</td><td>Найдена историческая копия доступного source.</td><td>Восстановлены все удалённые записи.</td></tr>
+</table>
+
+<h3>Факторы, снижающие полноту</h3>
+<ul>
+  <li>журнал был отключён политикой, ограничен размером или перезаписан;</li>
+  <li>обновление Windows выполнило PnP cleanup;</li>
+  <li>устройство не имеет аппаратного serial;</li>
+  <li>MTP не создаёт drive letter как обычный накопитель;</li>
+  <li>UASP проявляется как SCSI, и USB‑bridge не сохранился;</li>
+  <li>профиль зашифрован, удалён, повреждён или недоступен;</li>
+  <li>сработал защитный лимит collector — это отражается в Coverage;</li>
+  <li>живое исследование само неизбежно создаёт минимальные системные изменения.</li>
+</ul>
+
+<h3>Известные расхождения текущей версии, важные для эксплуатации</h3>
+<ul>
+  <li>PnP‑дата типа <code>PnpDevProperty</code> хранится и учитывается Coverage, но не выводится корректно через текущий форматтер FirstConnectedText.</li>
+  <li>Prefetch cleaner получает метку <code>CLEANER_EXECUTION</code>, тогда как автоматический CleanupDetector ожидает <code>CLEANER_HINT</code>.</li>
+  <li>HTML‑генератор существует в сервисе отчётов, но пользовательская вкладка предоставляет только PDF и Excel.</li>
+  <li>Флаг WMI polling fallback существует, но периодический polling при отказе watcher не реализован.</li>
+</ul>
+
+<h2 id="sources-list" class="page-break">11. Каталог проверенных материалов</h2>
+<p>Ниже перечислены материалы, использованные как техническая основа. Источники Microsoft описывают смысл данных на уровне платформы. DFIR‑материалы и репозитории объясняют практическую интерпретацию артефактов. Дата проверки ссылок: 11.07.2026.</p>
+
+<h3>Microsoft Learn и открытые спецификации</h3>
+<ol>
+  <li><a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/devpkey-device-firstinstalldate">DEVPKEY_Device_FirstInstallDate</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/devpkey-device-installdate">DEVPKEY_Device_InstallDate</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/devpkey-device-instanceid">DEVPKEY_Device_InstanceId</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/devpkey-device-containerid">DEVPKEY_Device_ContainerId</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/overview-of-container-ids">Overview of Container IDs</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/usb-containerids-in-windows">USB ContainerIDs in Windows</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/devpkey-device-locationpaths">DEVPKEY_Device_LocationPaths</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/setupapi-text-logs">SetupAPI Text Logs</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/install/setupapi-device-installation-log-entries">SetupAPI Device Installation Log Entries</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-6416">Security Event 6416</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-1102">Security Event 1102</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4688">Security Event 4688</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/supported-usb-classes">USB Device Class Drivers Included in Windows</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/portable/architecture-overview">Windows Portable Devices Architecture</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/windows-hardware/design/component-guidelines/usb4-intro-to-connection-manager">USB4 Connection Manager</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/ucsi">UCSI Driver</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-shllink/16cb4ca1-9339-4d0c-a68d-bf1d6cc0f943">[MS‑SHLLINK] Shell Link Binary File Format</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/windows/win32/vss/volume-shadow-copy-service-portal">Volume Shadow Copy Service</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/sysinternals/downloads/procmon">Sysinternals Process Monitor</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/usbview">USBView</a> и <a href="https://github.com/microsoft/Windows-driver-samples/tree/main/usb/usbview">исходный код USBView</a></li>
+</ol>
+
+<h3>DFIR‑исследования и учебные материалы</h3>
+<ol>
+  <li><a href="https://www.magnetforensics.com/blog/artifact-profile-usb-devices/">Magnet Forensics — Artifact Profile: USB Devices</a></li>
+  <li><a href="https://dfir.pubpub.org/pub/h78di10n/release/1">DFIR Review — Recover more Volume Serial Numbers with Partition/Diagnostic</a></li>
+  <li><a href="https://artefacts.help/windows_etw_usb_activity.html">artefacts.help — Devices and USB activity</a></li>
+  <li><a href="https://vortexforensic.com/repository/USB/usb_registry.html">Vortex Forensic Repository — USB Registry Tracks</a></li>
+  <li><a href="https://vortexforensic.com/repository/USB/usb_events.html">Vortex Forensic Repository — USB Event Log Traces</a></li>
+  <li><a href="https://www.hecfblog.com/2017/04/windows-now-built-in-anti-forensics.html">Hacking Exposed Computer Forensics — Windows PnP cleanup</a></li>
+  <li><a href="https://www.ilyakobzar.com/p/windows-updates-and-anti-forensics">Ilya Kobzar — Windows updates and USB artifacts</a></li>
+  <li><a href="https://docs.velociraptor.app/exchange/artifacts/pages/windows.system.appcompatpca/">Velociraptor — AppCompat PCA</a></li>
+  <li><a href="https://docs.velociraptor.app/artifact_references/pages/windows.forensics.bam/">Velociraptor — BAM</a></li>
+  <li><a href="https://attack.mitre.org/techniques/T1070/001/">MITRE ATT&amp;CK — Clear Windows Event Logs</a></li>
+  <li><a href="https://www.registryparser.com/en/blog/shellbags-forensics">Registry Parser — Shellbags interpretation and caveats</a></li>
+</ol>
+
+<h3>Репозитории и эталонные инструменты</h3>
+<ol>
+  <li><a href="https://ericzimmerman.github.io/">Eric Zimmerman Tools</a></li>
+  <li><a href="https://github.com/EricZimmerman/LECmd">LECmd — LNK parser</a></li>
+  <li><a href="https://github.com/EricZimmerman/JLECmd">JLECmd — Jump List parser</a></li>
+  <li><a href="https://github.com/EricZimmerman/AmcacheParser">AmcacheParser</a></li>
+  <li><a href="https://github.com/EricZimmerman/AppCompatCacheParser">AppCompatCacheParser</a></li>
+  <li><a href="https://github.com/Psmths/windows-forensic-artifacts">Windows Forensic Artifacts knowledge base</a></li>
+  <li><a href="https://usb-ids.gowdy.us/">The USB ID Repository</a> / <a href="https://github.com/usbids/usbids">GitHub mirror</a></li>
+  <li><a href="https://www.nirsoft.net/utils/usb_devices_view.html">NirSoft USBDeview</a></li>
+</ol>
+
+<h3>Стандарты хранения и доказательности</h3>
+<ol>
+  <li><a href="https://sqlite.org/fileformat.html">SQLite Database File Format</a></li>
+  <li><a href="https://csrc.nist.gov/pubs/fips/180-4/upd1/final">NIST FIPS 180‑4 — Secure Hash Standard</a></li>
+  <li><a href="https://www.rfc-editor.org/rfc/rfc3227">RFC 3227 — Guidelines for Evidence Collection and Archiving</a></li>
+</ol>
+
+<h2>Итог для инженера</h2>
+<p>UsbForensicAudit следует рассматривать как <b>средство сопоставления и аудита артефактов работающей Windows</b>. Его сильная сторона — не один «магический ключ», а последовательная цепочка: PnP‑идентичность → системное событие → том → пользовательский артефакт → контекст запуска и очистки (execution/cleanup context) → покрытие проверки и происхождение данных (coverage и provenance).</p>
+<p>Самый надёжный вывод получается, когда совпадают независимые сильные признаки: аппаратный serial или точный instance ID, ContainerID/topology, системное событие, volume fingerprint/VSN и пользовательский артефакт. Если совпадает только название, VID/PID или буква диска, вывод должен оставаться ограниченным и вероятностным.</p>
+</body>
+</html>

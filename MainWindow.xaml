@@ -23,6 +23,37 @@
         <SolidColorBrush x:Key="Accent2" Color="#38BDF8"/>
         <SolidColorBrush x:Key="Warn" Color="#FBBF24"/>
         <SolidColorBrush x:Key="Danger" Color="#FB7185"/>
+        <local:CellExplanationToolTipConverter x:Key="CellExplanationToolTipConverter"/>
+
+        <Style TargetType="ToolTip">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#E5F2FF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MaxWidth" Value="540"/>
+            <Setter Property="Placement" Value="Top"/>
+            <Setter Property="VerticalOffset" Value="-8"/>
+            <Setter Property="HasDropShadow" Value="True"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border Background="#142A43"
+                                BorderBrush="#38BDF8"
+                                BorderThickness="1"
+                                CornerRadius="9"
+                                Padding="14"
+                                SnapsToDevicePixels="True">
+                            <TextBlock Text="{TemplateBinding Content}"
+                                       Foreground="#E5F2FF"
+                                       FontSize="13"
+                                       LineHeight="19"
+                                       TextWrapping="Wrap"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <Style TargetType="Button">
             <Setter Property="Foreground" Value="#E5F2FF"/>
@@ -123,6 +154,24 @@
                     <Setter Property="Foreground" Value="#E5F2FF"/>
                 </Trigger>
             </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ExplainedDataGridCellStyle"
+               TargetType="DataGridCell"
+               BasedOn="{StaticResource {x:Type DataGridCell}}">
+            <Setter Property="ToolTipService.InitialShowDelay" Value="500"/>
+            <Setter Property="ToolTipService.BetweenShowDelay" Value="100"/>
+            <Setter Property="ToolTipService.ShowDuration" Value="12000"/>
+            <Setter Property="ToolTipService.Placement" Value="Top"/>
+            <Setter Property="ToolTipService.VerticalOffset" Value="-8"/>
+            <Setter Property="ToolTip">
+                <Setter.Value>
+                    <MultiBinding Converter="{StaticResource CellExplanationToolTipConverter}">
+                        <Binding/>
+                        <Binding RelativeSource="{RelativeSource Self}" Path="Column.Header"/>
+                    </MultiBinding>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="Card" TargetType="Border">
@@ -275,6 +324,10 @@
                                        Foreground="#B8A9FF"
                                        TextWrapping="Wrap"
                                        Margin="0,4,0,0"/>
+                            <TextBlock Text="Наведите указатель на любую ячейку — над ней появится простое объяснение значения."
+                                       Foreground="{StaticResource Accent2}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0"/>
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <TextBlock Text="Фильтр transport/classification:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <ComboBox x:Name="DeviceFilterCombo" Width="250" SelectionChanged="DeviceFilterCombo_SelectionChanged">
@@ -295,6 +348,7 @@
                     <DataGrid x:Name="DevicesGrid"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
+                              CellStyle="{StaticResource ExplainedDataGridCellStyle}"
                               ItemsSource="{Binding Devices}"
                               MouseDoubleClick="DevicesGrid_MouseDoubleClick">
                         <DataGrid.RowStyle>
@@ -349,18 +403,28 @@
             <TabItem Header="Доказательства">
                 <DockPanel Margin="4,14,4,4">
                     <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
-                        <TextBlock Foreground="{StaticResource TextMain}"
-                                   TextWrapping="Wrap"
-                                   Text="Здесь все найденные следы: записи Windows, события подключения, ярлыки пользователя, запуск программ и признаки очистки. Это «сырые данные», по которым программа понимает историю USB."/>
+                        <StackPanel>
+                            <TextBlock Foreground="{StaticResource TextMain}"
+                                       TextWrapping="Wrap"
+                                       Text="Здесь все найденные следы: записи Windows, события подключения, ярлыки пользователя, запуск программ и признаки очистки. Это «сырые данные», по которым программа понимает историю USB."/>
+                            <TextBlock Text="Наведите указатель на любую ячейку — над ней появится простое объяснение значения."
+                                       Foreground="{StaticResource Accent2}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0"/>
+                        </StackPanel>
                     </Border>
-                    <DataGrid x:Name="EvidenceGrid" AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding Evidence}">
+                    <DataGrid x:Name="EvidenceGrid"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CellStyle="{StaticResource ExplainedDataGridCellStyle}"
+                              ItemsSource="{Binding Evidence}">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampText}" Width="180"/>
                             <DataGridTextColumn Header="Что произошло" Binding="{Binding EvidenceCategoryText}" Width="Auto"/>
                             <DataGridTextColumn Header="Откуда взято" Binding="{Binding SourceText}" Width="Auto"/>
                             <DataGridTextColumn Header="Сила доказательства" Binding="{Binding EvidenceStrength}" Width="150"/>
                             <DataGridTextColumn Header="Уверенность" Binding="{Binding Confidence}" Width="120"/>
-                            <DataGridTextColumn Header="Номер события" Binding="{Binding EventId}" Width="Auto"/>
+                            <DataGridTextColumn Header="ID события/записи" Binding="{Binding EventId}" Width="Auto"/>
                             <DataGridTextColumn Header="Связанное устройство" Binding="{Binding DeviceHintText}" Width="Auto"/>
                             <DataGridTextColumn Header="Простыми словами" Binding="{Binding UserExplanationText}" Width="Auto"/>
                             <DataGridTextColumn Header="Подробности" Binding="{Binding SummaryText}" Width="Auto"/>
@@ -385,10 +449,14 @@
                                        Foreground="{StaticResource TextMuted}"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
-                            <TextBlock Text="Риск: Высокий — серьёзный повод насторожиться; Средний — подозрительно; Низкий — слабый сигнал; Информация — зафиксировано, но это норма после установки Windows."
+                            <TextBlock Text="Риск: Высокий — проверить в первую очередь; Средний — подозрительный контекст; Низкий — слабый сигнал; Информация — справочная запись без самостоятельного подозрительного признака."
                                        Foreground="{StaticResource TextMuted}"
                                        TextWrapping="Wrap"
                                        Margin="0,4,0,0"/>
+                            <TextBlock Text="Наведите указатель на любую ячейку — над ней появится простое объяснение значения."
+                                       Foreground="{StaticResource Accent2}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0"/>
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <TextBlock Text="Установка Windows: " Foreground="{StaticResource TextMuted}"/>
                                 <TextBlock x:Name="CleanupOsInstallDateText" Text="не определена" Foreground="{StaticResource Accent2}" FontWeight="SemiBold"/>
@@ -409,7 +477,10 @@
                             </StackPanel>
                         </StackPanel>
                     </Border>
-                    <DataGrid x:Name="FindingsGrid" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid x:Name="FindingsGrid"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CellStyle="{StaticResource ExplainedDataGridCellStyle}">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampText}" Width="150"/>
                             <DataGridTextColumn Header="Тип действия" Binding="{Binding ActionKindText}" Width="150"/>
