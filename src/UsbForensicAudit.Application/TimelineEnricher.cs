@@ -95,17 +95,28 @@ public sealed class TimelineEnricher
 
         if (connectionMatches.Length > 0)
         {
-            device.FirstConnectedUtc = connectionMatches.First().TimestampUtc;
-            device.LastSeenUtc = timelineMatches.Max(x => x.TimestampUtc);
-            device.ConnectionDisplayKind = "ExactEvent";
-            device.DateConfidence = "Даты взяты из журнала Windows и setupapi.dev.log.";
+            if (!device.FirstConnectedUtc.HasValue
+                || !device.ConnectionDisplayKind.Equals("PnpDevProperty", StringComparison.OrdinalIgnoreCase))
+            {
+                device.FirstConnectedUtc = connectionMatches.First().TimestampUtc;
+                device.ConnectionDisplayKind = "ExactEvent";
+            }
+
+            device.LastSeenUtc = Max(device.LastSeenUtc, timelineMatches.Max(x => x.TimestampUtc));
+            device.DateConfidence = AppendConfidence(
+                device.DateConfidence,
+                "Даты дополнены из журнала Windows и setupapi.dev.log.");
         }
         else if (timelineMatches.Length > 0)
         {
-            device.LastSeenUtc = timelineMatches.Max(x => x.TimestampUtc);
-            device.DateConfidence = "Устройство видно в системе, но точное время первого подключения не найдено.";
+            device.LastSeenUtc = Max(device.LastSeenUtc, timelineMatches.Max(x => x.TimestampUtc));
+            device.DateConfidence = AppendConfidence(
+                device.DateConfidence,
+                "Устройство видно в системном журнале.");
         }
-        else
+        else if (!device.FirstConnectedUtc.HasValue
+                 && !device.LastSeenUtc.HasValue
+                 && !device.LastDisconnectedUtc.HasValue)
         {
             device.DateConfidence = "Windows помнит устройство, но когда его подключали — неизвестно.";
         }
@@ -114,11 +125,27 @@ public sealed class TimelineEnricher
 
         if (disconnectMatches.Length > 0)
         {
-            device.LastDisconnectedUtc = disconnectMatches.Last().TimestampUtc;
-            device.DisconnectDisplayKind = "ExactEvent";
+            var eventDisconnect = disconnectMatches.Last().TimestampUtc;
+            if (!device.LastDisconnectedUtc.HasValue || eventDisconnect > device.LastDisconnectedUtc)
+            {
+                device.LastDisconnectedUtc = eventDisconnect;
+                device.DisconnectDisplayKind = "ExactEvent";
+            }
+
             if (device.IsCurrentlyConnected)
             {
                 device.DateConfidence += " Сейчас устройство снова подключено.";
+            }
+
+            return;
+        }
+
+        if (device.LastDisconnectedUtc.HasValue
+            && device.DisconnectDisplayKind.Equals("PnpDevProperty", StringComparison.OrdinalIgnoreCase))
+        {
+            if (device.IsCurrentlyConnected)
+            {
+                device.DateConfidence = AppendConfidence(device.DateConfidence, "Сейчас устройство снова подключено.");
             }
 
             return;
@@ -207,6 +234,18 @@ public sealed class TimelineEnricher
     private static DateTimeOffset Max(DateTimeOffset? current, DateTimeOffset candidate)
     {
         return current.HasValue ? (current.Value > candidate ? current.Value : candidate) : candidate;
+    }
+
+    private static string AppendConfidence(string current, string addition)
+    {
+        if (string.IsNullOrWhiteSpace(current))
+        {
+            return addition;
+        }
+
+        return current.Contains(addition, StringComparison.OrdinalIgnoreCase)
+            ? current
+            : $"{current} {addition}";
     }
 
     private static IEnumerable<string> BuildTokens(UsbDeviceRecord device)
