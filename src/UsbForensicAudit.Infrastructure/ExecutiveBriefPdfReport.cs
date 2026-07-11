@@ -91,7 +91,8 @@ internal static class ExecutiveBriefPdfReport
             ("USB-доказательств", ctx.Timeline.Count.ToString()),
             ("Подозрительных", ctx.SuspiciousCount.ToString()),
             ("Высокий риск", ctx.HighRiskCount.ToString()),
-            ("Предупреждений", result.SourceWarnings.Count.ToString())
+            ("Предупреждений", result.SourceWarnings.Count.ToString()),
+            ("Точные даты", $"{result.Coverage.ExactDateCoveragePercent:0.##}%")
         ]);
     }
 
@@ -169,6 +170,7 @@ internal static class ExecutiveBriefPdfReport
                 ("Дата и время", 1.1f),
                 ("Событие", 1.1f),
                 ("Источник", 1f),
+                ("Сила / уверенность", 1f),
                 ("Описание", 2.8f)
             ],
             highlights.Select(e => new[]
@@ -176,6 +178,7 @@ internal static class ExecutiveBriefPdfReport
                 e.TimestampText,
                 e.EvidenceCategoryText,
                 e.SourceText,
+                $"{e.EvidenceStrength} / {e.Confidence}",
                 T(e.Summary, 260)
             }));
         }

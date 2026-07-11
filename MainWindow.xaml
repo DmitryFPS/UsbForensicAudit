@@ -358,10 +358,13 @@
                             <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampText}" Width="180"/>
                             <DataGridTextColumn Header="Что произошло" Binding="{Binding EvidenceCategoryText}" Width="Auto"/>
                             <DataGridTextColumn Header="Откуда взято" Binding="{Binding SourceText}" Width="Auto"/>
+                            <DataGridTextColumn Header="Сила доказательства" Binding="{Binding EvidenceStrength}" Width="150"/>
+                            <DataGridTextColumn Header="Уверенность" Binding="{Binding Confidence}" Width="120"/>
                             <DataGridTextColumn Header="Номер события" Binding="{Binding EventId}" Width="Auto"/>
                             <DataGridTextColumn Header="Связанное устройство" Binding="{Binding DeviceHintText}" Width="Auto"/>
                             <DataGridTextColumn Header="Простыми словами" Binding="{Binding UserExplanationText}" Width="Auto"/>
                             <DataGridTextColumn Header="Подробности" Binding="{Binding SummaryText}" Width="Auto"/>
+                            <DataGridTextColumn Header="Provenance" Binding="{Binding Provenance}" Width="300"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </DockPanel>

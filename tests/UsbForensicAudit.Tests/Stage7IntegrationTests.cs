@@ -1,4 +1,5 @@
 using System.IO;
+using ClosedXML.Excel;
 using Microsoft.Data.Sqlite;
 using UsbForensicAudit;
 using Xunit;
@@ -54,7 +55,7 @@ public sealed class Stage7IntegrationTests
         Assert.Contains(result.Coverage.Sources, x => x.Source == "FakeEvidenceCollector" && x.Status == "NotRun");
         Assert.Equal("Complete", result.Coverage.Sources.Single(x => x.Source == "FakeDeviceCollector").Status);
         Assert.True(result.Coverage.CanonicalDeviceCount >= 1);
-        Assert.True(result.Devices.Any(x => x.FirstConnectedUtc.HasValue));
+        Assert.Contains(result.Devices, x => x.FirstConnectedUtc.HasValue);
         Assert.True(result.FinishedAtUtc >= result.StartedAtUtc);
         Assert.NotEmpty(result.Devices[0].CanonicalDeviceId);
         var storageRecord = result.Devices.Single(x => x.DeviceInstanceId.StartsWith("USBSTOR", StringComparison.Ordinal));
@@ -120,6 +121,7 @@ public sealed class Stage7IntegrationTests
         Assert.Contains("canonical devices с точной датой", html);
         Assert.Contains("UASP/SCSI", html);
         Assert.Contains("MTP/PTP/WPD", html);
+        Assert.Contains("Direct / High", html);
         Assert.DoesNotContain("NVME-INTERNAL", html);
 
         var directory = Path.Combine(Path.GetTempPath(), $"ufa-stage7-{Guid.NewGuid():N}");
@@ -128,6 +130,16 @@ public sealed class Stage7IntegrationTests
             var excelPath = new ReportService().CreateExcel(result, directory);
             Assert.True(File.Exists(excelPath));
             Assert.True(new FileInfo(excelPath).Length > 1000);
+            using (var workbook = new XLWorkbook(excelPath))
+            {
+                var evidence = workbook.Worksheet("Доказательства");
+                Assert.Equal("Сила доказательства", evidence.Cell("D4").GetString());
+                Assert.Contains(evidence.Column(4).CellsUsed(), x => x.GetString() == "Direct");
+            }
+
+            var pdfPath = new ReportService().CreatePdf(result, directory);
+            Assert.True(File.Exists(pdfPath));
+            Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(File.ReadAllBytes(pdfPath), 0, 4));
         }
         finally
         {
@@ -422,6 +434,9 @@ public sealed class Stage7IntegrationTests
             {
                 TimestampUtc = started,
                 Source = "EventLog: System",
+                EvidenceStrength = "Direct",
+                Confidence = "High",
+                Provenance = "Windows Event Log test fixture",
                 DeviceHint = @"USB\VID_152D&PID_0562\BRIDGE01",
                 Summary = "USB device started"
             });

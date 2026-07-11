@@ -66,6 +66,8 @@ public sealed class EndpointProtectionEventLogCollector : IEvidenceCollector
                 }
 
                 var category = Classify(message);
+                var canEstablishConnectionDate =
+                    category == CategoryConnect || category == CategoryDisconnect;
                 results.Add(new EvidenceRecord
                 {
                     TimestampUtc = record.TimeCreated.HasValue
@@ -78,7 +80,12 @@ public sealed class EndpointProtectionEventLogCollector : IEvidenceCollector
                     Level = record.LevelDisplayName ?? "",
                     DeviceHint = ExtractDeviceHint(message),
                     Summary = FirstLine(message),
-                    RawText = message
+                    RawText = message,
+                    Provenance =
+                        $"Windows Event Log: channel=Application; provider={provider}; record={record.RecordId?.ToString() ?? "unknown"}",
+                    EvidenceStrength = canEstablishConnectionDate ? "Direct" : "Corroborating",
+                    Confidence = canEstablishConnectionDate ? "High" : "Medium",
+                    CanEstablishConnectionDate = canEstablishConnectionDate
                 });
 
                 read++;
@@ -138,8 +145,15 @@ public sealed class EndpointProtectionEventLogCollector : IEvidenceCollector
                || DriveLetterRegex.IsMatch(message);
     }
 
-    private static string Classify(string message)
+    internal static string Classify(string message)
     {
+        if (message.Contains("запрещ", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("denied", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("blocked", StringComparison.OrdinalIgnoreCase))
+        {
+            return CategoryDenied;
+        }
+
         if (LooksLikeDisconnect(message))
         {
             return CategoryDisconnect;
@@ -148,13 +162,6 @@ public sealed class EndpointProtectionEventLogCollector : IEvidenceCollector
         if (LooksLikeConnect(message))
         {
             return CategoryConnect;
-        }
-
-        if (message.Contains("запрещ", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("denied", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("blocked", StringComparison.OrdinalIgnoreCase))
-        {
-            return CategoryDenied;
         }
 
         return CategoryGeneric;
@@ -218,9 +225,7 @@ public sealed class EndpointProtectionEventLogCollector : IEvidenceCollector
         return message.Contains("disconnect", StringComparison.OrdinalIgnoreCase)
                || message.Contains("disconnected", StringComparison.OrdinalIgnoreCase)
                || message.Contains("removed", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("deleted", StringComparison.OrdinalIgnoreCase)
                || message.Contains("отключ", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("удален", StringComparison.OrdinalIgnoreCase)
                || message.Contains("DeviceDisconnected", StringComparison.OrdinalIgnoreCase);
     }
 }

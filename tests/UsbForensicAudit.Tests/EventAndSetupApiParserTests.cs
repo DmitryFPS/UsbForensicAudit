@@ -24,6 +24,10 @@ public sealed class EventAndSetupApiParserTests
         Assert.Equal(77, evidence.RecordId);
         Assert.Equal("HOST01", evidence.Computer);
         Assert.Equal(DateTimeOffset.Parse("2026-07-11T07:00:00Z"), evidence.TimestampUtc);
+        Assert.Equal("Direct", evidence.EvidenceStrength);
+        Assert.Equal("High", evidence.Confidence);
+        Assert.True(evidence.CanEstablishConnectionDate);
+        Assert.Contains("record=77", evidence.Provenance);
     }
 
     [Fact]
@@ -52,7 +56,17 @@ public sealed class EventAndSetupApiParserTests
         var evidence = EventLogRecordParser.ToEvidence(parsed!);
 
         Assert.NotNull(evidence);
-        Assert.Contains("Подключение", evidence!.EvidenceCategory);
+        if (provider == "Microsoft-Windows-WPD-MTPClassDriver")
+        {
+            Assert.Contains("MTP/WPD", evidence!.EvidenceCategory);
+            Assert.False(evidence.CanEstablishConnectionDate);
+            Assert.Equal("Corroborating", evidence.EvidenceStrength);
+        }
+        else
+        {
+            Assert.Contains("Подключение", evidence!.EvidenceCategory);
+            Assert.True(evidence.CanEstablishConnectionDate);
+        }
     }
 
     [Fact]
@@ -66,6 +80,48 @@ public sealed class EventAndSetupApiParserTests
 
         Assert.True(EventLogRecordParser.TryParse(xml, out var parsed));
         Assert.Null(EventLogRecordParser.ToEvidence(parsed!));
+    }
+
+    [Theory]
+    [InlineData(400, "Подключение/инициализация устройства", true, "Direct")]
+    [InlineData(410, "Подключение/инициализация устройства", true, "Direct")]
+    [InlineData(411, "Ошибка запуска PnP-устройства", false, "Corroborating")]
+    [InlineData(420, "Удаление PnP-конфигурации устройства", false, "Corroborating")]
+    [InlineData(430, "Требуется дополнительная установка PnP-устройства", false, "Corroborating")]
+    public void KernelPnp_lifecycle_events_do_not_create_false_connection_dates(
+        int eventId, string category, bool canEstablishDate, string strength)
+    {
+        Assert.True(EventLogRecordParser.TryParse(
+            EventXml("Microsoft-Windows-Kernel-PnP", "Microsoft-Windows-Kernel-PnP/Configuration",
+                eventId, ("DeviceInstanceId", @"USB\VID_1234&PID_5678\SERIAL01")),
+            out var parsed));
+
+        var evidence = EventLogRecordParser.ToEvidence(parsed!);
+
+        Assert.NotNull(evidence);
+        Assert.Equal(category, evidence.EvidenceCategory);
+        Assert.Equal(canEstablishDate, evidence.CanEstablishConnectionDate);
+        Assert.Equal(strength, evidence.EvidenceStrength);
+    }
+
+    [Fact]
+    public void Wpd_event_without_device_marker_is_rejected()
+    {
+        Assert.True(EventLogRecordParser.TryParse(
+            EventXml("Microsoft-Windows-WPD-MTPClassDriver",
+                "Microsoft-Windows-WPD-MTPClassDriver/Operational", 1001,
+                ("Status", "Background maintenance completed")),
+            out var parsed));
+
+        Assert.Null(EventLogRecordParser.ToEvidence(parsed!));
+    }
+
+    [Fact]
+    public void Endpoint_policy_deletion_is_not_physical_disconnect()
+    {
+        Assert.Equal(
+            EndpointProtectionEventLogCollector.CategoryDenied,
+            EndpointProtectionEventLogCollector.Classify("Device deleted from policy; access denied"));
     }
 
     [Fact]
@@ -92,6 +148,9 @@ public sealed class EventAndSetupApiParserTests
         Assert.Equal(@"C:\Windows\INF\setupapi.dev.log.old", record.SourceFile);
         Assert.Contains(@"SCSI\Disk&Ven_USB&Prod_UASP\123", record.DeviceHint);
         Assert.Contains("cmd:", record.RawText);
+        Assert.Equal("Direct", record.EvidenceStrength);
+        Assert.True(record.CanEstablishConnectionDate);
+        Assert.Contains("section=1", record.Provenance);
         Assert.Equal(TimeZoneInfo.ConvertTimeToUtc(
             DateTime.Parse("2026-07-11 10:15:20.125", CultureInfo.InvariantCulture)), record.TimestampUtc.UtcDateTime);
     }

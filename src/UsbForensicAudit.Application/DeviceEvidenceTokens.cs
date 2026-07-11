@@ -5,30 +5,6 @@ internal static class DeviceEvidenceTokens
     public static IReadOnlyList<string> Build(UsbDeviceRecord device)
     {
         var tokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (!string.IsNullOrWhiteSpace(device.Vid) && !string.IsNullOrWhiteSpace(device.Pid))
-        {
-            tokens.Add($"VID_{device.Vid}");
-            tokens.Add($"PID_{device.Pid}");
-            tokens.Add($"VID_{device.Vid}&PID_{device.Pid}");
-            tokens.Add($"Vid_{device.Vid}Pid_{device.Pid}");
-            tokens.Add($"{device.Vid}:{device.Pid}");
-        }
-
-        foreach (var field in new[]
-                 {
-                     device.FriendlyName,
-                     device.Product,
-                     device.Manufacturer,
-                     device.Serial,
-                     device.DeviceInstanceId
-                 })
-        {
-            foreach (var token in CompactVidPidParser.BuildMatchTokens(field))
-            {
-                tokens.Add(token);
-            }
-        }
-
         foreach (var value in new[]
                  {
                      device.Serial,
@@ -53,6 +29,8 @@ internal static class DeviceEvidenceTokens
             }
         }
 
+        // VID/PID and display names identify a model, not a physical instance. They are
+        // deliberately excluded so two identical devices cannot inherit each other's dates.
         return tokens.ToArray();
     }
 

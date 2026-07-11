@@ -41,12 +41,21 @@ public sealed class ProcessAttributionCollector : IEvidenceCollector
                             ? new DateTimeOffset(record.TimeCreated.Value).ToUniversalTime()
                             : DateTimeOffset.UtcNow,
                         Source = "Security/4688",
+                        Provider = "Microsoft-Windows-Security-Auditing",
+                        Channel = "Security",
+                        RecordId = record.RecordId,
+                        SourceRecord = record.RecordId?.ToString() ?? "",
                         EvidenceCategory = "Запуск процесса",
+                        EvidenceStrength = "Direct",
+                        Confidence = "High",
                         UserExplanation = "Security Audit Process Creation: процесс, который мог очистить журналы или USB-следы.",
                         EventId = "PROCESS_HINT",
                         Level = record.LevelDisplayName ?? "",
                         DeviceHint = processPath,
                         Summary = CleanerToolCatalog.DisplayName(toolPattern),
+                        Provenance =
+                            $"Windows Event Log: channel=Security; provider=Microsoft-Windows-Security-Auditing; record={record.RecordId?.ToString() ?? "unknown"}",
+                        CanEstablishConnectionDate = false,
                         RawText = xml
                     });
                     read++;

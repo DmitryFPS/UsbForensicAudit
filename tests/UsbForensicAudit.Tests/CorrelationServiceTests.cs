@@ -48,4 +48,28 @@ public class CorrelationServiceTests
 
         Assert.Empty(new CorrelationService().BuildDeviceCorrelations(result));
     }
+
+    [Fact]
+    public void BuildDeviceCorrelations_does_not_link_by_vid_pid_only()
+    {
+        var result = new AuditResult();
+        result.Devices.Add(new UsbDeviceRecord
+        {
+            FriendlyName = "Device A",
+            Vid = "1234",
+            Pid = "5678",
+            Serial = "SERIAL-A",
+            DeviceInstanceId = @"USB\VID_1234&PID_5678\SERIAL-A",
+            Source = "Registry: USB",
+            DeviceType = "USB"
+        });
+        result.Evidence.Add(new EvidenceRecord
+        {
+            Source = "EventLog",
+            DeviceHint = @"USB\VID_1234&PID_5678\SERIAL-B",
+            RawText = "VID_1234&PID_5678"
+        });
+
+        Assert.Empty(new CorrelationService().BuildDeviceCorrelations(result));
+    }
 }

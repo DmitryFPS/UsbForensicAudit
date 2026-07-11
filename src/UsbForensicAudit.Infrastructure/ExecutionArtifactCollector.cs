@@ -52,8 +52,8 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
                     SourceFile = path,
                     EventId = cleaner is null ? "REMOVABLE_PATH" : "CLEANER_EXECUTION",
                     EvidenceCategory = "Execution",
-                    EvidenceStrength = "Direct",
-                    Confidence = "High",
+                    EvidenceStrength = ClassifyPrefetchEvidenceStrength(cleaner is not null),
+                    Confidence = cleaner is null ? "Medium" : "High",
                     DeviceHint = string.Join("; ", hints),
                     Summary = cleaner is null ? $"Prefetch removable-path correlation: {fileName}" : $"Prefetch: {CleanerToolCatalog.DisplayName(cleaner)}",
                     UserExplanation = "Prefetch strongly supports program execution; embedded paths do not establish USB connection time.",
@@ -204,7 +204,8 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
                     if (!ArtifactStringExtractor.LooksInteresting(line) && !CleanerToolCatalog.LooksLikeCleaner(line)) continue;
                     var fields = line.Split('|');
                     var timestamp = fields.Select(TryDate).FirstOrDefault(x => x.HasValue);
-                    var isLaunchDictionary = fileName.Equals("PcaAppLaunchDic.txt", StringComparison.OrdinalIgnoreCase);
+                    var strength = ClassifyPcaEvidenceStrength(fileName);
+                    var isLaunchDictionary = strength == "Corroborating";
                     evidence.Add(new EvidenceRecord
                     {
                         TimestampUtc = timestamp ?? File.GetLastWriteTimeUtc(path),
@@ -214,7 +215,7 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
                         SourceFile = path,
                         EventId = "PCA_APPLICATION_RECORD",
                         EvidenceCategory = isLaunchDictionary ? "Execution corroboration" : "Compatibility record presence",
-                        EvidenceStrength = isLaunchDictionary ? "Corroborating" : "Indirect",
+                        EvidenceStrength = strength,
                         Confidence = timestamp.HasValue ? "Medium" : "Low",
                         DeviceHint = fields.OrderByDescending(x => x.Length).FirstOrDefault() ?? line,
                         Summary = $"PCA record from {fileName}",
@@ -284,7 +285,15 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
         return "";
     }
 
-    private static DateTimeOffset? TryFileTime(byte[]? bytes)
+    internal static string ClassifyPcaEvidenceStrength(string fileName) =>
+        fileName.Equals("PcaAppLaunchDic.txt", StringComparison.OrdinalIgnoreCase)
+            ? "Corroborating"
+            : "Indirect";
+
+    internal static string ClassifyPrefetchEvidenceStrength(bool cleanerMatched) =>
+        cleanerMatched ? "Direct" : "Indirect";
+
+    internal static DateTimeOffset? TryFileTime(byte[]? bytes)
     {
         if (bytes is null || bytes.Length < 8) return null;
         try { return DateTimeOffset.FromFileTime(BitConverter.ToInt64(bytes, 0)).ToUniversalTime(); }

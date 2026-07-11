@@ -126,7 +126,29 @@ internal static class ForensicPdfReport
             StatBox(row, "Подозрительных", ctx.SuspiciousCount.ToString());
             StatBox(row, "Высокий риск", ctx.HighRiskCount.ToString());
             StatBox(row, "Предупреждений", ctx.Result.SourceWarnings.Count.ToString());
+            StatBox(row, "Точные даты",
+                $"{ctx.Result.Coverage.ExactDateCoveragePercent:0.##}%");
         });
+
+        SubTitle(column, "Покрытие источников");
+        AddDataTable(column,
+            [
+                ("Источник", 1.5f),
+                ("Статус", 0.7f),
+                ("Записей", 0.6f),
+                ("Лимит", 0.7f),
+                ("Ошибка / ограничение", 2.5f)
+            ],
+            ctx.Result.Coverage.Sources.Select(source => new[]
+            {
+                source.Source,
+                source.Status,
+                source.Count.ToString(),
+                source.Capped
+                    ? source.Limit > 0 ? source.Limit.ToString() : "достигнут"
+                    : "нет",
+                source.Error
+            }));
 
         SubTitle(column, "Устройства по типам");
         AddDataTable(column,
@@ -329,6 +351,7 @@ internal static class ForensicPdfReport
                     ("Дата и время", 1.2f),
                     ("Категория", 1.1f),
                     ("Источник", 1.1f),
+                    ("Сила / уверенность", 1f),
                     ("Событие", 0.7f),
                     ("Описание", 2.9f)
                 ],
@@ -337,6 +360,7 @@ internal static class ForensicPdfReport
                     e.TimestampText,
                     e.EvidenceCategoryText,
                     e.SourceText,
+                    $"{e.EvidenceStrength} / {e.Confidence}",
                     e.EventId,
                     e.SummaryText
                 }));
@@ -361,6 +385,7 @@ internal static class ForensicPdfReport
             ("Дата и время", 1.2f),
             ("Категория", 1f),
             ("Источник", 1f),
+            ("Сила / уверенность", 1f),
             ("Событие", 0.7f),
             ("Устройство", 1.2f),
             ("Описание", 1.8f),
@@ -371,6 +396,7 @@ internal static class ForensicPdfReport
             e.TimestampText,
             e.EvidenceCategoryText,
             e.SourceText,
+            $"{e.EvidenceStrength} / {e.Confidence}",
             e.EventId,
             T(e.DeviceHint, 220),
             T(e.Summary, 700),
@@ -413,14 +439,16 @@ internal static class ForensicPdfReport
             [("Источник", 1.2f), ("Описание", 3.8f)],
             new[]
             {
-                new[] { "Реестр Windows", "USB, USBSTOR, SCSI, WPD, MountedDevices." },
-                new[] { "setupapi.dev.log", "Установка и удаление устройств." },
-                new[] { "Журналы Windows", "System, Security, DeviceSetupManager, DriverFrameworks-UserMode." },
+                new[] { "Реестр Windows", "USB, USBSTOR, SCSI, WPD, MountedDevices, DeviceMigration и ControlSet." },
+                new[] { "SetupAPI", "Текущий и архивные setupapi.dev.log, включая доступные VSS-копии." },
+                new[] { "Журналы Windows", "System, Security, Kernel-PnP, Storage-ClassPnP, Partition, WPD-MTP и DeviceSetupManager." },
                 new[] { "Корп. защита USB", "Журнал контроля USB (если установлен)." },
-                new[] { "Пользовательские артефакты", "Recent, LNK, Jump Lists, MountPoints2, MRU." },
+                new[] { "Пользовательские артефакты", "Recent, PIDL/MRU, LNK, Jump Lists, Shellbags, MountPoints2 и Recycle Bin." },
                 new[] { "Offline-профили", "NTUSER.DAT и UsrClass.dat (при доступе)." },
-                new[] { "Prefetch / Amcache", "Следы запуска и использования." },
-                new[] { "Корреляция", "Сопоставление по VID/PID, серийному номеру и Instance ID." }
+                new[] { "Исполнение", "Prefetch, Amcache, Shimcache, PCA и BAM/DAM с явной силой доказательства." },
+                new[] { "Исторические источники", "Windows.old, существующие VSS и transaction-log provenance без заявления о полном replay." },
+                new[] { "Корреляция", "ContainerID, serial, topology, тома/VSN и защита от слияния только по VID/PID." },
+                new[] { "Покрытие", "Статус, лимиты и ошибки каждого сборщика; доля canonical-устройств с точной датой." }
             });
     }
 

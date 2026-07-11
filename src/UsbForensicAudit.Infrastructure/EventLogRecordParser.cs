@@ -107,6 +107,9 @@ internal static class EventLogRecordParser
 
         var deviceHint = ExtractDeviceHint(parsed.Fields, formattedMessage);
         var summary = BuildSummary(parsed, deviceHint, formattedMessage);
+        var category = EventLogEventClassifier.Classify(parsed);
+        var canEstablishConnectionDate = EventLogEventClassifier.CanEstablishConnectionDate(parsed);
+        var evidenceStrength = EventLogEventClassifier.EvidenceStrength(parsed);
         return new EvidenceRecord
         {
             TimestampUtc = parsed.TimestampUtc,
@@ -118,13 +121,18 @@ internal static class EventLogRecordParser
             RecordId = parsed.RecordId,
             Computer = parsed.Computer,
             SourceRecord = parsed.RecordId?.ToString(CultureInfo.InvariantCulture) ?? "",
-            EvidenceCategory = EventLogEventClassifier.Classify(parsed),
+            EvidenceCategory = category,
             UserExplanation = EventLogEventClassifier.Explain(parsed),
             EventId = parsed.EventId.ToString(CultureInfo.InvariantCulture),
             Level = parsed.Fields.TryGetValue("Level", out var level) ? level : "",
             DeviceHint = deviceHint,
             Summary = summary,
-            RawText = parsed.RawXml
+            RawText = parsed.RawXml,
+            Provenance =
+                $"Windows Event Log: channel={parsed.Channel}; provider={parsed.Provider}; record={parsed.RecordId?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}; computer={parsed.Computer}",
+            EvidenceStrength = evidenceStrength,
+            Confidence = evidenceStrength == "Direct" ? "High" : "Medium",
+            CanEstablishConnectionDate = canEstablishConnectionDate
         };
     }
 
@@ -232,8 +240,7 @@ internal static class EventLogEventClassifier
             || IsProvider(record, "Microsoft-Windows-Partition")
             || IsProvider(record, "Microsoft-Windows-WPD-MTPClassDriver"))
         {
-            return IsProvider(record, "Microsoft-Windows-WPD-MTPClassDriver")
-                   || record.Fields.Values.Any(EventLogRecordParser.ContainsDeviceMarker);
+        return record.Fields.Values.Any(EventLogRecordParser.ContainsDeviceMarker);
         }
 
         return record.Fields.Values.Any(EventLogRecordParser.ContainsDeviceMarker);
@@ -266,10 +273,54 @@ internal static class EventLogEventClassifier
 
         if (IsProvider(record, "Microsoft-Windows-WPD-MTPClassDriver"))
         {
-            return "Подключение/инициализация MTP-устройства";
+            return "Событие MTP/WPD-устройства";
         }
 
-        return "Подключение/инициализация устройства";
+        if (IsProvider(record, "Microsoft-Windows-Kernel-PnP"))
+        {
+            return record.EventId switch
+            {
+                411 => "Ошибка запуска PnP-устройства",
+                420 => "Удаление PnP-конфигурации устройства",
+                430 => "Требуется дополнительная установка PnP-устройства",
+                _ => "Подключение/инициализация устройства"
+            };
+        }
+
+        return "Событие PnP/драйвера устройства";
+    }
+
+    public static bool CanEstablishConnectionDate(ParsedEventLogRecord record)
+    {
+        if (Is(record, "Microsoft-Windows-Security-Auditing", 6416)
+            || Is(record, "Microsoft-Windows-Partition", 1006))
+        {
+            return true;
+        }
+
+        if (IsProvider(record, "Microsoft-Windows-Kernel-PnP"))
+        {
+            return record.EventId is 400 or 410;
+        }
+
+        if (IsProvider(record, "Microsoft-Windows-Storage-ClassPnP"))
+        {
+            return record.EventId is 507 or 510 or 511 or 512;
+        }
+
+        return false;
+    }
+
+    public static string EvidenceStrength(ParsedEventLogRecord record)
+    {
+        if (Is(record, "Microsoft-Windows-Eventlog", 104)
+            || Is(record, "Microsoft-Windows-Security-Auditing", 1102)
+            || CanEstablishConnectionDate(record))
+        {
+            return "Direct";
+        }
+
+        return "Corroborating";
     }
 
     public static string Explain(ParsedEventLogRecord record)

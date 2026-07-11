@@ -498,12 +498,12 @@ internal static class ForensicReportBuilder
             }
             else
             {
-                html.AppendLine("<table><tr><th>Дата и время</th><th>Категория</th><th>Источник</th><th>Событие</th><th>Описание</th></tr>");
+                html.AppendLine("<table><tr><th>Дата и время</th><th>Категория</th><th>Источник</th><th>Сила / уверенность</th><th>Событие</th><th>Описание</th></tr>");
                 foreach (var evidence in related)
                 {
                     html.AppendLine(
                         $"<tr><td>{E(evidence.TimestampText)}</td><td>{E(evidence.EvidenceCategoryText)}</td>" +
-                        $"<td>{E(evidence.SourceText)}</td><td>{E(evidence.EventId)}</td>" +
+                        $"<td>{E(evidence.SourceText)}</td><td>{E(evidence.EvidenceStrength)} / {E(evidence.Confidence)}</td><td>{E(evidence.EventId)}</td>" +
                         $"<td>{E(evidence.SummaryText)}</td></tr>");
                 }
                 html.AppendLine("</table>");
@@ -517,12 +517,12 @@ internal static class ForensicReportBuilder
     {
         html.AppendLine("<h2 id=\"timeline\">6. Хронология событий</h2>");
         html.AppendLine("<p>Полная временная шкала всех собранных доказательств (от новых к старым).</p>");
-        html.AppendLine("<table><tr><th>Дата и время</th><th>Категория</th><th>Источник</th><th>Событие</th><th>Устройство</th><th>Описание</th><th>Пояснение</th></tr>");
+        html.AppendLine("<table><tr><th>Дата и время</th><th>Категория</th><th>Источник</th><th>Сила / уверенность</th><th>Событие</th><th>Устройство</th><th>Описание</th><th>Пояснение</th></tr>");
         foreach (var evidence in ctx.Timeline)
         {
             html.AppendLine(
                 $"<tr><td>{E(evidence.TimestampText)}</td><td>{E(evidence.EvidenceCategoryText)}</td>" +
-                $"<td>{E(evidence.SourceText)}</td><td>{E(evidence.EventId)}</td><td>{E(evidence.DeviceHintText)}</td>" +
+                $"<td>{E(evidence.SourceText)}</td><td>{E(evidence.EvidenceStrength)} / {E(evidence.Confidence)}</td><td>{E(evidence.EventId)}</td><td>{E(evidence.DeviceHintText)}</td>" +
                 $"<td>{E(evidence.SummaryText)}</td><td>{E(evidence.UserExplanationText)}</td></tr>");
         }
         html.AppendLine("</table>");

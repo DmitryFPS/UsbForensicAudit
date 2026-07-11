@@ -83,11 +83,6 @@ public sealed class TimelineEnricher
         var tokens = BuildTokens(device).ToArray();
         var timelineMatches = FindTimelineMatches(evidence, tokens);
 
-        if (timelineMatches.Length == 0 && device.IsCurrentlyConnected)
-        {
-            timelineMatches = FindRelaxedTimelineMatches(evidence, device);
-        }
-
         var connectionMatches = timelineMatches
             .Where(IsConnectionEvidence)
             .OrderBy(x => x.TimestampUtc)
@@ -183,25 +178,7 @@ public sealed class TimelineEnricher
         return evidence
             .Where(e => tokens.Any(t => ContainsToken(e, t)))
             .Where(e => DateDisplay.IsReliable(e.TimestampUtc))
-            .Where(e => !e.EvidenceCategory.Contains("Очистка", StringComparison.OrdinalIgnoreCase))
-            .Where(IsExactDeviceTimelineEvidence)
-            .ToArray();
-    }
-
-    private static EvidenceRecord[] FindRelaxedTimelineMatches(IReadOnlyList<EvidenceRecord> evidence, UsbDeviceRecord device)
-    {
-        if (string.IsNullOrWhiteSpace(device.Vid) || string.IsNullOrWhiteSpace(device.Pid))
-        {
-            return [];
-        }
-
-        var vidToken = $"VID_{device.Vid}";
-        var pidToken = $"PID_{device.Pid}";
-        var compactVidPidToken = $"Vid_{device.Vid}Pid_{device.Pid}";
-
-        return evidence
-            .Where(e => (ContainsToken(e, vidToken) && ContainsToken(e, pidToken)) || ContainsToken(e, compactVidPidToken))
-            .Where(e => DateDisplay.IsReliable(e.TimestampUtc))
+            .Where(e => e.CanEstablishConnectionDate)
             .Where(e => !e.EvidenceCategory.Contains("Очистка", StringComparison.OrdinalIgnoreCase))
             .Where(IsExactDeviceTimelineEvidence)
             .ToArray();

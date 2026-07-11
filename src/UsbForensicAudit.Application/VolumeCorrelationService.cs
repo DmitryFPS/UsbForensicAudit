@@ -149,8 +149,13 @@ public static class VolumeCorrelationService
                     EventId = confidence,
                     DeviceHint = device.CanonicalDeviceId,
                     EvidenceCategory = "Volume/device correlation",
+                    EvidenceStrength = "Corroborating",
+                    Confidence = confidence,
                     UserExplanation = "Связь основана на точном серийном номере тома; одна буква диска не использовалась как доказательство.",
                     Summary = $"{artifact.Source} -> {device.DisplayName}: exact VolumeSerialNumber={serial}, confidence={confidence}",
+                    Provenance =
+                        $"Derived from {artifact.Provenance}; exact VSN={serial}; canonical={device.CanonicalDeviceId}",
+                    CanEstablishConnectionDate = false,
                     RawText = $"Artifact={artifact.SourceRecord}\nVSN={serial}\nDrive={drive}\nCanonicalDevice={device.CanonicalDeviceId}"
                 });
             }
