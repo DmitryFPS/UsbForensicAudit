@@ -70,6 +70,33 @@ public sealed class ReportScopeTests
         Assert.Equal("USB Oblivion", context.CleanupFindings[0].PossibleTool);
     }
 
+    [Fact]
+    public void Unlinked_internal_sata_nvme_storage_is_excluded_from_reports()
+    {
+        var result = new AuditResult();
+        var usb = Device("RealUsb", "Registry: USB", @"USB\VID_0951&PID_1666\SERIAL01", "0951", "1666", "SERIAL01");
+        var orphanNvme = Device("RelatedStorage", "Registry: SCSI", @"SCSI\Disk&Ven_NVMe\NVME9999", "", "", "OTHER9999");
+        result.Devices.AddRange([usb, orphanNvme]);
+
+        var context = ForensicReportContext.Create(result);
+
+        Assert.Contains(usb, context.ReportableDevices);
+        Assert.DoesNotContain(orphanNvme, context.ReportableDevices);
+    }
+
+    [Fact]
+    public void Html_report_declares_usb_only_scope()
+    {
+        var result = new AuditResult();
+        result.Devices.Add(Device("RelatedStorage", "Registry: SCSI", @"SCSI\Disk&Ven_NVMe\NVME0001", "", "", "NVME0001"));
+
+        var html = ForensicReportBuilder.BuildHtml(result);
+
+        Assert.Contains("Область отчёта", html);
+        Assert.Contains("SATA/NVMe", html);
+        Assert.DoesNotContain("NVME0001", html);
+    }
+
     private static UsbDeviceRecord Device(
         string category,
         string source,

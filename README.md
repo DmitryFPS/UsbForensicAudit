@@ -2,7 +2,7 @@
 
 GUI-first forensic-аудитор USB/Type-C устройств для **Windows 10/11**. Собирает артефакты из реестра, журналов событий и профилей пользователей, коррелирует их с устройствами, выявляет признаки очистки следов и формирует отчёты HTML/PDF/Excel.
 
-Приложение ориентировано на аналитика/администратора: русский интерфейс, пояснения к каждой записи, portable-сборка для работы с флешки без следов в `%LOCALAPPDATA%`.
+Приложение ориентировано на аналитика/администратора: русский интерфейс, пояснения к каждой записи, portable-сборка для работы с флешки без следов в `%LOCALAPPDATA%`. **Запуск возможен только с правами администратора** (без UAC окно не откроется). Краткая сборка exe: [BUILD.md](BUILD.md).
 
 ---
 
@@ -31,6 +31,7 @@ GUI-first forensic-аудитор USB/Type-C устройств для **Windows
 | Источник | Что извлекается |
 |---|---|
 | Реестр `HKLM\SYSTEM\CurrentControlSet\Enum` | `USB`, `USBSTOR`, `SCSI`, `SWD\WPDBUSENUM` |
+| Реестр `HKLM\SYSTEM\*\Control\usbflags` | остаточные следы VID/PID (как USBTraceCleaner), база `Assets/USBVendors.txt` |
 | Реестр `HKLM\SYSTEM\MountedDevices` | точки монтирования томов |
 | `C:\Windows\inf\setupapi.dev.log` | история PnP/USB из SetupAPI |
 | Event Log | `System`, `Security`, `DeviceSetupManager`, `DriverFrameworks-UserMode` |
@@ -42,13 +43,14 @@ GUI-first forensic-аудитор USB/Type-C устройств для **Windows
 ### Аналитика
 
 - Корреляция **устройство → доказательство → пользовательский артефакт** с уровнем уверенности.
-- Классификация записей: `RealUsb`, `RelatedStorage`, `SupportArtifact`.
+- Классификация записей: `RealUsb`, `RelatedStorage`, `UsbFlagsTrace`, `SupportArtifact`.
+- Двойной клик по строке на вкладке **USB устройства** — модальное окно с именем, датами, моделью, VID/PID и серийным номером.
 - Расчёт дат подключения/отключения по SetupAPI, Event Log и user artifacts; все даты в GUI/отчётах — **МСК** (`дд.ММ.гггг ЧЧ:мм:сс МСК`).
 - Поиск признаков очистки с атрибуцией: инициатор, возможный инструмент, уверенность, severity.
 - Учёт даты установки Windows и **grace period 3 часа** после установки (события «Норма: ОС после установки»).
 - Live-мониторинг USB/Type-C по **событиям PnP Windows** (без постоянного опроса каждые 2 секунды).
 - Вкладка **«Сторонние утилиты»**: захват таблиц USBDetector/USBDeview, разбор строк, Procmon-трассировка реестра.
-- Отчёты **HTML** и **PDF** (полный и сводный) на русском языке с корректной кириллицей.
+- Отчёты **HTML**, **PDF** и **Excel** (полный и сводный) на русском языке с корректной кириллицей. **Область отчёта — только USB/Type-C**; ОЗУ и внутренние SATA/NVMe исключены.
 
 ### Portable-режим
 
@@ -64,7 +66,7 @@ GUI-first forensic-аудитор USB/Type-C устройств для **Windows
 | .NET SDK | 8.0+ |
 | IDE (опционально) | Visual Studio 2022 (workload *Desktop development with .NET*) или JetBrains Rider |
 
-Для полного сканирования, Procmon-трассировки и захвата сторонних утилит нужны **права администратора**. Окно приложения открывается и без UAC; ограничения отображаются в статусе шапки.
+Для полного сканирования, Procmon-трассировки и захвата сторонних утилит нужны **права администратора**. Приложение **не запускается** без UAC — при старте показывается предупреждение и процесс завершается (`App.xaml.cs`).
 
 ---
 
@@ -86,7 +88,10 @@ bin\Release\net8.0-windows\UsbForensicAudit.exe
 
 ### Portable single-file exe
 
+См. также [BUILD.md](BUILD.md) — команды copy-paste.
+
 ```powershell
+dotnet test tests\UsbForensicAudit.Tests\UsbForensicAudit.Tests.csproj -c Release
 .\build-exe.ps1
 ```
 
@@ -100,7 +105,7 @@ bin\publish\PORTABLE.txt
 
 ### Типовой сценарий работы
 
-1. Запустить exe **от имени администратора** (ПКМ или кнопка «Запуск от администратора»).
+1. Запустить exe **от имени администратора** (ПКМ → «Запуск от имени администратора»; без прав окно не откроется).
 2. Нажать **«Полное сканирование»**.
 3. Изучить вкладки **USB устройства**, **Доказательства**, **Следы очистки**.
 4. При необходимости — **«Старт мониторинга»** и окно **«Окно USB»**.
@@ -111,7 +116,8 @@ bin\publish\PORTABLE.txt
 | Цвет | Категория | Смысл |
 |---|---|---|
 | Зелёный | `RealUsb` | реальное USB/Type-C устройство |
-| Жёлтый | `RelatedStorage` | связанная storage-запись (диск/том) |
+| Жёлтый | `RelatedStorage` | связанная storage-запись (диск/том USB) |
+| Фиолетовый | `UsbFlagsTrace` | остаточный след в `usbflags` (VID/PID) |
 | Серый | `SupportArtifact` | служебная запись Windows |
 
 ---
@@ -198,15 +204,17 @@ UsbForensicAudit/
 ├── MainWindow.xaml(.cs)          # View: разметка + тонкий code-behind (Win32, clipboard, Procmon UI)
 ├── MainViewModel.cs              # ViewModel: коллекции, состояние сканирования, порядок сортировки
 ├── ActiveDevicesWindow.xaml(.cs)  # Окно live-мониторинга
-├── App.xaml(.cs)                 # Generic Host, DI, глобальные обработчики ошибок
+├── DeviceDetailsWindow.xaml(.cs)  # Модальное окно сведений об USB (двойной клик)
+├── App.xaml(.cs)                 # Generic Host, DI, проверка админа, глобальные обработчики ошибок
 ├── build-exe.ps1                 # Portable publish + PDF-инструкция + проверка Procmon
+├── BUILD.md                      # Краткие команды сборки exe (copy-paste)
 ├── Assets/                       # Иконки, логотип, USBVendors.txt (embedded в Domain)
 ├── src/
 │   ├── UsbForensicAudit.Domain/           # Модели, справочники, форматтеры, парсеры
 │   ├── UsbForensicAudit.Application/      # Use cases, оркестратор, порты, аналитика
 │   └── UsbForensicAudit.Infrastructure/   # Коллекторы, SQLite, PDF, WMI, Win32, Procmon
 ├── tests/
-│   └── UsbForensicAudit.Tests/            # xUnit, coverlet (209+ тестов)
+│   └── UsbForensicAudit.Tests/            # xUnit, coverlet (225 тестов)
 └── tools/
     ├── GenerateIcon/                      # PNG → ICO для сборки
     ├── GenerateManual/                  # PDF-инструкция пользователя
@@ -223,7 +231,7 @@ UsbForensicAudit/
 Центральный use case — `AuditOrchestrator.RunFullScanAsync`. Выполняется в фоне (`Task.Run`), прогресс отдаётся в UI через `IProgress<string>`.
 
 ```text
-1. UsbRegistryCollector          → Devices
+1. UsbRegistryCollector          → Devices (USB, USBSTOR, SCSI, usbflags, …)
 2. SetupApiLogCollector          → Evidence
 3. EventLogCollector             → Evidence
 4. EndpointProtectionCollector   → Evidence (если ShouldRun)
@@ -262,6 +270,7 @@ UsbForensicAudit/
 | `MainViewModel` | `ObservableCollection` для таблиц, `IsScanning` / `IsProcmonTracing`, `LastResult`, вызов `AuditOrchestrator`, сортировка результатов (`OrderDevices`, `OrderEvidence`, `OrderCleanupFindings`) |
 | `MainWindow` | XAML-привязки `{Binding Devices}`, `{Binding Evidence}`, обработчики кнопок, Win32/clipboard, Procmon UI, обновление счётчиков и `DataGrid` |
 | `ActiveDevicesWindow` | отдельное окно live-списка подключённых устройств |
+| `DeviceDetailsWindow` | модальное окно: имя, подключение, последняя активность, модель, VID/PID, серийный номер |
 
 Платформенный код (UI Automation, захват ListView, Procmon session folder) **намеренно** остаётся во View — это допустимый компромисс: бизнес-логика в нижних слоях, View — адаптер ОС.
 
@@ -298,6 +307,8 @@ UsbForensicAudit/
 ---
 
 ## Сборка
+
+Краткая инструкция (копировать-вставить): **[BUILD.md](BUILD.md)**.
 
 ### Dev-сборка (Rider / Visual Studio / CLI)
 
@@ -357,6 +368,9 @@ dotnet test tests\UsbForensicAudit.Tests\UsbForensicAudit.Tests.csproj --collect
 | `MainViewModelTests` | порядок сортировки результатов в VM |
 | `ServiceRegistrationTests` | порядок сборщиков и WMI-probe в DI |
 | `TimelineEnricherTests`, `TextSanitizerTests` | обогащение и нормализация текста |
+| `UsbFlagsTests` | парсинг `usbflags`, категория `UsbFlagsTrace` |
+| `ExcelReportTests` | PDF/Excel, структура листов, область отчёта |
+| `ReportScopeTests` | USB-only фильтр в отчётах (исключение SATA/NVMe, ОЗУ) |
 
 ---
 
@@ -397,6 +411,7 @@ Procmon на этапе сборки: `tools\Procmon64.exe` (в `.gitignore`; с
 ## Ограничения и интерпреация
 
 - Приложение **не блокирует** USB — только анализирует и мониторит.
+- PDF/Excel/HTML-отчёты включают **только USB/Type-C** и связанные forensic-артефакты; внутренние SATA/NVMe и ОЗУ в отчёты не попадают.
 - Корпоративные политики DLP/Endpoint Protection могут скрывать стандартные следы Windows; программа использует дополнительные источники и помечает даты как ориентир.
 - Windows **не всегда** сохраняет физический номер порта; показываются `LocationInformation` / `LocationPaths`, если ОС их отдала.
 - Отсутствие артефакта ≠ факт очистки. Оценивайте findings в совокупности и смотрите колонку «Уверенность».

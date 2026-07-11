@@ -90,13 +90,12 @@ public static class ManualPdfGenerator
             ("Установка", "Не нужна — один exe-файл"),
             ("Интернет", "Не требуется"));
 
-        Numbered(column, 1, "Запустите UsbForensicAudit.exe (можно без администратора — окно откроется).");
-        Numbered(column, 2, "Для полного сканирования: ПКМ → «Запуск от имени администратора» или кнопка «Запуск от администратора» в программе.");
-        Numbered(column, 3, "Подтвердите UAC («Да»), если появится запрос.");
-        Numbered(column, 4, "В карточке «Статус» на вкладке «Обзор» должно быть: Администратор.");
-        Numbered(column, 5, "Проверьте строку «Установка Windows» — дата берётся из реестра Windows (InstallDate).");
-        Numbered(column, 6, "Нажмите «Полное сканирование» — это основной первый шаг.");
-        Paragraph(column, "Без прав администратора часть источников (Security Event Log, offline hive профилей) будет недоступна. Программа не должна «мигать» и закрываться — если так, обновите exe до последней сборки.");
+        Numbered(column, 1, "ПКМ по UsbForensicAudit.exe → «Запуск от имени администратора» (без прав программа не откроется).");
+        Numbered(column, 2, "Подтвердите UAC («Да»), если появится запрос.");
+        Numbered(column, 3, "В карточке «Статус» на вкладке «Обзор» должно быть: Администратор.");
+        Numbered(column, 4, "Проверьте строку «Установка Windows» — дата берётся из реестра Windows (InstallDate).");
+        Numbered(column, 5, "Нажмите «Полное сканирование» — это основной первый шаг.");
+        Paragraph(column, "Программа не запускается без прав администратора: при обычном двойном клике появится предупреждение и окно закроется.");
     }
 
     private static void AddMainWindow(ColumnDescriptor column)
@@ -159,6 +158,7 @@ public static class ManualPdfGenerator
             ("Цвет", "Что это"),
             ("Зелёный", "Реальное USB/Type-C устройство: флешка, диск, телефон, мышь и т.д."),
             ("Жёлтый", "Связанный диск или память USB — часто появляется вместе с флешкой"),
+            ("Фиолетовый", "След usbflags — остаточная запись VID/PID в реестре (даже если устройство давно не подключалось)"),
             ("Серый", "Служебная запись Windows — это не отдельное устройство"));
 
         SubTitle(column, "Столбцы таблицы");
@@ -189,6 +189,10 @@ public static class ManualPdfGenerator
         Bullet(column, "Если устройство не подключено, но события нет — дата последней активности с пометкой «ориентир».");
         Bullet(column, "Если подключено сейчас — «Подключено сейчас».");
         Bullet(column, "VID и PID — технические коды. Названия — в столбцах «Производитель» и «Модель».");
+        SubTitle(column, "Двойной клик по строке");
+        Paragraph(column,
+            "Откроется окно «Сведения об USB-устройстве»: имя, когда подключали, последняя активность, модель, VID/PID и серийный номер. " +
+            "Удобно для быстрого просмотра без прокрутки широкой таблицы.");
     }
 
     private static void AddEvidenceTab(ColumnDescriptor column)
@@ -367,14 +371,16 @@ public static class ManualPdfGenerator
             ("data\\tools\\Procmon64.exe", "Распакованный Procmon (встроен в exe)"),
             ("data\\procmon\\*", "Сессии жёсткой трассировки: capture.csv, README"),
             ("UsbForensicAudit_*.pdf", "Полные PDF-отчёты"),
-            ("UsbForensicAudit_Svodnyj_*.pdf", "Сводные PDF-отчёты"));
+            ("UsbForensicAudit_Svodnyj_*.pdf", "Сводные PDF-отчёты"),
+            ("UsbForensicAudit_*.xlsx", "Полные Excel-отчёты"),
+            ("UsbForensicAudit_Svodnyj_*.xlsx", "Сводные Excel-отчёты"));
     }
 
     private static void AddSources(ColumnDescriptor column)
     {
         SectionTitle(column, "12. Что сканирует программа");
         SubTitle(column, "Системные источники");
-        Bullet(column, "Реестр: USB, USBSTOR, SCSI, SWD\\WPDBUSENUM, MountedDevices.");
+        Bullet(column, "Реестр: USB, USBSTOR, SCSI, SWD\\WPDBUSENUM, MountedDevices, usbflags (SYSTEM\\*\\Control\\usbflags).");
         Bullet(column, "C:\\Windows\\inf\\setupapi.dev.log.");
         Bullet(column, "Event Logs: System, Security, DeviceSetupManager, DriverFrameworks-UserMode.");
 
@@ -405,6 +411,7 @@ public static class ManualPdfGenerator
     {
         column.Item().PageBreak();
         SectionTitle(column, "13. Ограничения");
+        Bullet(column, "PDF/Excel/HTML-отчёты содержат только USB/Type-C; ОЗУ и внутренние SATA/NVMe-накопители исключены.");
         Bullet(column, "Windows часто не сохраняет номер физического USB-порта — поэтому «Расположение в USB» может быть пустым.");
         Bullet(column, "Корпоративные политики контроля USB могут скрывать или подменять стандартные следы Windows — даты тогда помечаются как ориентир.");
         Bullet(column, "Отсутствие следов не всегда означает очистку.");

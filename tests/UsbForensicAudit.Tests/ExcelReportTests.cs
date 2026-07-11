@@ -56,6 +56,10 @@ public sealed class ExcelReportTests
             var summary = workbook.Worksheet("Сводка");
             Assert.Contains("Полный отчёт", summary.Cell("A1").GetString());
             Assert.Equal("Тестовый ПК", summary.Cell("B5").GetString());
+            var scopeRow = summary.Column(1).CellsUsed()
+                .First(c => c.GetString() == "Область отчёта")
+                .Address.RowNumber;
+            Assert.Contains("USB", summary.Cell(scopeRow, 2).GetString());
 
             var devices = workbook.Worksheet("USB устройства");
             Assert.Equal("Категория", devices.Cell("A4").GetString());

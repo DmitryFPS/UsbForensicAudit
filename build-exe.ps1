@@ -132,7 +132,7 @@ $readmeLines = @(
     'All work data is stored NEXT TO the exe (no traces in LocalAppData when writable):'
     '  data\tools\Procmon64.exe'
     '  data\procmon\<session>\capture.csv'
-    '  data\audit.sqlite, app.log, reports...'
+    '  data\audit.sqlite, app.log, UsbForensicAudit_*.pdf/xlsx...'
     ''
     'To remove all traces from a PC: delete the whole folder with exe + data\'
     ''
