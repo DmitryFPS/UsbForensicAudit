@@ -40,10 +40,15 @@ public sealed class WmiConnectedDeviceProbe : IConnectedDeviceProbe
             foreach (ManagementObject disk in diskSearcher.Get())
             {
                 var pnpId = disk["PNPDeviceID"]?.ToString() ?? "";
+                var mediaType = disk["MediaType"]?.ToString() ?? "";
                 var metadata = LiveDeviceMetadataReader.Read(pnpId);
                 if (DeviceTransportClassifier.IsRelevantLiveCandidate(
                         pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds,
-                        metadata.LocationPaths, disk["Model"]?.ToString() ?? "", disk["MediaType"]?.ToString() ?? ""))
+                        metadata.LocationPaths, disk["Model"]?.ToString() ?? "", mediaType)
+                    || pnpId.StartsWith(@"SCSI\", StringComparison.OrdinalIgnoreCase)
+                       && (mediaType.Contains("Removable", StringComparison.OrdinalIgnoreCase)
+                           || mediaType.Contains("External", StringComparison.OrdinalIgnoreCase)
+                           || metadata.Service.Equals("uaspstor", StringComparison.OrdinalIgnoreCase)))
                 {
                     pnpIdentifiers.Add(pnpId);
                 }

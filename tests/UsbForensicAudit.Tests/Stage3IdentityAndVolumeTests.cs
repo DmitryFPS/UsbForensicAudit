@@ -47,7 +47,7 @@ public sealed class Stage3IdentityAndVolumeTests
             {
                 Source = "Registry: SCSI",
                 VisualCategory = "RelatedStorage",
-                DeviceType = "SCSI/UASP Storage",
+                DeviceType = "SCSI Storage",
                 DeviceInstanceId = @"SCSI\DISK&VEN_TEST&PROD_DISK\7&111&0&000000",
                 Serial = "7&111&0&000000",
                 ContainerId = container

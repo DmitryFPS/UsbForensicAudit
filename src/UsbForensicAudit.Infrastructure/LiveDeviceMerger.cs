@@ -100,10 +100,15 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
             foreach (ManagementObject disk in diskSearcher.Get())
             {
                 var pnpId = disk["PNPDeviceID"]?.ToString() ?? "";
+                var mediaType = disk["MediaType"]?.ToString() ?? "";
                 var metadata = LiveDeviceMetadataReader.Read(pnpId);
                 if (!DeviceTransportClassifier.IsRelevantLiveCandidate(
                         pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds, metadata.LocationPaths,
-                        FirstNotEmpty(Read(disk, "Model"), Read(disk, "Caption")), Read(disk, "MediaType")))
+                        FirstNotEmpty(Read(disk, "Model"), Read(disk, "Caption")), mediaType)
+                    && !(pnpId.StartsWith(@"SCSI\", StringComparison.OrdinalIgnoreCase)
+                         && (mediaType.Contains("Removable", StringComparison.OrdinalIgnoreCase)
+                             || mediaType.Contains("External", StringComparison.OrdinalIgnoreCase)
+                             || metadata.Service.Equals("uaspstor", StringComparison.OrdinalIgnoreCase))))
                 {
                     continue;
                 }
@@ -235,43 +240,13 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
     {
         foreach (var device in existing)
         {
-            if (device.DeviceInstanceId.Equals(live.DeviceInstanceId, StringComparison.OrdinalIgnoreCase))
-            {
-                return device;
-            }
-        }
-
-        foreach (var device in existing.Where(x =>
-                     x.VisualCategory != "SupportArtifact"
-                     && x.VisualCategory != "UsbFlagsTrace"))
-        {
-            if (CompatibleVidPid(device, live) && SameHardwareSerial(device, live))
+            if (DeviceLiveMatcher.AreLikelySameDevice(device, live))
             {
                 return device;
             }
         }
 
         return null;
-    }
-
-    private static bool CompatibleVidPid(UsbDeviceRecord left, UsbDeviceRecord right)
-    {
-        return (string.IsNullOrWhiteSpace(left.Vid) || string.IsNullOrWhiteSpace(right.Vid)
-                || left.Vid.Equals(right.Vid, StringComparison.OrdinalIgnoreCase))
-               && (string.IsNullOrWhiteSpace(left.Pid) || string.IsNullOrWhiteSpace(right.Pid)
-                   || left.Pid.Equals(right.Pid, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static bool SameHardwareSerial(UsbDeviceRecord left, UsbDeviceRecord right)
-    {
-        if (!DeviceIdentityGraph.IsHardwareSerial(left.Serial)
-            || !DeviceIdentityGraph.IsHardwareSerial(right.Serial))
-        {
-            return false;
-        }
-
-        return DeviceIdentityGraph.NormalizeSerial(left.Serial)
-            .Equals(DeviceIdentityGraph.NormalizeSerial(right.Serial), StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ExtractSerial(string pnpId)

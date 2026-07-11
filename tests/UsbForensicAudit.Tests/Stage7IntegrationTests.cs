@@ -369,7 +369,7 @@ public sealed class Stage7IntegrationTests
                 new UsbDeviceRecord
                 {
                     VisualCategory = "RelatedStorage",
-                    DeviceType = "SCSI/UASP Storage",
+                    DeviceType = "SCSI Storage",
                     Source = "Registry: SCSI",
                     DeviceInstanceId = @"SCSI\Disk&Ven_JMicron&Prod_Generic\7&456&0&000000",
                     Serial = "7&456&0&000000",

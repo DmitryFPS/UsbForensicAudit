@@ -812,7 +812,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
 
         if (source.Contains("SCSI", StringComparison.OrdinalIgnoreCase))
         {
-            return "SCSI/UASP Storage";
+            return "SCSI Storage";
         }
 
         if (source.Contains("USB4", StringComparison.OrdinalIgnoreCase))

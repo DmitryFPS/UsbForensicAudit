@@ -68,16 +68,18 @@ public sealed class Stage4TransportClassificationTests
     {
         var device = Device(@"SCSI\Disk&Ven_NVMe&Prod_Internal\4&111&0&000000");
         device.Product = "Internal NVMe SSD";
-        device.Service = "stornvme";
+        device.Service = "disk";
+        device.HardwareIds = @"SCSI\DiskNVMe__________________________Internal\0GenDisk";
         device.LocationPaths = "PCIROOT(0)#PCI(0100)";
 
         DeviceTransportClassifier.Classify(device);
 
-        Assert.Equal("Unknown", device.Connection);
-        Assert.NotEqual("External", device.Classification);
+        Assert.Equal("Internal NVMe", device.Transport);
+        Assert.Equal("BuiltIn", device.Classification);
         Assert.False(DeviceTransportClassifier.IsReportable(device));
         Assert.False(DeviceTransportClassifier.IsRelevantLiveCandidate(
-            device.DeviceInstanceId, device.Service, locationPaths: device.LocationPaths, name: device.Product));
+            device.DeviceInstanceId, device.Service, hardwareIds: device.HardwareIds,
+            locationPaths: device.LocationPaths, name: device.Product));
     }
 
     [Fact]

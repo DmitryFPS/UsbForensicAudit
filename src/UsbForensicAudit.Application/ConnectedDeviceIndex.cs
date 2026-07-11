@@ -56,6 +56,17 @@ public sealed class ConnectedDeviceIndex
             {
                 return true;
             }
+
+            if (_connectedKeys.Contains(DeviceLiveMatcher.NormalizePnpId(key)))
+            {
+                return true;
+            }
+        }
+
+        var scsiSignature = DeviceLiveMatcher.ParseScsiSignature(device.DeviceInstanceId);
+        if (scsiSignature.Length > 0 && _connectedKeys.Contains(scsiSignature))
+        {
+            return true;
         }
 
         if (!string.IsNullOrWhiteSpace(device.Vid)
@@ -114,6 +125,13 @@ public sealed class ConnectedDeviceIndex
         }
 
         keys.Add(Normalize(pnpId));
+        keys.Add(DeviceLiveMatcher.NormalizePnpId(pnpId));
+
+        var scsiSignature = DeviceLiveMatcher.ParseScsiSignature(pnpId);
+        if (scsiSignature.Length > 0)
+        {
+            keys.Add(scsiSignature);
+        }
 
         var lastSegment = pnpId.Contains('\\') ? pnpId[(pnpId.LastIndexOf('\\') + 1)..] : pnpId;
         keys.Add(Normalize(lastSegment));

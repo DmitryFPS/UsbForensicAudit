@@ -61,6 +61,30 @@ public static class DeviceTransportClassifier
         var id = device.DeviceInstanceId;
 
         Reset(device);
+        if (IsVirtualStorageDevice(device, text, id))
+        {
+            SetTransport(device, "Virtual Disk", "High", "virtual/hypervisor disk image");
+            SetClassification(device, "Virtual", "High", "virtual/hypervisor storage");
+            ApplyPresentation(device);
+            return;
+        }
+
+        if (IsInternalFixedStorage(device, text, id))
+        {
+            if (IsInternalNvmeStorage(device, text, id))
+            {
+                SetTransport(device, "Internal NVMe", "High", "SCSI/NVMe stack without external USB/UASP topology");
+            }
+            else
+            {
+                SetTransport(device, "Internal Disk", "High", "SCSI/GenDisk stack without external USB/UASP topology");
+            }
+
+            SetClassification(device, "BuiltIn", "High", "internal fixed disk without external USB/UASP topology");
+            ApplyPresentation(device);
+            return;
+        }
+
         ClassifyTransport(device, text, id);
         ClassifyConnection(device, text, id);
         ClassifyRole(device, text, id);
@@ -104,8 +128,69 @@ public static class DeviceTransportClassifier
             return ContainsAny(text, ThunderboltMarkers);
         }
 
-        return ContainsAny(text, "WPDBUSENUM", "MTP", "PTP", "REMOVABLE", "EXTERNAL", "UASP")
+        return ContainsAny(text, "WPDBUSENUM", "MTP", "PTP", "REMOVABLE", "EXTERNAL")
+               || ContainsUaspMarker(text)
                || ContainsAny(text, ThunderboltMarkers);
+    }
+
+    public static bool IsInternalFixedStorage(UsbDeviceRecord device, string? evidenceText = null, string? deviceInstanceId = null)
+    {
+        if (IsVirtualStorageDevice(device, evidenceText, deviceInstanceId))
+        {
+            return false;
+        }
+
+        if (IsInternalNvmeStorage(device, evidenceText, deviceInstanceId))
+        {
+            return true;
+        }
+
+        var id = deviceInstanceId ?? device.DeviceInstanceId;
+        var text = evidenceText ?? EvidenceText(device);
+        if (!id.StartsWith(@"SCSI\", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!device.Service.Equals("disk", StringComparison.OrdinalIgnoreCase)
+            || device.Service.Equals("uaspstor", StringComparison.OrdinalIgnoreCase)
+            || HasExternalTopologyEvidence(device))
+        {
+            return false;
+        }
+
+        return ContainsAny(text, "GENDISK")
+               && !ScsiHasExternalBusEvidence(text, id);
+    }
+
+    public static bool IsVirtualStorageDevice(UsbDeviceRecord device, string? evidenceText = null, string? deviceInstanceId = null)
+    {
+        var id = deviceInstanceId ?? device.DeviceInstanceId;
+        var text = evidenceText ?? EvidenceText(device);
+        return ContainsAny(text, VirtualMarkers)
+               || ContainsAny(id, @"VEN_MSFT&PROD_VIRTUAL", "VEN_VMWARE", "VIRTUAL_DISK", "VBOXHD");
+    }
+
+    public static bool IsInternalNvmeStorage(UsbDeviceRecord device, string? evidenceText = null, string? deviceInstanceId = null)
+    {
+        var id = deviceInstanceId ?? device.DeviceInstanceId;
+        var text = evidenceText ?? EvidenceText(device);
+        if (!id.StartsWith(@"SCSI\", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var isNvmeVendor = ContainsAny(id, @"VEN_NVME", "DISKNVME", "NVME____")
+                            || ContainsAny(text, @"VEN_NVME", "DISKNVME", "NVME____");
+        var usesDiskStack = device.Service.Equals("disk", StringComparison.OrdinalIgnoreCase)
+                            || device.Service.Equals("stornvme", StringComparison.OrdinalIgnoreCase);
+        if (!isNvmeVendor || !usesDiskStack)
+        {
+            return false;
+        }
+
+        return !device.Service.Equals("uaspstor", StringComparison.OrdinalIgnoreCase)
+               && !HasExternalTopologyEvidence(device);
     }
 
     public static bool HasExternalTopologyEvidence(UsbDeviceRecord device)
@@ -158,7 +243,7 @@ public static class DeviceTransportClassifier
         {
             SetTransport(device, "UASP/SCSI", "High", "Service=uaspstor");
         }
-        else if (ContainsAny(text, "UASPSTOR", "UAS", "USB ATTACHED SCSI"))
+        else if (ContainsUaspMarker(text))
         {
             SetTransport(device, "UASP/SCSI", "Medium", "hardware/compatible ID contains UASP marker");
         }
@@ -172,7 +257,7 @@ public static class DeviceTransportClassifier
             SetTransport(device, "MSC/USBSTOR", "High", "USBSTOR instance/hardware ID");
         }
         else if (id.StartsWith(@"SCSI\", StringComparison.OrdinalIgnoreCase)
-                 && ContainsAny(text, "USB", "REMOVABLE", "EXTERNAL", "THUNDERBOLT", "USB4"))
+                 && ScsiHasExternalBusEvidence(text, id))
         {
             SetTransport(device, "UASP/SCSI", "Medium", "SCSI instance with external/UASP topology evidence");
         }
@@ -277,6 +362,12 @@ public static class DeviceTransportClassifier
         {
             device.UserMeaning = "Виртуальное USB-устройство/шина гипервизора; не доказывает физическое подключение.";
         }
+        else if (device.Classification == "BuiltIn" && device.Transport is "Internal NVMe" or "Internal Disk")
+        {
+            device.UserMeaning = device.Transport == "Internal NVMe"
+                ? "Внутренний NVMe-диск. Это не USB-устройство и не участвует в USB forensic-аудите как внешний носитель."
+                : "Внутренний SATA/SCSI-диск. Это не USB-устройство и не участвует в USB forensic-аудите как внешний носитель.";
+        }
         else if (device.Classification == "BuiltIn")
         {
             device.UserMeaning = "Встроенное устройство внутренней USB-шины; сохранено в текущей области аудита и явно помечено.";
@@ -324,6 +415,18 @@ public static class DeviceTransportClassifier
 
     private static string Join(params string?[] values) =>
         string.Join(" ", values.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+    private static bool ScsiHasExternalBusEvidence(string text, string id) =>
+        ContainsUaspMarker(text)
+        || ContainsAny(text, "REMOVABLE", "EXTERNAL", "THUNDERBOLT", "USB4")
+        || ContainsAny(id, @"VEN_USB", "USBSTOR")
+        || ContainsAny(text, "USBROOT", "USB(");
+
+    private static bool ContainsUaspMarker(string value) =>
+        value.Contains("UASPSTOR", StringComparison.OrdinalIgnoreCase)
+        || value.Contains("UASSTOR", StringComparison.OrdinalIgnoreCase)
+        || value.Contains("USB ATTACHED SCSI", StringComparison.OrdinalIgnoreCase)
+        || value.Contains(@"USB\CLASS_UAS", StringComparison.OrdinalIgnoreCase);
 
     private static bool ContainsAny(string value, params string[] markers) =>
         markers.Any(marker => value.Contains(marker, StringComparison.OrdinalIgnoreCase));
