@@ -380,19 +380,22 @@ public static class ManualPdfGenerator
     {
         SectionTitle(column, "12. Что сканирует программа");
         SubTitle(column, "Системные источники");
-        Bullet(column, "Реестр: USB, USBSTOR, SCSI, SWD\\WPDBUSENUM, MountedDevices, usbflags (SYSTEM\\*\\Control\\usbflags).");
-        Bullet(column, "C:\\Windows\\inf\\setupapi.dev.log.");
-        Bullet(column, "Event Logs: System, Security, DeviceSetupManager, DriverFrameworks-UserMode.");
+        Bullet(column, "Реестр: USB, USBSTOR, SCSI, SWD\\WPDBUSENUM, MountedDevices, usbflags (все ControlSet).");
+        Bullet(column, "PnP DevProperties 0064–0067: точные даты подключения из реестра.");
+        Bullet(column, "setupapi.dev.log и архивы setupapi.*.log.");
+        Bullet(column, "Event Logs: System, Security, Kernel-PnP, Storage-ClassPnP, Partition, WPD-MTP, DeviceSetupManager, DriverFrameworks-UserMode.");
+        Bullet(column, "Исторические: DeviceMigration, diff ControlSet, Windows.old, read-only VSS discovery.");
 
         SubTitle(column, "Пользовательские источники");
-        Bullet(column, "MountPoints2, RecentDocs, OpenSavePidlMRU, LastVisitedPidlMRU.");
-        Bullet(column, "LNK-файлы, Jump Lists, offline NTUSER.DAT и UsrClass.dat.");
+        Bullet(column, "MountPoints2, RecentDocs, OpenSavePidlMRU, LastVisitedPidlMRU, Shellbags.");
+        Bullet(column, "LNK-файлы, Jump Lists, offline NTUSER.DAT и UsrClass.dat, Recycle Bin $I/$R.");
 
         SubTitle(column, "Исполнение и очистка");
-        Bullet(column, "Prefetch, Amcache, Shimcache — индикаторы запуска программ.");
+        Bullet(column, "Prefetch, Amcache, Shimcache, PCA, BAM/DAM — индикаторы запуска программ.");
         Bullet(column, "Security Event ID 4688 — создание процессов wevtutil, PowerShell, USBDeview, USBDetector и др.");
         Bullet(column, "Атрибуция очистки: инициатор из 104/1102, инструмент из Prefetch/4688, уверенность по правилам корреляции.");
         Bullet(column, "Противоречия между источниками (реестр vs setupapi).");
+        Bullet(column, "ScanCoverageReport: статус каждого сборщика, лимиты, % устройств с точной датой.");
 
         SubTitle(column, "Live-мониторинг");
         Bullet(column, "События PnP Windows (Win32_DeviceChangeEvent), если система их отдаёт.");
@@ -412,6 +415,9 @@ public static class ManualPdfGenerator
         column.Item().PageBreak();
         SectionTitle(column, "13. Ограничения");
         Bullet(column, "PDF/Excel/HTML-отчёты содержат только USB/Type-C; ОЗУ и внутренние SATA/NVMe-накопители исключены.");
+        Bullet(column, "USB-C/Type-C порт не гарантирует USB-транспорт — возможен PCIe/Thunderbolt-туннель.");
+        Bullet(column, "USB4/Thunderbolt покрыт частично; deleted-cell carving реестра не реализован.");
+        Bullet(column, "VSS используется только для read-only discovery существующих снимков.");
         Bullet(column, "Windows часто не сохраняет номер физического USB-порта — поэтому «Расположение в USB» может быть пустым.");
         Bullet(column, "Корпоративные политики контроля USB могут скрывать или подменять стандартные следы Windows — даты тогда помечаются как ориентир.");
         Bullet(column, "Отсутствие следов не всегда означает очистку.");
