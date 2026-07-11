@@ -12,7 +12,7 @@ $procmonExe = Join-Path $procmonDir "Procmon64.exe"
 $procmonZip = Join-Path $procmonDir "ProcessMonitor.zip"
 $procmonExtract = Join-Path $procmonDir "pmextract"
 $infrastructureDll = Join-Path $PSScriptRoot "src\UsbForensicAudit.Infrastructure\bin\$Configuration\net8.0-windows\UsbForensicAudit.Infrastructure.dll"
-$engineeringGuideSource = Join-Path $PSScriptRoot "docs\UsbForensicAudit_Инженерное_руководство.pdf"
+$engineeringGuideDirectory = Join-Path $PSScriptRoot "docs"
 
 function Ensure-ProcmonForOfflineBuild {
     New-Item -ItemType Directory -Force -Path $procmonDir | Out-Null
@@ -110,29 +110,26 @@ Remove-Item (Join-Path $publishDir "LatoFont") -Recurse -Force -ErrorAction Sile
 Remove-Item (Join-Path $publishDir "Assets") -Recurse -Force -ErrorAction SilentlyContinue
 Get-ChildItem -Path $publishDir -Filter "UsbForensicAudit.pdb" -ErrorAction SilentlyContinue | Remove-Item -Force
 
-$manualProject = Join-Path $PSScriptRoot "tools\GenerateManual\GenerateManual.csproj"
-$manualPath = Join-Path $publishDir "UsbForensicAudit-Instrukciya.pdf"
-$engineeringGuidePath = Join-Path $publishDir "UsbForensicAudit_Инженерное_руководство.pdf"
-
 Get-ChildItem -Path $publishDir -Filter "UsbForensicAudit*.pdf" -ErrorAction SilentlyContinue | Remove-Item -Force
 Remove-Item (Join-Path $publishDir "PORTABLE.txt") -Force -ErrorAction SilentlyContinue
 
-dotnet run --project $manualProject -c $Configuration -- $manualPath
-
-if ($LASTEXITCODE -ne 0) {
-    throw "GenerateManual failed with exit code $LASTEXITCODE"
+$engineeringGuideSource = Get-ChildItem `
+    -Path $engineeringGuideDirectory `
+    -Filter "UsbForensicAudit_*.pdf" `
+    -File `
+    -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+if (-not $engineeringGuideSource) {
+    throw "Engineering guide source not found in: $engineeringGuideDirectory"
 }
-
-if (-not (Test-Path $engineeringGuideSource)) {
-    throw "Engineering guide source not found: $engineeringGuideSource"
-}
-Copy-Item $engineeringGuideSource $engineeringGuidePath -Force
+$engineeringGuidePath = Join-Path $publishDir $engineeringGuideSource.Name
+Copy-Item $engineeringGuideSource.FullName $engineeringGuidePath -Force
 
 $publishedExe = Join-Path $publishDir "UsbForensicAudit.exe"
 if (-not (Test-Path $publishedExe)) {
     throw "Published exe not found: $publishedExe"
 }
-foreach ($pdfPath in @($manualPath, $engineeringGuidePath)) {
+foreach ($pdfPath in @($engineeringGuidePath)) {
     if (-not (Test-Path $pdfPath) -or (Get-Item $pdfPath).Length -lt 1000) {
         throw "Generated PDF is missing or invalid: $pdfPath"
     }
@@ -153,6 +150,5 @@ Write-Host "Verified: Procmon64.exe is embedded (offline-ready)."
 
 Write-Host "Published to: $publishDir"
 Write-Host "Portable exe: $(Join-Path $publishDir 'UsbForensicAudit.exe')"
-Write-Host "User manual PDF: $manualPath"
 Write-Host "Engineering guide PDF: $engineeringGuidePath"
 Write-Host "Note: copy UsbForensicAudit.exe to USB - all data goes to data\ folder next to exe."

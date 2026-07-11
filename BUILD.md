@@ -18,11 +18,11 @@ dotnet test tests\UsbForensicAudit.Tests\UsbForensicAudit.Tests.csproj -c Releas
 
 ```text
 bin\publish\UsbForensicAudit.exe
-bin\publish\UsbForensicAudit-Instrukciya.pdf
 bin\publish\UsbForensicAudit_Инженерное_руководство.pdf
 ```
 
-`PORTABLE.txt` не создаётся: вся необходимая информация включена в PDF-руководства.
+`UsbForensicAudit-Instrukciya.pdf` и `PORTABLE.txt` не создаются: вся необходимая
+информация включена в инженерное PDF-руководство.
 
 Опционально — скопировать комплект в другую папку:
 

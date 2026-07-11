@@ -105,12 +105,12 @@ dotnet test tests\UsbForensicAudit.Tests\UsbForensicAudit.Tests.csproj -c Releas
 
 ```text
 bin\publish\UsbForensicAudit.exe
-bin\publish\UsbForensicAudit-Instrukciya.pdf
 bin\publish\UsbForensicAudit_Инженерное_руководство.pdf
 ```
 
-`PORTABLE.txt` не создаётся: правила запуска, переносимости, архитектура и порядок
-интерпретации результатов описаны в двух PDF-руководствах рядом с EXE.
+`UsbForensicAudit-Instrukciya.pdf` и `PORTABLE.txt` не создаются: правила запуска,
+переносимости, архитектура и порядок интерпретации результатов описаны в инженерном
+PDF-руководстве рядом с EXE.
 
 ### Типовой сценарий работы
 
@@ -215,9 +215,10 @@ UsbForensicAudit/
 ├── ActiveDevicesWindow.xaml(.cs)  # Окно live-мониторинга
 ├── DeviceDetailsWindow.xaml(.cs)  # Модальное окно сведений об USB (двойной клик)
 ├── App.xaml(.cs)                 # Generic Host, DI, проверка админа, глобальные обработчики ошибок
-├── build-exe.ps1                 # Portable publish + PDF-инструкция + проверка Procmon
+├── build-exe.ps1                 # Portable publish + инженерное руководство + проверка Procmon
 ├── BUILD.md                      # Краткие команды сборки exe (copy-paste)
 ├── Assets/                       # Иконки, логотип, USBVendors.txt (embedded в Domain)
+├── docs/                         # Проверенное инженерное PDF-руководство
 ├── src/
 │   ├── UsbForensicAudit.Domain/           # Модели, справочники, форматтеры, парсеры
 │   ├── UsbForensicAudit.Application/      # Use cases, оркестратор, порты, аналитика
@@ -226,7 +227,7 @@ UsbForensicAudit/
 │   └── UsbForensicAudit.Tests/            # xUnit, coverlet (312 тестов)
 └── tools/
     ├── GenerateIcon/                      # PNG → ICO для сборки
-    ├── GenerateManual/                  # PDF-инструкция пользователя
+    ├── GenerateManual/                  # Отдельная legacy-утилита, в portable-сборке не запускается
     ├── MergeUsbVendorDatabase/            # Слияние usb.ids с локальной базой VID/PID
     └── ExternalUtilityHarness/            # Интеграционный harness захвата утилит
 ```
@@ -348,7 +349,7 @@ bin\Release\net8.0-windows\UsbForensicAudit.exe
 1. Проверяет/скачивает `tools\Procmon64.exe` (нужен интернет **только при сборке**).
 2. Генерирует `Assets\app.ico` через `tools\GenerateIcon`.
 3. Выполняет `dotnet publish` (single-file, self-contained, `win-x64`).
-4. Создаёт PDF-инструкцию через `tools\GenerateManual`.
+4. Копирует проверенное инженерное руководство из `docs\` рядом с EXE.
 5. Проверяет, что Procmon встроен в `UsbForensicAudit.Infrastructure.dll`.
 
 RID-сборка (`publish -r win-x64`) пишет промежуточные артефакты в `obj\rid-out\`, не затрагивая `bin\Release\` — это исключает конфликты блокировки DLL при параллельной работе IDE и скрипта.
@@ -400,7 +401,6 @@ dotnet test tests\UsbForensicAudit.Tests\UsbForensicAudit.Tests.csproj --collect
 | Проект | Назначение |
 |---|---|
 | `GenerateIcon` | конвертация `Assets/app-icon.png` → `Assets/app.ico` |
-| `GenerateManual` | генерация `UsbForensicAudit-Instrukciya.pdf` (использует `ManualPdfGenerator` из Infrastructure) |
 | `MergeUsbVendorDatabase` | слияние `Assets/USBVendors.txt` с загруженным `usb.ids` |
 | `ExternalUtilityHarness` | headless-тест захвата окон USBDeview/USBDetector |
 
