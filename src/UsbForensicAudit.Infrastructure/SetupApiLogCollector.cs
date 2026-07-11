@@ -1,14 +1,9 @@
-using System.Globalization;
 using System.IO;
-using System.Text.RegularExpressions;
 
 namespace UsbForensicAudit;
 
 public sealed class SetupApiLogCollector : IEvidenceCollector
 {
-    private static readonly Regex SectionRegex = new(@"^>>>\s+\[(?<title>.+?)\]", RegexOptions.Compiled);
-    private static readonly Regex TimeRegex = new(@"^>>>\s+Section start (?<time>.+)$", RegexOptions.Compiled);
-
     public string ProgressMessage => "Парсинг setupapi.dev.log...";
 
     public bool ShouldRun => true;
@@ -16,105 +11,57 @@ public sealed class SetupApiLogCollector : IEvidenceCollector
     public IReadOnlyList<EvidenceRecord> Collect(List<string> warnings)
     {
         var evidence = new List<EvidenceRecord>();
-        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "inf", "setupapi.dev.log");
-
-        if (!File.Exists(path))
-        {
-            warnings.Add($"setupapi.dev.log не найден: {path}");
-            return evidence;
-        }
+        var infDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "inf");
+        string[] paths;
 
         try
         {
-            var currentTitle = "";
-            var currentTime = DateTimeOffset.UtcNow;
-            var lineNumber = 0;
-
-            foreach (var line in File.ReadLines(path))
-            {
-                lineNumber++;
-
-                var section = SectionRegex.Match(line);
-                if (section.Success)
-                {
-                    currentTitle = section.Groups["title"].Value;
-                }
-
-                var time = TimeRegex.Match(line);
-                if (time.Success && DateTimeOffset.TryParse(time.Groups["time"].Value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsed))
-                {
-                    currentTime = parsed.ToUniversalTime();
-                }
-
-                if (!ContainsUsbHint(line) && !ContainsUsbHint(currentTitle))
-                {
-                    continue;
-                }
-
-                var isRemoval = LooksLikeRemoval(line) || LooksLikeRemoval(currentTitle);
-                evidence.Add(new EvidenceRecord
-                {
-                    TimestampUtc = currentTime,
-                    Source = "setupapi.dev.log",
-                    EvidenceCategory = isRemoval
-                        ? "Отключение/удаление устройства"
-                        : "Установка/инициализация устройства",
-                    UserExplanation = isRemoval
-                        ? "SetupAPI зафиксировал удаление или остановку USB-устройства."
-                        : "SetupAPI фиксирует установку драйвера или инициализацию PnP-устройства. Это сильный источник для первого появления устройства, но не всегда последнее подключение.",
-                    EventId = $"line:{lineNumber}",
-                    Level = "Info",
-                    DeviceHint = ExtractDeviceHint(line, currentTitle),
-                    Summary = string.IsNullOrWhiteSpace(currentTitle) ? line.Trim() : currentTitle,
-                    RawText = line.Trim()
-                });
-            }
+            paths = Directory.Exists(infDirectory)
+                ? Directory.EnumerateFiles(infDirectory, "setupapi.dev*.log*", SearchOption.TopDirectoryOnly)
+                    .OrderByDescending(path => Path.GetFileName(path).Equals("setupapi.dev.log", StringComparison.OrdinalIgnoreCase))
+                    .ThenByDescending(File.GetLastWriteTimeUtc)
+                    .ToArray()
+                : [];
         }
         catch (Exception ex)
         {
-            warnings.Add($"Ошибка чтения setupapi.dev.log: {ex.Message}");
+            warnings.Add($"Не удалось перечислить журналы SetupAPI в {infDirectory}: {ex.Message}");
+            return evidence;
+        }
+
+        if (paths.Length == 0)
+        {
+            warnings.Add($"setupapi.dev.log и архивы не найдены: {infDirectory}");
+            return evidence;
+        }
+
+        var deduplicationKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in paths)
+        {
+            try
+            {
+                using var reader = File.OpenText(path);
+                var sourceName = Path.GetFileName(path);
+                foreach (var record in SetupApiLogParser.Parse(reader, sourceName, path))
+                {
+                    var key = string.Join(
+                        "\u001f",
+                        record.Source,
+                        record.Summary,
+                        record.DeviceHint,
+                        record.TimestampUtc.ToString("O"));
+                    if (deduplicationKeys.Add(key))
+                    {
+                        evidence.Add(record);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"Ошибка чтения {path}: {ex.Message}");
+            }
         }
 
         return evidence;
-    }
-
-    private static bool ContainsUsbHint(string value)
-    {
-        return value.Contains(@"USB\", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("VID_", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("WPDBUSENUM", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string ExtractDeviceHint(string line, string currentTitle)
-    {
-        var text = ContainsUsbHint(line) ? line : currentTitle;
-        var usbIndex = text.IndexOf("USB", StringComparison.OrdinalIgnoreCase);
-        if (usbIndex < 0)
-        {
-            return "";
-        }
-
-        var hint = text[usbIndex..].Trim();
-        return hint.Length > 180 ? hint[..180] : hint;
-    }
-
-    private static bool LooksLikeRemoval(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        return value.Contains("remove", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("removed", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("removal", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("uninstall", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("disable", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("stop", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("surprise", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("удал", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("отключ", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("останов", StringComparison.OrdinalIgnoreCase);
     }
 }

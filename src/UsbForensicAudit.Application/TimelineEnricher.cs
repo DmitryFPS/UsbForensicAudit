@@ -56,6 +56,11 @@ public sealed class TimelineEnricher
         evidence.UserExplanation = TextSanitizer.NormalizeDisplay(evidence.UserExplanation, 800);
         evidence.EventId = TextSanitizer.NormalizeDisplay(evidence.EventId, 120);
         evidence.Level = TextSanitizer.NormalizeDisplay(evidence.Level, 120);
+        evidence.Provider = TextSanitizer.NormalizeDisplay(evidence.Provider, 220);
+        evidence.Channel = TextSanitizer.NormalizeDisplay(evidence.Channel, 220);
+        evidence.Computer = TextSanitizer.NormalizeDisplay(evidence.Computer, 220);
+        evidence.SourceFile = TextSanitizer.NormalizeDisplay(evidence.SourceFile, 800);
+        evidence.SourceRecord = TextSanitizer.NormalizeDisplay(evidence.SourceRecord, 220);
         evidence.DeviceHint = TextSanitizer.NormalizeDisplay(evidence.DeviceHint, 500);
         evidence.Summary = TextSanitizer.NormalizeDisplay(evidence.Summary, 800);
         evidence.RawText = TextSanitizer.NormalizeDisplay(evidence.RawText, 4000);
@@ -250,51 +255,12 @@ public sealed class TimelineEnricher
 
     private static IEnumerable<string> BuildTokens(UsbDeviceRecord device)
     {
-        if (!string.IsNullOrWhiteSpace(device.Vid) && !string.IsNullOrWhiteSpace(device.Pid))
-        {
-            yield return $"VID_{device.Vid}";
-            yield return $"PID_{device.Pid}";
-            yield return $"VID_{device.Vid}&PID_{device.Pid}";
-            yield return $"Vid_{device.Vid}Pid_{device.Pid}";
-            yield return $"{device.Vid}:{device.Pid}";
-        }
-
-        foreach (var field in new[]
-                 {
-                     device.FriendlyName,
-                     device.Product,
-                     device.Manufacturer,
-                     device.Serial,
-                     device.DeviceInstanceId
-                 })
-        {
-            foreach (var token in CompactVidPidParser.BuildMatchTokens(field))
-            {
-                yield return token;
-            }
-        }
-
-        foreach (var token in new[]
-                 {
-                     device.Serial,
-                     device.ContainerId,
-                     device.ParentIdPrefix,
-                     device.DeviceInstanceId
-                 })
-        {
-            var cleaned = NormalizeStrongToken(token);
-            if (IsStrongToken(cleaned))
-            {
-                yield return cleaned;
-            }
-        }
+        return DeviceEvidenceTokens.Build(device);
     }
 
     private static bool ContainsToken(EvidenceRecord evidence, string token)
     {
-        return evidence.DeviceHint.Contains(token, StringComparison.OrdinalIgnoreCase)
-               || evidence.Summary.Contains(token, StringComparison.OrdinalIgnoreCase)
-               || evidence.RawText.Contains(token, StringComparison.OrdinalIgnoreCase);
+        return DeviceEvidenceTokens.Contains(evidence, token);
     }
 
     private static bool IsConnectionEvidence(EvidenceRecord evidence)
@@ -371,32 +337,6 @@ public sealed class TimelineEnricher
         }
 
         return "Сырой системный артефакт";
-    }
-
-    private static string NormalizeStrongToken(string value)
-    {
-        return value.Trim().Trim('{', '}').Replace(@"\\", @"\");
-    }
-
-    private static bool IsStrongToken(string value)
-    {
-        if (value.Length < 8)
-        {
-            return false;
-        }
-
-        if (value.Equals("00000000", StringComparison.OrdinalIgnoreCase)
-            || value.Contains("Windows", StringComparison.OrdinalIgnoreCase)
-            || value.Contains("Volume", StringComparison.OrdinalIgnoreCase)
-            || value.Contains("Generic", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        return value.Contains('\\')
-               || value.Contains('&')
-               || value.Contains('-')
-               || value.Any(char.IsDigit);
     }
 
     private static string ExplainEvidence(EvidenceRecord evidence)

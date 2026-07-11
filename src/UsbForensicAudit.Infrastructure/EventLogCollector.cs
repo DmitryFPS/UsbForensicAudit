@@ -4,102 +4,99 @@ namespace UsbForensicAudit;
 
 public sealed class EventLogCollector : IEvidenceCollector
 {
+    private sealed record ChannelDefinition(
+        string Channel,
+        string Provider,
+        int[] EventIds,
+        bool Optional = true);
+
+    private static readonly ChannelDefinition[] Definitions =
+    [
+        new("System", "Microsoft-Windows-Eventlog", [104], false),
+        new("System", "Microsoft-Windows-UserPnp", [20001, 20003, 20006]),
+        new("System", "Microsoft-Windows-Kernel-PnP", [400, 410, 411, 420, 430]),
+        new("Security", "Microsoft-Windows-Security-Auditing", [1102, 6416], false),
+        new("Microsoft-Windows-Kernel-PnP/Configuration", "Microsoft-Windows-Kernel-PnP", [400, 410, 411, 420, 430]),
+        new("Microsoft-Windows-Kernel-PnP/Device Configuration", "Microsoft-Windows-Kernel-PnP", [400, 410, 411, 420, 430]),
+        new("Microsoft-Windows-Storage-ClassPnP/Operational", "Microsoft-Windows-Storage-ClassPnP", [507, 510, 511, 512]),
+        new("Microsoft-Windows-Partition/Diagnostic", "Microsoft-Windows-Partition", [1006]),
+        new("Microsoft-Windows-WPD-MTPClassDriver/Operational", "Microsoft-Windows-WPD-MTPClassDriver", []),
+        new("Microsoft-Windows-DeviceSetupManager/Admin", "Microsoft-Windows-DeviceSetupManager", [100, 101, 112, 131, 200, 201, 202]),
+        new("Microsoft-Windows-DeviceSetupManager/Operational", "Microsoft-Windows-DeviceSetupManager", [100, 101, 112, 131, 200, 201, 202]),
+        new("Microsoft-Windows-DriverFrameworks-UserMode/Admin", "Microsoft-Windows-DriverFrameworks-UserMode", [2003, 2004, 2005, 2006, 2100, 2101, 2102, 2105]),
+        new("Microsoft-Windows-DriverFrameworks-UserMode/Operational", "Microsoft-Windows-DriverFrameworks-UserMode", [2003, 2004, 2005, 2006, 2100, 2101, 2102, 2105])
+    ];
+
     public string ProgressMessage => "Чтение Windows Event Logs...";
 
     public bool ShouldRun => true;
 
     IReadOnlyList<EvidenceRecord> IEvidenceCollector.Collect(List<string> warnings) => Collect(warnings);
 
-    private static readonly string[] Logs =
-    [
-        "System",
-        "Security",
-        "Microsoft-Windows-DeviceSetupManager/Admin",
-        "Microsoft-Windows-DriverFrameworks-UserMode/Operational"
-    ];
-
-    public IReadOnlyList<EvidenceRecord> Collect(List<string> warnings, int maxPerLog = 500)
+    public IReadOnlyList<EvidenceRecord> Collect(List<string> warnings, int maxPerChannel = 5000)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxPerChannel, 1);
         var results = new List<EvidenceRecord>();
 
-        foreach (var logName in Logs)
+        foreach (var definition in Definitions)
         {
             try
             {
-                ReadLog(logName, results, maxPerLog);
+                ReadLog(definition, results, warnings, maxPerChannel);
+            }
+            catch (EventLogNotFoundException) when (definition.Optional)
+            {
+                // Optional analytic/operational channels differ between Windows versions and editions.
             }
             catch (Exception ex)
             {
-                warnings.Add($"Журнал {logName} недоступен: {ex.Message}");
+                warnings.Add($"Журнал {definition.Channel} ({definition.Provider}) недоступен: {ex.Message}");
             }
         }
 
         return results;
     }
 
-    private static void ReadLog(string logName, List<EvidenceRecord> results, int maxPerLog)
+    private static void ReadLog(
+        ChannelDefinition definition,
+        ICollection<EvidenceRecord> results,
+        ICollection<string> warnings,
+        int maxPerChannel)
     {
-        var query = new EventLogQuery(logName, PathType.LogName, "*[System[(EventID=104 or EventID=1102 or EventID=6416 or EventID=20001 or EventID=20003 or EventID=20006 or EventID=2100 or EventID=2101 or EventID=2102 or EventID=2105 or EventID=400 or EventID=410 or EventID=411 or EventID=420 or EventID=430 or EventID=1006 or EventID=1008)]]")
+        var query = new EventLogQuery(definition.Channel, PathType.LogName, BuildXPath(definition))
         {
             ReverseDirection = true
         };
 
         using var reader = new EventLogReader(query);
-        var read = 0;
-        for (var record = reader.ReadEvent(); record is not null && read < maxPerLog; record = reader.ReadEvent())
+        var scanned = 0;
+        while (scanned < maxPerChannel)
         {
-            using (record)
+            using var record = reader.ReadEvent();
+            if (record is null)
             {
-                var message = SafeFormat(record);
-                if (!IsRelevant(record, message))
-                {
-                    continue;
-                }
+                return;
+            }
 
-                var rawText = record.Id is 104 or 1102 ? SafeXml(record) : message;
+            scanned++;
+            var xml = SafeXml(record);
+            if (!EventLogRecordParser.TryParse(xml, out var parsed) || parsed is null)
+            {
+                continue;
+            }
 
-                results.Add(new EvidenceRecord
-                {
-                    TimestampUtc = record.TimeCreated.HasValue ? new DateTimeOffset(record.TimeCreated.Value).ToUniversalTime() : DateTimeOffset.UtcNow,
-                    Source = string.IsNullOrWhiteSpace(record.ProviderName) ? logName : $"{logName}/{record.ProviderName}",
-                    EvidenceCategory = ClassifyEvent(record.Id, message),
-                    UserExplanation = ExplainEvent(record.Id, message),
-                    EventId = record.Id.ToString(),
-                    Level = record.LevelDisplayName ?? "",
-                    DeviceHint = ExtractDeviceHint(message),
-                    Summary = FirstLine(message),
-                    RawText = rawText
-                });
-
-                read++;
+            var evidence = EventLogRecordParser.ToEvidence(parsed, SafeFormat(record));
+            if (evidence is not null)
+            {
+                evidence.Level = record.LevelDisplayName ?? "";
+                results.Add(evidence);
             }
         }
-    }
 
-    private static bool IsRelevant(EventRecord record, string message)
-    {
-        if (record.Id is 104 or 1102 or 6416 or 20001 or 20003 or 20006 or 2100 or 2101 or 2102 or 2105)
-        {
-            return true;
-        }
-
-        return message.Contains("USB", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("VID_", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("disk", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("device", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string SafeFormat(EventRecord record)
-    {
-        try
-        {
-            return record.FormatDescription() ?? "";
-        }
-        catch
-        {
-            return string.Join(" | ", record.Properties.Select(x => x.Value?.ToString()).Where(x => !string.IsNullOrWhiteSpace(x)));
-        }
+        EventLogRetentionPolicy.AddCapWarning(
+            warnings,
+            $"{definition.Channel} ({definition.Provider})",
+            maxPerChannel);
     }
 
     private static string SafeXml(EventRecord record)
@@ -110,96 +107,31 @@ public sealed class EventLogCollector : IEvidenceCollector
         }
         catch
         {
-            return SafeFormat(record);
+            return "";
         }
     }
 
-    private static string FirstLine(string text)
+    private static string SafeFormat(EventRecord record)
     {
-        var line = text.Split(["\r\n", "\n"], StringSplitOptions.None).FirstOrDefault() ?? "";
-        return line.Length > 240 ? line[..240] : line;
+        try
+        {
+            return record.FormatDescription() ?? "";
+        }
+        catch
+        {
+            return "";
+        }
     }
 
-    private static string ExtractDeviceHint(string message)
+    private static string BuildXPath(ChannelDefinition definition)
     {
-        var markers = new[] { "USBSTOR", @"USB\", "VID_", "WPDBUSENUM" };
-        foreach (var marker in markers)
+        var providerClause = $"Provider[@Name='{definition.Provider}']";
+        if (definition.EventIds.Length == 0)
         {
-            var index = message.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
-            if (index >= 0)
-            {
-                var hint = message[index..].ReplaceLineEndings(" ");
-                return hint.Length > 180 ? hint[..180] : hint;
-            }
+            return $"*[System[{providerClause}]]";
         }
 
-        return "";
-    }
-
-    private static string ClassifyEvent(int eventId, string message)
-    {
-        if (eventId is 104 or 1102)
-        {
-            return "Очистка журнала";
-        }
-
-        if (eventId == 6416)
-        {
-            return "Подключение/распознавание устройства";
-        }
-
-        if (LooksLikeDisconnect(message))
-        {
-            return "Отключение/удаление устройства";
-        }
-
-        if (LooksLikeConnect(message) || eventId is 20001 or 20003 or 20006 or 2100 or 2101 or 2102 or 2105)
-        {
-            return "Подключение/инициализация устройства";
-        }
-
-        return "Системное событие устройства";
-    }
-
-    private static string ExplainEvent(int eventId, string message)
-    {
-        if (eventId == 6416)
-        {
-            return "Security Audit PNP Activity: Windows распознала новое внешнее устройство. Доступно только если включен аудит PnP.";
-        }
-
-        if (eventId is 104 or 1102)
-        {
-            return "Событие очистки журнала Windows. Это прямой индикатор возможной зачистки следов.";
-        }
-
-        if (LooksLikeDisconnect(message))
-        {
-            return "Событие похоже на отключение, удаление или остановку устройства. Точность зависит от текста события конкретной сборки Windows.";
-        }
-
-        return "Событие Windows Event Log, связанное с установкой, запуском драйвера или PnP-состоянием устройства.";
-    }
-
-    private static bool LooksLikeConnect(string message)
-    {
-        return message.Contains("connected", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("started", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("configured", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("recognized", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("подключ", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("запущ", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("распознан", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool LooksLikeDisconnect(string message)
-    {
-        return message.Contains("disconnect", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("removed", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("stopped", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("surprise removal", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("отключ", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("удален", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("останов", StringComparison.OrdinalIgnoreCase);
+        var ids = string.Join(" or ", definition.EventIds.Select(id => $"EventID={id}"));
+        return $"*[System[{providerClause} and ({ids})]]";
     }
 }

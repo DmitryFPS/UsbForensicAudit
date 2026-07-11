@@ -56,6 +56,14 @@ public sealed class AuditStorage : IAuditStorage
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp_utc TEXT NOT NULL,
                 source TEXT NOT NULL,
+                provider TEXT,
+                channel TEXT,
+                record_id INTEGER,
+                computer TEXT,
+                source_file TEXT,
+                source_record TEXT,
+                evidence_category TEXT,
+                user_explanation TEXT,
                 event_id TEXT,
                 level TEXT,
                 device_hint TEXT,
@@ -63,6 +71,8 @@ public sealed class AuditStorage : IAuditStorage
                 raw_text TEXT
             );
             """);
+
+        EnsureEvidenceColumns(connection);
 
         Execute(connection, """
             CREATE TABLE IF NOT EXISTS cleanup_findings (
@@ -81,6 +91,38 @@ public sealed class AuditStorage : IAuditStorage
         using var command = connection.CreateCommand();
         command.CommandText = sql;
         command.ExecuteNonQuery();
+    }
+
+    private static void EnsureEvidenceColumns(SqliteConnection connection)
+    {
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA table_info(evidence);";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                existing.Add(reader.GetString(1));
+            }
+        }
+
+        foreach (var (name, type) in new[]
+                 {
+                     ("provider", "TEXT"),
+                     ("channel", "TEXT"),
+                     ("record_id", "INTEGER"),
+                     ("computer", "TEXT"),
+                     ("source_file", "TEXT"),
+                     ("source_record", "TEXT"),
+                     ("evidence_category", "TEXT"),
+                     ("user_explanation", "TEXT")
+                 })
+        {
+            if (!existing.Contains(name))
+            {
+                Execute(connection, $"ALTER TABLE evidence ADD COLUMN {name} {type};");
+            }
+        }
     }
 
     private void SaveSqlite(AuditResult result)
@@ -118,11 +160,23 @@ public sealed class AuditStorage : IAuditStorage
             using var command = connection.CreateCommand();
             command.Transaction = tx;
             command.CommandText = """
-                INSERT INTO evidence (timestamp_utc, source, event_id, level, device_hint, summary, raw_text)
-                VALUES ($timestamp_utc, $source, $event_id, $level, $device_hint, $summary, $raw_text);
+                INSERT INTO evidence (
+                    timestamp_utc, source, provider, channel, record_id, computer, source_file, source_record,
+                    evidence_category, user_explanation, event_id, level, device_hint, summary, raw_text)
+                VALUES (
+                    $timestamp_utc, $source, $provider, $channel, $record_id, $computer, $source_file, $source_record,
+                    $evidence_category, $user_explanation, $event_id, $level, $device_hint, $summary, $raw_text);
                 """;
             command.Parameters.AddWithValue("$timestamp_utc", evidence.TimestampUtc.ToString("O"));
             command.Parameters.AddWithValue("$source", evidence.Source);
+            command.Parameters.AddWithValue("$provider", evidence.Provider);
+            command.Parameters.AddWithValue("$channel", evidence.Channel);
+            command.Parameters.AddWithValue("$record_id", evidence.RecordId.HasValue ? evidence.RecordId.Value : DBNull.Value);
+            command.Parameters.AddWithValue("$computer", evidence.Computer);
+            command.Parameters.AddWithValue("$source_file", evidence.SourceFile);
+            command.Parameters.AddWithValue("$source_record", evidence.SourceRecord);
+            command.Parameters.AddWithValue("$evidence_category", evidence.EvidenceCategory);
+            command.Parameters.AddWithValue("$user_explanation", evidence.UserExplanation);
             command.Parameters.AddWithValue("$event_id", evidence.EventId);
             command.Parameters.AddWithValue("$level", evidence.Level);
             command.Parameters.AddWithValue("$device_hint", evidence.DeviceHint);

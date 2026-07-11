@@ -79,6 +79,12 @@ public sealed class EvidenceRecord
 {
     public DateTimeOffset TimestampUtc { get; set; } = DateTimeOffset.UtcNow;
     public string Source { get; set; } = "";
+    public string Provider { get; set; } = "";
+    public string Channel { get; set; } = "";
+    public long? RecordId { get; set; }
+    public string Computer { get; set; } = "";
+    public string SourceFile { get; set; } = "";
+    public string SourceRecord { get; set; } = "";
     public string EvidenceCategory { get; set; } = "";
     public string UserExplanation { get; set; } = "";
     public string EventId { get; set; } = "";
