@@ -176,23 +176,34 @@ public class CleanerToolCatalogTests
     [Theory]
     [InlineData("C:\\Tools\\USBDeview.exe", "usbdeview")]
     [InlineData("wevtutil cl Security", "wevtutil")]
+    [InlineData("USBTRACECLEANER_V1.6.0.EXE-5F6F6390.pf", "usbtracecleaner")]
+    [InlineData(@"C:\Tools\USB Trace Cleaner\USBTraceCleaner.exe", "usbtracecleaner")]
     public void Match_finds_known_patterns(string text, string expected)
     {
-        Assert.Equal(expected, CleanerToolCatalog.Match(text));
+        Assert.Equal(expected, CleanerToolCatalog.Match(text) ?? CleanerToolCatalog.MatchTrackedUtility(text));
     }
 
     [Fact]
     public void DisplayName_localizes_patterns()
     {
         Assert.Equal("USBDeview", CleanerToolCatalog.DisplayName("usbdeview"));
+        Assert.Equal("USB Trace Cleaner", CleanerToolCatalog.DisplayName("usbtracecleaner"));
         Assert.Contains("PowerShell", CleanerToolCatalog.DisplayName("powershell"));
+    }
+
+    [Fact]
+    public void NormalizeExecutableToken_strips_prefetch_suffix_and_version()
+    {
+        Assert.Equal("usbtracecleaner", CleanerToolCatalog.NormalizeExecutableToken("USBTRACECLEANER_V1.6.0.EXE-5F6F6390.pf"));
     }
 
     [Fact]
     public void IsUsbForensicUtility_detects_forensic_tools_only()
     {
         Assert.True(CleanerToolCatalog.IsUsbForensicUtility("USBDeview"));
+        Assert.True(CleanerToolCatalog.IsUsbForensicUtility("USB Trace Cleaner"));
         Assert.False(CleanerToolCatalog.IsUsbForensicUtility("CCleaner"));
+        Assert.True(CleanerToolCatalog.IsTraceRemovalTool("USB Trace Cleaner"));
     }
 }
 
