@@ -65,14 +65,17 @@ public class UserDisplayTextTests
     [Theory]
     [InlineData("ToolLaunch", "Запуск утилиты")]
     [InlineData("LogClearing", "Очистка журналов")]
+    [InlineData("ControlSetDifference", "Различие ControlSet")]
+    [InlineData("NormalMigrationContext", "Штатная миграция/ротация Windows")]
     public void ActionKind_translates_values(string input, string expected)
     {
         Assert.Equal(expected, UserDisplayText.ActionKind(input));
     }
 
     [Theory]
-    [InlineData("Normal", "Норма (после установки)")]
+    [InlineData("Normal", "Контекст установки ОС")]
     [InlineData("Probable", "Вероятно")]
+    [InlineData("ContextRequired", "Требуется контекст")]
     public void Confidence_translates_values(string input, string expected)
     {
         Assert.Equal(expected, UserDisplayText.Confidence(input));
@@ -103,10 +106,12 @@ public class UserDisplayTextTests
         Assert.Equal("не указан", UserDisplayText.Serial(null));
     }
 
-    [Fact]
-    public void Assessment_translates_os_install()
+    [Theory]
+    [InlineData("OsInstall", "Контекст установки ОС")]
+    [InlineData("Informational", "Информационно")]
+    public void Assessment_translates_values(string input, string expected)
     {
-        Assert.Equal("Норма: ОС после установки", UserDisplayText.Assessment("OsInstall"));
+        Assert.Equal(expected, UserDisplayText.Assessment(input));
     }
 
     [Fact]

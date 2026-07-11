@@ -30,8 +30,9 @@ public static class UserDisplayText
 
     public static string Assessment(string? value) => value switch
     {
-        "OsInstall" => "Норма: ОС после установки",
+        "OsInstall" => "Контекст установки ОС",
         "Suspicious" => "Подозрительно",
+        "Informational" => "Информационно",
         _ => value ?? "Подозрительно"
     };
 
@@ -43,10 +44,11 @@ public static class UserDisplayText
 
     public static string Confidence(string? value) => value switch
     {
-        "Normal" => "Норма (после установки)",
+        "Normal" => "Контекст установки ОС",
         "Confirmed" => "Подтверждено",
         "Probable" => "Вероятно",
         "Indirect" => "Косвенный след",
+        "ContextRequired" => "Требуется контекст",
         "Unknown" => "Не определено",
         _ => value ?? "Не определено"
     };
@@ -68,7 +70,9 @@ public static class UserDisplayText
         "LogClearing" => "Очистка журналов",
         "RegistryArtifact" => "Изменение реестра/файлов",
         "Correlation" => "Противоречие источников",
-        "OsInstall" => "Норма после установки ОС",
+        "ControlSetDifference" => "Различие ControlSet",
+        "NormalMigrationContext" => "Штатная миграция/ротация Windows",
+        "OsInstall" => "Контекст установки ОС",
         _ => "Не определено"
     };
 
