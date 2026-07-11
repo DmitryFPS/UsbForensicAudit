@@ -120,6 +120,7 @@ public sealed class VolumeIdentity
 public sealed class EvidenceRecord
 {
     public DateTimeOffset TimestampUtc { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset AcquisitionTimestampUtc { get; set; } = DateTimeOffset.UtcNow;
     public string Source { get; set; } = "";
     public string Provider { get; set; } = "";
     public string Channel { get; set; } = "";
@@ -134,6 +135,8 @@ public sealed class EvidenceRecord
     public string DeviceHint { get; set; } = "";
     public string Summary { get; set; } = "";
     public string RawText { get; set; } = "";
+    public string SourceSha256 { get; set; } = "";
+    public string Provenance { get; set; } = "";
 
     [JsonIgnore]
     public string TimestampText => DateDisplay.FormatMoscow(TimestampUtc);

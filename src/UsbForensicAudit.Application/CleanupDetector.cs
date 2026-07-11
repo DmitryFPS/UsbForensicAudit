@@ -145,42 +145,55 @@ public sealed class CleanupDetector
 
     private static void AnalyzeContradictions(AuditResult result, List<CleanupFinding> findings)
     {
-        var usbStorDevices = result.Devices.Count(x => x.Source.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase));
+        var usbStorDevices = result.Devices.Count(x =>
+            x.Source.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase)
+            && !x.VisualCategory.Equals("HistoricalResidual", StringComparison.OrdinalIgnoreCase));
         var setupApiUsb = result.Evidence.Count(x => x.Source.Contains("setupapi", StringComparison.OrdinalIgnoreCase));
+        var hasNormalMigrationContext = result.Evidence.Any(x =>
+            x.Source.Contains("Windows.old", StringComparison.OrdinalIgnoreCase)
+            || x.Source.Contains("offline hive", StringComparison.OrdinalIgnoreCase)
+            || x.Source.Equals("ControlSet differential", StringComparison.OrdinalIgnoreCase));
 
         if (usbStorDevices > 0 && setupApiUsb == 0)
         {
             findings.Add(new CleanupFinding
             {
-                Severity = "Medium",
-                Assessment = "Suspicious",
+                Severity = hasNormalMigrationContext ? "Info" : "Medium",
+                Assessment = hasNormalMigrationContext ? "Informational" : "Suspicious",
                 InitiatorKind = "Unknown",
                 InitiatorAccount = "не определено",
                 PossibleTool = "не определено",
                 Confidence = "Indirect",
-                ActionKind = "Correlation",
+                ActionKind = hasNormalMigrationContext ? "NormalMigrationContext" : "Correlation",
                 Area = "Correlation",
                 Finding = "USBSTOR есть в реестре, но нет USB-записей SetupAPI",
-                Details = $"Найдено USBSTOR-устройств: {usbStorDevices}. В setupapi.dev.log релевантных USB-записей не найдено. {CleanupAttribution.BuildAttributionDetails(InitiatorInfo.Unknown, null, "Indirect")}"
+                Details = $"Найдено USBSTOR-устройств: {usbStorDevices}. В setupapi.dev.log релевантных USB-записей не найдено. " +
+                          (hasNormalMigrationContext
+                              ? "Обнаружен контекст миграции/ротации Windows; различие не трактуется как очистка без независимого подтверждения."
+                              : CleanupAttribution.BuildAttributionDetails(InitiatorInfo.Unknown, null, "Indirect"))
             });
         }
 
         var mountedHints = result.Devices.Any(x => x.Source.Contains("MountedDevices", StringComparison.OrdinalIgnoreCase));
-        var usbDevices = result.Devices.Count(x => x.Source.Contains("USB", StringComparison.OrdinalIgnoreCase));
+        var usbDevices = result.Devices.Count(x =>
+            x.Source.Contains("USB", StringComparison.OrdinalIgnoreCase)
+            && !x.VisualCategory.Equals("HistoricalResidual", StringComparison.OrdinalIgnoreCase));
         if (mountedHints && usbDevices == 0)
         {
             findings.Add(new CleanupFinding
             {
-                Severity = "Low",
-                Assessment = "Suspicious",
+                Severity = hasNormalMigrationContext ? "Info" : "Low",
+                Assessment = hasNormalMigrationContext ? "Informational" : "Suspicious",
                 InitiatorKind = "Unknown",
                 InitiatorAccount = "не определено",
                 PossibleTool = "не определено",
                 Confidence = "Indirect",
-                ActionKind = "Correlation",
+                ActionKind = hasNormalMigrationContext ? "NormalMigrationContext" : "Correlation",
                 Area = "Correlation",
                 Finding = "Есть MountedDevices, но нет USB-устройств",
-                Details = $"Это может быть нормальным состоянием или следствием удаления Enum\\USB/USBSTOR. {CleanupAttribution.BuildAttributionDetails(InitiatorInfo.Unknown, null, "Indirect")}"
+                Details = hasNormalMigrationContext
+                    ? "Есть признаки миграции/ротации Windows; состояние сохранено как нейтральное различие и не считается подтверждением очистки."
+                    : $"Это может быть нормальным состоянием или следствием удаления Enum\\USB/USBSTOR. {CleanupAttribution.BuildAttributionDetails(InitiatorInfo.Unknown, null, "Indirect")}"
             });
         }
     }
