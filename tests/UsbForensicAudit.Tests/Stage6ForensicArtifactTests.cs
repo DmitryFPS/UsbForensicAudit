@@ -37,6 +37,79 @@ public sealed class Stage6ForensicArtifactTests
     }
 
     [Fact]
+    public void Shellbag_parser_filters_non_usb_node_and_keeps_usb_marker()
+    {
+        static byte[] Item(string text)
+        {
+            var payload = Encoding.Unicode.GetBytes(text + "\0");
+            var bytes = new byte[payload.Length + 4];
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes, checked((ushort)(payload.Length + 2)));
+            payload.CopyTo(bytes, 2);
+            return bytes;
+        }
+
+        var internalNode = ForensicArtifactParsers.ParseShellBagNode(Item(@"C:\Windows"), "", 7);
+        var usbNode = ForensicArtifactParsers.ParseShellBagNode(Item(@"USBSTOR\Disk\SERIAL"), "", 8);
+
+        Assert.False(internalNode.IsUsbRelevant);
+        Assert.True(usbNode.IsUsbRelevant);
+        Assert.Equal(8, usbNode.Slot);
+    }
+
+    [Fact]
+    public void Custom_jump_list_extracts_embedded_shell_link_fixture()
+    {
+        var link = new byte[0x4C];
+        BinaryPrimitives.WriteUInt32LittleEndian(link, 0x4C);
+        new byte[]
+        {
+            0x01, 0x14, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46
+        }.CopyTo(link, 4);
+
+        var entry = Assert.Single(ForensicArtifactParsers.ParseCustomJumpList(link, "test-app"));
+
+        Assert.Equal("test-app", entry.AppId);
+        Assert.StartsWith("test-app:custom:", entry.Link.LinkPath, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Automatic_jump_list_extracts_embedded_shell_link_fixture()
+    {
+        var entry = Assert.Single(
+            ForensicArtifactParsers.ParseAutomaticJumpList(BuildAutomaticJumpListFixture(), "automatic-app"));
+
+        Assert.Equal("automatic-app", entry.AppId);
+        Assert.Equal("1", entry.StreamName);
+        Assert.Equal("automatic-app:1", entry.Link.LinkPath);
+    }
+
+    [Fact]
+    public void Pca_and_bam_helpers_preserve_execution_semantics()
+    {
+        Assert.Equal("Indirect",
+            ExecutionArtifactCollector.ClassifyPrefetchEvidenceStrength(cleanerMatched: false));
+        Assert.Equal("Direct",
+            ExecutionArtifactCollector.ClassifyPrefetchEvidenceStrength(cleanerMatched: true));
+        Assert.Equal("Corroborating",
+            ExecutionArtifactCollector.ClassifyPcaEvidenceStrength("PcaAppLaunchDic.txt"));
+        Assert.Equal("Indirect",
+            ExecutionArtifactCollector.ClassifyPcaEvidenceStrength("PcaGeneralDb0.txt"));
+
+        var expected = new DateTimeOffset(2026, 4, 5, 6, 7, 8, TimeSpan.Zero);
+        var bytes = BitConverter.GetBytes(expected.ToFileTime());
+        Assert.Equal(expected, ExecutionArtifactCollector.TryFileTime(bytes));
+        Assert.Null(ExecutionArtifactCollector.TryFileTime([1, 2, 3]));
+    }
+
+    [Fact]
+    public void Sid_mapping_falls_back_safely_for_unknown_sid()
+    {
+        Assert.Equal("fallback-user",
+            UserArtifactCollector.ResolveAccountName("not-a-valid-sid", "fallback-user"));
+    }
+
+    [Fact]
     public void Shimcache_parser_rejects_unknown_layout_and_parses_10ts_without_execution_claim()
     {
         var unsupported = ForensicArtifactParsers.ParseShimcache(new byte[32]);
@@ -247,5 +320,55 @@ public sealed class Stage6ForensicArtifactTests
             Provenance = "event log"
         });
         return result;
+    }
+
+    private static byte[] BuildAutomaticJumpListFixture()
+    {
+        const uint free = 0xFFFFFFFF;
+        const uint end = 0xFFFFFFFE;
+        var data = new byte[2048];
+        new byte[] { 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 }.CopyTo(data, 0);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(0x1E, 2), 9);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(0x20, 2), 6);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0x30, 4), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0x38, 4), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0x3C, 4), end);
+        for (var index = 0; index < 109; index++)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0x4C + index * 4, 4), free);
+        }
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0x4C, 4), 0);
+
+        var fat = data.AsSpan(512, 512);
+        for (var offset = 0; offset < fat.Length; offset += 4)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(fat.Slice(offset, 4), free);
+        }
+        BinaryPrimitives.WriteUInt32LittleEndian(fat.Slice(0, 4), 0xFFFFFFFD);
+        BinaryPrimitives.WriteUInt32LittleEndian(fat.Slice(4, 4), end);
+        BinaryPrimitives.WriteUInt32LittleEndian(fat.Slice(8, 4), end);
+
+        static void DirectoryEntry(Span<byte> entry, string name, byte type, uint start, ulong size)
+        {
+            var encoded = Encoding.Unicode.GetBytes(name + "\0");
+            encoded.CopyTo(entry);
+            BinaryPrimitives.WriteUInt16LittleEndian(entry.Slice(0x40, 2), checked((ushort)encoded.Length));
+            entry[0x42] = type;
+            BinaryPrimitives.WriteUInt32LittleEndian(entry.Slice(0x74, 4), start);
+            BinaryPrimitives.WriteUInt64LittleEndian(entry.Slice(0x78, 8), size);
+        }
+
+        var directory = data.AsSpan(1024, 512);
+        DirectoryEntry(directory.Slice(0, 128), "Root Entry", 5, end, 0);
+        DirectoryEntry(directory.Slice(128, 128), "1", 2, 2, 0x4C);
+
+        var link = data.AsSpan(1536, 0x4C);
+        BinaryPrimitives.WriteUInt32LittleEndian(link, 0x4C);
+        new byte[]
+        {
+            0x01, 0x14, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46
+        }.CopyTo(link.Slice(4));
+        return data;
     }
 }

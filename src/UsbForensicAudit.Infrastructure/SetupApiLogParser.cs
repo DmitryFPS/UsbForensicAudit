@@ -52,7 +52,12 @@ internal static partial class SetupApiLogParser
                     Level = "Info",
                     DeviceHint = deviceHint,
                     Summary = string.IsNullOrWhiteSpace(title) ? $"SetupAPI section {sectionNumber}" : title,
-                    RawText = rawText
+                    RawText = rawText,
+                    Provenance =
+                        $"SetupAPI section: file={sourcePath}; section={sectionNumber}; timestamp={timestamp.Value:O}",
+                    EvidenceStrength = "Direct",
+                    Confidence = "High",
+                    CanEstablishConnectionDate = true
                 });
             }
 

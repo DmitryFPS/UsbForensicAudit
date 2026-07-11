@@ -88,6 +88,54 @@ public class TimelineEnricherTests
     }
 
     [Fact]
+    public void Evidence_explicitly_forbidden_from_dates_cannot_set_connection_time()
+    {
+        var result = new AuditResult { StartedAtUtc = DateTimeOffset.UtcNow };
+        result.Devices.Add(new UsbDeviceRecord
+        {
+            DeviceInstanceId = @"USB\VID_1234&PID_5678\SERIAL01",
+            Vid = "1234",
+            Pid = "5678",
+            Serial = "SERIAL01"
+        });
+        result.Evidence.Add(new EvidenceRecord
+        {
+            TimestampUtc = result.StartedAtUtc.AddDays(-1),
+            EvidenceCategory = "Подключение USB",
+            DeviceHint = @"USB\VID_1234&PID_5678\SERIAL01",
+            CanEstablishConnectionDate = false
+        });
+
+        new TimelineEnricher().Enrich(result);
+
+        Assert.Null(result.Devices[0].FirstConnectedUtc);
+    }
+
+    [Fact]
+    public void Same_vid_pid_different_serial_cannot_inherit_connection_time()
+    {
+        var result = new AuditResult { StartedAtUtc = DateTimeOffset.UtcNow };
+        result.Devices.Add(new UsbDeviceRecord
+        {
+            DeviceInstanceId = @"USB\VID_1234&PID_5678\SERIAL-A",
+            Vid = "1234",
+            Pid = "5678",
+            Serial = "SERIAL-A"
+        });
+        result.Evidence.Add(new EvidenceRecord
+        {
+            TimestampUtc = result.StartedAtUtc.AddDays(-1),
+            EvidenceCategory = "Подключение USB",
+            DeviceHint = @"USB\VID_1234&PID_5678\SERIAL-B",
+            CanEstablishConnectionDate = true
+        });
+
+        new TimelineEnricher().Enrich(result);
+
+        Assert.Null(result.Devices[0].FirstConnectedUtc);
+    }
+
+    [Fact]
     public void UserExplanationText_shows_mixed_russian_and_latin_terms()
     {
         var evidence = new EvidenceRecord

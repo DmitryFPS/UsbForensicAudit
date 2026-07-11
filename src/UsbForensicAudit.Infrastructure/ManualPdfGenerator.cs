@@ -388,14 +388,14 @@ public static class ManualPdfGenerator
 
         SubTitle(column, "Пользовательские источники");
         Bullet(column, "MountPoints2, RecentDocs, OpenSavePidlMRU, LastVisitedPidlMRU, Shellbags.");
-        Bullet(column, "LNK-файлы, Jump Lists, offline NTUSER.DAT и UsrClass.dat, Recycle Bin $I/$R.");
+        Bullet(column, "LNK-файлы, Jump Lists, offline NTUSER.DAT и UsrClass.dat, метаданные Recycle Bin $I.");
 
         SubTitle(column, "Исполнение и очистка");
         Bullet(column, "Prefetch, Amcache, Shimcache, PCA, BAM/DAM — индикаторы запуска программ.");
         Bullet(column, "Security Event ID 4688 — создание процессов wevtutil, PowerShell, USBDeview, USBDetector и др.");
         Bullet(column, "Атрибуция очистки: инициатор из 104/1102, инструмент из Prefetch/4688, уверенность по правилам корреляции.");
         Bullet(column, "Противоречия между источниками (реестр vs setupapi).");
-        Bullet(column, "ScanCoverageReport: статус каждого сборщика, лимиты, % устройств с точной датой.");
+        Bullet(column, "ScanCoverageReport: статус каждого сборщика, лимиты и % устройств с точной датой в HTML/PDF/Excel.");
 
         SubTitle(column, "Live-мониторинг");
         Bullet(column, "События PnP Windows (Win32_DeviceChangeEvent), если система их отдаёт.");

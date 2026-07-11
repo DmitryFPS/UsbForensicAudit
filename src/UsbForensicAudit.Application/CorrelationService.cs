@@ -40,8 +40,14 @@ public sealed class CorrelationService
                 TimestampUtc = lastSeen,
                 Source = "Correlation",
                 EventId = confidence,
+                EvidenceCategory = "Correlation",
+                EvidenceStrength = "Corroborating",
+                Confidence = confidence,
                 DeviceHint = device.DeviceInstanceId,
                 Summary = $"{device.DisplayName}: {matches.Length} related evidence records across {sources.Length} sources; first={firstSeen:u}; last={lastSeen:u}",
+                Provenance =
+                    $"Derived correlation; canonical={device.CanonicalDeviceId}; sources={string.Join(", ", sources)}; tokens={string.Join(", ", tokens)}",
+                CanEstablishConnectionDate = false,
                 RawText = string.Join(Environment.NewLine, new[]
                 {
                     $"Device={device.DisplayName}",

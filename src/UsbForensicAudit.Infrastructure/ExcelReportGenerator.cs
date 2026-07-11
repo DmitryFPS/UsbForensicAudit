@@ -103,15 +103,17 @@ internal static class ExcelReportGenerator
 
         var metricRow = 4;
         AddSectionHeader(worksheet, metricRow++, 4, 6, "Ключевые показатели");
-        foreach (var (label, value) in new[]
+        foreach (var (label, value) in new (string Label, string Value)[]
                  {
-                     ("USB/Type-C записей", context.ReportableDevices.Count),
-                     ("Реальных USB-устройств", context.RealDevices.Count),
-                     ("USB-доказательств", context.Timeline.Count),
-                     ("Релевантных признаков очистки", context.CleanupFindings.Count),
-                     ("Подозрительных", context.SuspiciousCount),
-                     ("Высокий риск", context.HighRiskCount),
-                     ("Предупреждений", result.SourceWarnings.Count)
+                     ("USB/Type-C записей", context.ReportableDevices.Count.ToString()),
+                     ("Реальных USB-устройств", context.RealDevices.Count.ToString()),
+                     ("USB-доказательств", context.Timeline.Count.ToString()),
+                     ("Релевантных признаков очистки", context.CleanupFindings.Count.ToString()),
+                     ("Подозрительных", context.SuspiciousCount.ToString()),
+                     ("Высокий риск", context.HighRiskCount.ToString()),
+                     ("Предупреждений", result.SourceWarnings.Count.ToString()),
+                     ("Canonical с точной датой",
+                         $"{result.Coverage.CanonicalDevicesWithExactDates}/{result.Coverage.CanonicalDeviceCount} ({result.Coverage.ExactDateCoveragePercent:0.##}%)")
                  })
         {
             worksheet.Cell(metricRow, 4).Value = label;
@@ -150,6 +152,26 @@ internal static class ExcelReportGenerator
             4,
             ["Источник", "Количество"],
             context.EvidenceBySource.Select(x => new[] { x.Source, x.Count.ToString() }));
+
+        var coverageRow = tableRow
+                          + Math.Max(context.DevicesByCategory.Count, context.EvidenceBySource.Count)
+                          + 3;
+        AddSectionHeader(worksheet, coverageRow++, 1, 6, "Покрытие источников");
+        WriteSmallTable(
+            worksheet,
+            coverageRow,
+            1,
+            ["Источник", "Статус", "Записей", "Лимит", "Ошибка / ограничение"],
+            result.Coverage.Sources.Select(source => new[]
+            {
+                source.Source,
+                source.Status,
+                source.Count.ToString(),
+                source.Capped
+                    ? source.Limit > 0 ? source.Limit.ToString() : "достигнут"
+                    : "нет",
+                source.Error
+            }));
 
         worksheet.SheetView.FreezeRows(2);
         worksheet.TabColor = HeaderColor;
@@ -213,11 +235,14 @@ internal static class ExcelReportGenerator
                 Column<EvidenceRecord>("Дата и время", 24, x => x.TimestampText),
                 Column<EvidenceRecord>("Категория", 26, x => x.EvidenceCategory),
                 Column<EvidenceRecord>("Источник", 32, x => x.SourceText),
+                Column<EvidenceRecord>("Сила доказательства", 22, x => x.EvidenceStrength),
+                Column<EvidenceRecord>("Уверенность", 18, x => x.Confidence),
                 Column<EvidenceRecord>("Событие", 15, x => x.EventId),
                 Column<EvidenceRecord>("Уровень", 15, x => x.Level),
                 Column<EvidenceRecord>("Связанное устройство", 42, x => x.DeviceHint),
                 Column<EvidenceRecord>("Пояснение", 52, x => x.UserExplanationText),
-                Column<EvidenceRecord>("Подробности", 62, x => x.Summary)
+                Column<EvidenceRecord>("Подробности", 62, x => x.Summary),
+                Column<EvidenceRecord>("Provenance", 70, x => x.Provenance)
             ]);
     }
 

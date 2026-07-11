@@ -60,6 +60,10 @@ public sealed class ExcelReportTests
                 .First(c => c.GetString() == "Область отчёта")
                 .Address.RowNumber;
             Assert.Contains("USB", summary.Cell(scopeRow, 2).GetString());
+            Assert.Contains(summary.Column(1).CellsUsed(),
+                c => c.GetString() == "Покрытие источников");
+            Assert.Contains(summary.Column(1).CellsUsed(),
+                c => c.GetString() == "TestCollector");
 
             var devices = workbook.Worksheet("USB устройства");
             Assert.Equal("Категория", devices.Cell("A4").GetString());
@@ -70,6 +74,8 @@ public sealed class ExcelReportTests
 
             var evidence = workbook.Worksheet("Доказательства");
             Assert.Equal("Подключение USB", evidence.Cell("B5").GetString());
+            Assert.Equal("Direct", evidence.Cell("D5").GetString());
+            Assert.Equal("High", evidence.Cell("E5").GetString());
 
             var cleanup = workbook.Worksheet("Следы очистки");
             Assert.Equal("Высокий", cleanup.Cell("C5").GetString());
@@ -118,6 +124,20 @@ public sealed class ExcelReportTests
             FinishedAtUtc = new DateTimeOffset(2026, 7, 11, 6, 1, 30, TimeSpan.Zero),
             IsAdministrator = true
         };
+        result.Coverage = new ScanCoverageReport
+        {
+            CanonicalDeviceCount = 1,
+            CanonicalDevicesWithExactDates = 1,
+            Sources =
+            [
+                new SourceCoverage
+                {
+                    Source = "TestCollector",
+                    Status = "Complete",
+                    Count = 1
+                }
+            ]
+        };
 
         result.Devices.Add(new UsbDeviceRecord
         {
@@ -144,6 +164,9 @@ public sealed class ExcelReportTests
             EvidenceCategory = "Подключение USB",
             Source = "EventLog: System",
             EventId = "2003",
+            EvidenceStrength = "Direct",
+            Confidence = "High",
+            Provenance = "Windows Event Log: channel=System; record=42",
             DeviceHint = @"USB\VID_0951&PID_1666\SERIAL",
             UserExplanation = "Windows зафиксировала подключение устройства.",
             Summary = "Устройство подключено."
