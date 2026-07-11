@@ -151,7 +151,7 @@ public sealed partial class HistoricalArtifactCollector : IHistoricalArtifactCol
             UserMeaning = "Остаточная запись DeviceMigration. Это исторический след, а не признак текущего подключения.",
             DeviceType = parts[0].Equals("USBSTOR", StringComparison.OrdinalIgnoreCase) ? "Mass Storage"
                 : parts[0].Equals("SWD", StringComparison.OrdinalIgnoreCase) ? "Portable/MTP"
-                : parts[0].Equals("SCSI", StringComparison.OrdinalIgnoreCase) ? "SCSI/UASP Storage"
+                : parts[0].Equals("SCSI", StringComparison.OrdinalIgnoreCase) ? "SCSI Storage"
                 : "USB",
             Serial = parts.Length >= 3 && parts[^1].EndsWith("&0", StringComparison.OrdinalIgnoreCase)
                 ? parts[^1][..^2]

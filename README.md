@@ -224,7 +224,7 @@ UsbForensicAudit/
 │   ├── UsbForensicAudit.Application/      # Use cases, оркестратор, порты, аналитика
 │   └── UsbForensicAudit.Infrastructure/   # Коллекторы, SQLite, PDF, WMI, Win32, Procmon
 ├── tests/
-│   └── UsbForensicAudit.Tests/            # xUnit, coverlet (330 тестов)
+│   └── UsbForensicAudit.Tests/            # xUnit, coverlet (333 теста)
 └── tools/
     ├── GenerateIcon/                      # PNG → ICO для сборки
     ├── GenerateManual/                  # Отдельная legacy-утилита, в portable-сборке не запускается
