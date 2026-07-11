@@ -65,12 +65,14 @@ public sealed class AuditOrchestrator
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
-            progress?.Report("Корреляция device -> evidence -> user artifacts...");
-            result.Evidence.AddRange(_correlationService.BuildDeviceCorrelations(result));
-            cancellationToken.ThrowIfCancellationRequested();
-
             progress?.Report("Сопоставление с устройствами, подключёнными прямо сейчас...");
             _liveDeviceMerger.Merge(result);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            progress?.Report("Корреляция physical device -> volumes -> user artifacts...");
+            DeviceIdentityGraph.Process(result.Devices);
+            VolumeCorrelationService.Process(result);
+            result.Evidence.AddRange(_correlationService.BuildDeviceCorrelations(result));
             cancellationToken.ThrowIfCancellationRequested();
 
             progress?.Report("Расчет дат подключения/отключения и пояснений...");

@@ -48,7 +48,18 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
             }
 
             match.IsCurrentlyConnected = true;
+            foreach (var volume in live.Volumes)
+            {
+                if (!match.Volumes.Any(x => x.DriveLetter.Equals(volume.DriveLetter, StringComparison.OrdinalIgnoreCase)
+                                            && x.VolumeSerialNumber.Equals(volume.VolumeSerialNumber, StringComparison.OrdinalIgnoreCase)))
+                {
+                    match.Volumes.Add(volume);
+                }
+            }
+            PopulateVolumeText(match);
         }
+
+        DeviceIdentityGraph.Process(result.Devices);
     }
 
     private static List<UsbDeviceRecord> CollectLiveRecords(DateTimeOffset scanTime)
@@ -72,6 +83,8 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
             {
                 AddLiveRecord(records, disk["PNPDeviceID"]?.ToString(), Read(disk, "Model"), Read(disk, "Caption"), "", scanTime);
             }
+
+            AddLiveVolumes(records);
         }
         catch
         {
@@ -79,6 +92,65 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
         }
 
         return records;
+    }
+
+    private static void AddLiveVolumes(List<UsbDeviceRecord> records)
+    {
+        using var volumeSearcher = new ManagementObjectSearcher(
+            "SELECT DeviceID, VolumeSerialNumber, VolumeName FROM Win32_LogicalDisk WHERE DriveType = 2");
+        foreach (ManagementObject volume in volumeSearcher.Get())
+        {
+            var drive = Read(volume, "DeviceID").ToUpperInvariant();
+            var pnpId = ResolveVolumePnpId(drive);
+            if (string.IsNullOrWhiteSpace(drive) || string.IsNullOrWhiteSpace(pnpId))
+            {
+                continue;
+            }
+
+            var record = records.FirstOrDefault(x => x.DeviceInstanceId.Equals(pnpId, StringComparison.OrdinalIgnoreCase));
+            if (record is null)
+            {
+                continue;
+            }
+
+            record.Volumes.Add(new VolumeIdentity
+            {
+                DriveLetter = drive,
+                VolumeSerialNumber = NormalizeVolumeSerial(Read(volume, "VolumeSerialNumber")),
+                Source = "Live: WMI associations",
+                Confidence = "High",
+                Provenance = [$"Win32_LogicalDisk {drive} -> partition -> disk PNPDeviceID {pnpId}"]
+            });
+            PopulateVolumeText(record);
+        }
+    }
+
+    private static string ResolveVolumePnpId(string driveLetter)
+    {
+        try
+        {
+            using var partitionSearcher = new ManagementObjectSearcher(
+                $"ASSOCIATORS OF {{Win32_LogicalDisk.DeviceID='{driveLetter.Replace("'", "''", StringComparison.Ordinal)}'}} WHERE AssocClass=Win32_LogicalDiskToPartition");
+            foreach (ManagementObject partition in partitionSearcher.Get())
+            {
+                var partitionId = Read(partition, "DeviceID").Replace("'", "''", StringComparison.Ordinal);
+                using var diskSearcher = new ManagementObjectSearcher(
+                    $"ASSOCIATORS OF {{Win32_DiskPartition.DeviceID='{partitionId}'}} WHERE AssocClass=Win32_DiskDriveToDiskPartition");
+                foreach (ManagementObject disk in diskSearcher.Get())
+                {
+                    var pnp = Read(disk, "PNPDeviceID");
+                    if (!string.IsNullOrWhiteSpace(pnp))
+                    {
+                        return pnp;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // WMI associations are optional enrichment.
+        }
+        return "";
     }
 
     private static void AddLiveRecord(List<UsbDeviceRecord> records, string? pnpId, string name, string caption, string description, DateTimeOffset scanTime)
@@ -127,7 +199,7 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
         records.Add(record);
     }
 
-    private static UsbDeviceRecord? FindMatch(IEnumerable<UsbDeviceRecord> existing, UsbDeviceRecord live)
+    internal static UsbDeviceRecord? FindMatch(IEnumerable<UsbDeviceRecord> existing, UsbDeviceRecord live)
     {
         foreach (var device in existing)
         {
@@ -141,18 +213,7 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
                      x.VisualCategory != "SupportArtifact"
                      && x.VisualCategory != "UsbFlagsTrace"))
         {
-            if (SameVidPid(device, live) && SameSerial(device, live))
-            {
-                return device;
-            }
-
-            if (SameVidPid(device, live) && string.IsNullOrWhiteSpace(device.Serial))
-            {
-                return device;
-            }
-
-            if (!string.IsNullOrWhiteSpace(device.Serial)
-                && live.DeviceInstanceId.Contains(device.Serial, StringComparison.OrdinalIgnoreCase))
+            if (CompatibleVidPid(device, live) && SameHardwareSerial(device, live))
             {
                 return device;
             }
@@ -161,24 +222,24 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
         return null;
     }
 
-    private static bool SameVidPid(UsbDeviceRecord left, UsbDeviceRecord right)
+    private static bool CompatibleVidPid(UsbDeviceRecord left, UsbDeviceRecord right)
     {
-        return !string.IsNullOrWhiteSpace(left.Vid)
-               && !string.IsNullOrWhiteSpace(left.Pid)
-               && left.Vid.Equals(right.Vid, StringComparison.OrdinalIgnoreCase)
-               && left.Pid.Equals(right.Pid, StringComparison.OrdinalIgnoreCase);
+        return (string.IsNullOrWhiteSpace(left.Vid) || string.IsNullOrWhiteSpace(right.Vid)
+                || left.Vid.Equals(right.Vid, StringComparison.OrdinalIgnoreCase))
+               && (string.IsNullOrWhiteSpace(left.Pid) || string.IsNullOrWhiteSpace(right.Pid)
+                   || left.Pid.Equals(right.Pid, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static bool SameSerial(UsbDeviceRecord left, UsbDeviceRecord right)
+    private static bool SameHardwareSerial(UsbDeviceRecord left, UsbDeviceRecord right)
     {
-        if (string.IsNullOrWhiteSpace(left.Serial) || string.IsNullOrWhiteSpace(right.Serial))
+        if (!DeviceIdentityGraph.IsHardwareSerial(left.Serial)
+            || !DeviceIdentityGraph.IsHardwareSerial(right.Serial))
         {
             return false;
         }
 
-        return left.Serial.Equals(right.Serial, StringComparison.OrdinalIgnoreCase)
-               || left.Serial.Contains(right.Serial, StringComparison.OrdinalIgnoreCase)
-               || right.Serial.Contains(left.Serial, StringComparison.OrdinalIgnoreCase);
+        return DeviceIdentityGraph.NormalizeSerial(left.Serial)
+            .Equals(DeviceIdentityGraph.NormalizeSerial(right.Serial), StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ExtractSerial(string pnpId)
@@ -196,5 +257,20 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
     private static string FirstNotEmpty(params string[] values)
     {
         return values.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "";
+    }
+
+    private static string NormalizeVolumeSerial(string value) =>
+        value.Replace("-", "", StringComparison.Ordinal).Trim().ToUpperInvariant();
+
+    private static void PopulateVolumeText(UsbDeviceRecord record)
+    {
+        record.DriveLetters = string.Join(", ", record.Volumes.Select(x => x.DriveLetter)
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase));
+        record.VolumeHints = string.Join("; ", record.Volumes.SelectMany(x => new[]
+            {
+                x.VolumeSerialNumber.Length > 0 ? $"VSN={x.VolumeSerialNumber}" : "",
+                x.VolumeGuid.Length > 0 ? $"Volume={x.VolumeGuid}" : ""
+            })
+            .Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase));
     }
 }

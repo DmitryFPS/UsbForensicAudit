@@ -74,6 +74,8 @@ public partial class MainViewModel : ObservableObject
     public static IEnumerable<UsbDeviceRecord> OrderDevices(IEnumerable<UsbDeviceRecord> devices) =>
         devices
             .OrderBy(x => CategoryRank(x.VisualCategory))
+            .ThenBy(x => x.CanonicalDeviceId)
+            .ThenByDescending(x => x.IsCanonicalPrimary)
             .ThenBy(x => x.DisplayName);
 
     public static IEnumerable<EvidenceRecord> OrderEvidence(IEnumerable<EvidenceRecord> evidence) =>
