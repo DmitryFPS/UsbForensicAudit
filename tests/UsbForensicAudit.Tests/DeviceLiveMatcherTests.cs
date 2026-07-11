@@ -55,5 +55,37 @@ public sealed class DeviceLiveMatcherTests
             device.HardwareIds,
             name: device.FriendlyName,
             mediaType: "Fixed hard disk media"));
+        Assert.True(DeviceTransportClassifier.IsBuiltinStorageLiveCandidate(
+            device.DeviceInstanceId,
+            device.Service,
+            device.HardwareIds,
+            name: device.FriendlyName,
+            mediaType: "Fixed hard disk media"));
+    }
+
+    [Fact]
+    public void ApplyLiveConnectionState_sets_connected_now_and_scan_time()
+    {
+        var scanTime = new DateTimeOffset(2026, 7, 11, 17, 0, 0, TimeSpan.Zero);
+        var registry = new UsbDeviceRecord
+        {
+            DeviceInstanceId = @"SCSI\Disk&Ven_NVMe&Prod_T-FORCE_TM8FPL50\5&74ee85&0&000000",
+            DateConfidence = "Windows помнит устройство, но когда его подключали — неизвестно."
+        };
+        var live = new UsbDeviceRecord
+        {
+            DeviceInstanceId = @"SCSI\DISK&VEN_NVME&PROD_T-FORCE_TM8FPL50\5&74EE85&0&000000",
+            FirstConnectedUtc = scanTime,
+            LastSeenUtc = scanTime,
+            ConnectionDisplayKind = "LiveAtScan",
+            DisconnectDisplayKind = "ConnectedNow"
+        };
+
+        LiveDeviceMerger.ApplyLiveConnectionState(registry, live, scanTime);
+
+        Assert.True(registry.IsCurrentlyConnected);
+        Assert.Equal(scanTime, registry.FirstConnectedUtc);
+        Assert.Equal("ConnectedNow", registry.DisconnectDisplayKind);
+        Assert.Equal("LiveAtScan", registry.ConnectionDisplayKind);
     }
 }

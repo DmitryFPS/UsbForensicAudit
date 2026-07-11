@@ -27,6 +27,11 @@ public static class DeviceTransportClassifier
         foreach (var scsi in records.Where(x =>
                      x.DeviceInstanceId.StartsWith(@"SCSI\", StringComparison.OrdinalIgnoreCase)))
         {
+            if (IsInternalFixedStorage(scsi) || IsInternalNvmeStorage(scsi))
+            {
+                continue;
+            }
+
             var bridge = records.FirstOrDefault(usb =>
                 !ReferenceEquals(usb, scsi)
                 && usb.DeviceInstanceId.StartsWith(@"USB\", StringComparison.OrdinalIgnoreCase)
@@ -133,6 +138,39 @@ public static class DeviceTransportClassifier
                || ContainsAny(text, ThunderboltMarkers);
     }
 
+    public static bool IsBuiltinStorageLiveCandidate(
+        string pnpId,
+        string service = "",
+        string hardwareIds = "",
+        string compatibleIds = "",
+        string locationPaths = "",
+        string name = "",
+        string mediaType = "")
+    {
+        if (!pnpId.StartsWith(@"SCSI\", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var stub = new UsbDeviceRecord
+        {
+            DeviceInstanceId = pnpId,
+            Service = service,
+            HardwareIds = hardwareIds,
+            CompatibleIds = compatibleIds,
+            LocationPaths = locationPaths,
+            FriendlyName = name
+        };
+
+        if (!IsInternalFixedStorage(stub) && !IsInternalNvmeStorage(stub))
+        {
+            return false;
+        }
+
+        return mediaType.Length == 0
+               || mediaType.Contains("Fixed", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static bool IsInternalFixedStorage(UsbDeviceRecord device, string? evidenceText = null, string? deviceInstanceId = null)
     {
         if (IsVirtualStorageDevice(device, evidenceText, deviceInstanceId))
@@ -214,8 +252,15 @@ public static class DeviceTransportClassifier
             return true;
         }
 
-        if (device.Classification is "Hub" or "BuiltIn" or "Composite" or "Virtual"
+        if (device.Classification is "Hub" or "Composite" or "Virtual"
             && device.Connection == "USB")
+        {
+            return true;
+        }
+
+        if (device.Classification == "BuiltIn"
+            && device.Connection == "USB"
+            && device.Transport is not "Internal NVMe" and not "Internal Disk")
         {
             return true;
         }
@@ -364,6 +409,7 @@ public static class DeviceTransportClassifier
         }
         else if (device.Classification == "BuiltIn" && device.Transport is "Internal NVMe" or "Internal Disk")
         {
+            device.VisualCategory = "RelatedStorage";
             device.UserMeaning = device.Transport == "Internal NVMe"
                 ? "Внутренний NVMe-диск. Это не USB-устройство и не участвует в USB forensic-аудите как внешний носитель."
                 : "Внутренний SATA/SCSI-диск. Это не USB-устройство и не участвует в USB forensic-аудите как внешний носитель.";
@@ -377,7 +423,9 @@ public static class DeviceTransportClassifier
             device.UserMeaning = "SCSI/UASP storage-запись включена только при наличии removable/external/UASP/topology evidence.";
         }
 
-        if (IsReportable(device) && device.VisualCategory == "RelatedStorage")
+        if (IsReportable(device)
+            && device.VisualCategory == "RelatedStorage"
+            && device.Transport is not "Internal NVMe" and not "Internal Disk")
         {
             device.VisualCategory = "RealUsb";
         }

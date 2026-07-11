@@ -84,6 +84,36 @@ public sealed class ClassificationFalsePositiveTests
     }
 
     [Fact]
+    public void ClassifyAll_does_not_attach_usb_connection_to_internal_nvme_with_shared_topology()
+    {
+        var containerId = "{11111111-2222-3333-4444-555555555555}";
+        var nvme = new UsbDeviceRecord
+        {
+            DeviceInstanceId = @"SCSI\Disk&Ven_NVMe&Prod_T-FORCE_TM8FPL50\5&74ee85&0&000000",
+            Service = "disk",
+            HardwareIds = @"SCSI\DiskNVMe__________________________T-FORCE_TM8FPL500G\0GenDisk",
+            ContainerId = containerId,
+            Source = "Registry: SCSI",
+            VisualCategory = "RelatedStorage"
+        };
+        var usb = new UsbDeviceRecord
+        {
+            DeviceInstanceId = @"USB\VID_8087&PID_0026\5&abc&0&0",
+            ContainerId = containerId,
+            Source = "Registry: USB",
+            VisualCategory = "RealUsb"
+        };
+
+        DeviceTransportClassifier.ClassifyAll([nvme, usb]);
+
+        Assert.Equal("BuiltIn", nvme.Classification);
+        Assert.Equal("Internal NVMe", nvme.Transport);
+        Assert.NotEqual("USB", nvme.Connection);
+        Assert.Equal("RelatedStorage", nvme.VisualCategory);
+        Assert.False(DeviceTransportClassifier.IsReportable(nvme));
+    }
+
+    [Fact]
     public void External_uasp_disk_remains_reportable_with_explicit_markers()
     {
         var device = Device(@"SCSI\Disk&Ven_JMicron&Prod_Generic\7&456&0&000000");
