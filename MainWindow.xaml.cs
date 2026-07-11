@@ -5,7 +5,9 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 
 namespace UsbForensicAudit;
 
@@ -86,6 +88,24 @@ public partial class MainWindow : Window
     private void ElevateButton_Click(object sender, RoutedEventArgs e)
     {
         AdminHelper.TryRestartElevated(this);
+    }
+
+    private void DevicesGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject source
+            || ItemsControl.ContainerFromElement(DevicesGrid, source) is not DataGridRow row
+            || row.Item is not UsbDeviceRecord device)
+        {
+            return;
+        }
+
+        var detailsWindow = new DeviceDetailsWindow(device)
+        {
+            Owner = this
+        };
+
+        detailsWindow.ShowDialog();
+        e.Handled = true;
     }
 
     private async void ScanButton_Click(object sender, RoutedEventArgs e)
