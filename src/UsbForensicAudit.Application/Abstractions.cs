@@ -44,6 +44,8 @@ public interface IAuditStorage
     string DatabasePath { get; }
 
     void Save(AuditResult result);
+
+    AuditResult? Load(string sessionId);
 }
 
 /// <summary>

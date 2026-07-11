@@ -1,240 +1,118 @@
 using System.Diagnostics;
 using System.IO;
-using System.Text;
 using Microsoft.Win32;
 
 namespace UsbForensicAudit;
 
 public sealed class OfflineHiveCollector : IEvidenceCollector
 {
-    public string ProgressMessage => "Offline-анализ NTUSER.DAT и UsrClass.dat...";
-
+    public string ProgressMessage => "Безопасный offline-анализ копий NTUSER.DAT и UsrClass.dat...";
     public bool ShouldRun => true;
-
-    private static readonly string[] NtUserPaths =
-    [
-        @"Software\Microsoft\Windows\CurrentVersion\Explorer\MountPoints2",
-        @"Software\Microsoft\Windows\CurrentVersion\Explorer\RecentDocs",
-        @"Software\Microsoft\Windows\CurrentVersion\Explorer\ComDlg32\OpenSavePidlMRU",
-        @"Software\Microsoft\Windows\CurrentVersion\Explorer\ComDlg32\LastVisitedPidlMRU"
-    ];
-
-    private static readonly string[] UsrClassPaths =
-    [
-        @"Local Settings\Software\Microsoft\Windows\Shell\BagMRU",
-        @"Local Settings\Software\Microsoft\Windows\Shell\Bags"
-    ];
 
     public IReadOnlyList<EvidenceRecord> Collect(List<string> warnings)
     {
         var evidence = new List<EvidenceRecord>();
-        var systemDrive = Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows)) ?? @"C:\";
-        var usersRoot = Path.Combine(systemDrive, "Users");
-        if (!Directory.Exists(usersRoot))
+        var profiles = UserArtifactCollector.ResolveProfiles(warnings);
+        var existingProfiles = profiles.Values.Where(x => Directory.Exists(x.ProfilePath)).ToArray();
+        if (existingProfiles.Length > 256)
         {
-            warnings.Add($"Offline hive: папка профилей не найдена: {usersRoot}");
-            return evidence;
+            warnings.Add("Offline user hives: достигнут лимит 256 профилей.");
         }
-
-        foreach (var profile in Directory.EnumerateDirectories(usersRoot))
+        foreach (var profile in existingProfiles.Take(256))
         {
-            var userName = Path.GetFileName(profile);
-            if (IsSystemProfile(userName))
-            {
-                continue;
-            }
-
-            LoadAndCollect(Path.Combine(profile, "NTUSER.DAT"), userName, "NTUSER.DAT", NtUserPaths, evidence, warnings);
-            LoadAndCollect(Path.Combine(profile, "AppData", "Local", "Microsoft", "Windows", "UsrClass.dat"), userName, "UsrClass.dat", UsrClassPaths, evidence, warnings);
+            LoadCopyAndCollect(Path.Combine(profile.ProfilePath, "NTUSER.DAT"), profile, false, evidence, warnings);
+            LoadCopyAndCollect(
+                Path.Combine(profile.ProfilePath, "AppData", "Local", "Microsoft", "Windows", "UsrClass.dat"),
+                profile, true, evidence, warnings);
         }
-
         return evidence;
     }
 
-    private static void LoadAndCollect(string hivePath, string userName, string hiveName, IReadOnlyList<string> relativePaths, List<EvidenceRecord> evidence, List<string> warnings)
+    private static void LoadCopyAndCollect(
+        string sourceHive,
+        UserProfileIdentity profile,
+        bool usrClass,
+        List<EvidenceRecord> evidence,
+        List<string> warnings)
     {
-        if (!File.Exists(hivePath))
-        {
-            return;
-        }
-
-        var mountName = $"UFA_{Guid.NewGuid():N}";
+        if (!File.Exists(sourceHive)) return;
+        var tempDirectory = Path.Combine(Path.GetTempPath(), "UsbForensicAudit", Guid.NewGuid().ToString("N"));
+        var mount = $"UFA_USER_{Guid.NewGuid():N}";
         var loaded = false;
         try
         {
-            var load = RunReg("load", $@"HKU\{mountName}", hivePath);
+            Directory.CreateDirectory(tempDirectory);
+            var copy = Path.Combine(tempDirectory, Path.GetFileName(sourceHive));
+            File.Copy(sourceHive, copy, false);
+            foreach (var suffix in new[] { ".LOG1", ".LOG2" })
+            {
+                if (File.Exists(sourceHive + suffix)) File.Copy(sourceHive + suffix, copy + suffix, false);
+            }
+            var load = RunReg("load", $@"HKU\{mount}", copy);
             if (load.ExitCode != 0)
             {
-                warnings.Add($"Offline hive: не удалось загрузить {hivePath}: {TextSanitizer.NormalizeDisplay(load.Output, 500)}");
+                warnings.Add($"Offline hive copy load failed {sourceHive}: {load.Output}");
                 return;
             }
-
             loaded = true;
-            using var root = Registry.Users.OpenSubKey(mountName);
-            if (root is null)
+            if (usrClass)
             {
-                warnings.Add($"Offline hive: hive загружен, но HKU\\{mountName} не открылся");
-                return;
+                UserArtifactCollector.CollectShellBags(
+                    Registry.Users, mount, profile, "Offline UsrClass.dat", evidence);
             }
-
-            foreach (var relativePath in relativePaths)
+            else
             {
-                using var key = root.OpenSubKey(relativePath);
-                if (key is null)
-                {
-                    continue;
-                }
-
-                CollectRecursive(key, $@"HKU\{mountName}\{relativePath}", userName, hiveName, relativePath, evidence, maxDepth: 8, maxItems: 800);
+                UserArtifactCollector.CollectMountedNtUser(
+                    Registry.Users, mount, profile, "Offline NTUSER.DAT", evidence);
+            }
+            foreach (var record in evidence.Where(x => x.UserSid == profile.Sid
+                                                       && x.Provenance.Contains(mount, StringComparison.OrdinalIgnoreCase)))
+            {
+                record.SourceFile = sourceHive;
+                record.SourceSha256 = HistoricalForensicHelpers.ComputeSha256(sourceHive);
+                record.Provenance = $"Source={sourceHive}; disposable copy={copy}; registry={record.Provenance}";
             }
         }
         catch (Exception ex)
         {
-            warnings.Add($"Offline hive: ошибка обработки {hivePath}: {ex.Message}");
+            warnings.Add($"Offline hive {sourceHive}: {ex.Message}");
         }
         finally
         {
             if (loaded)
             {
                 Registry.Users.Flush();
-                var unload = RunReg("unload", $@"HKU\{mountName}");
-                if (unload.ExitCode != 0)
-                {
-                    warnings.Add($"Offline hive: не удалось выгрузить HKU\\{mountName}: {unload.Output}");
-                }
+                var unload = RunReg("unload", $@"HKU\{mount}");
+                if (unload.ExitCode != 0) warnings.Add($"Offline hive unload HKU\\{mount}: {unload.Output}");
             }
+            try { if (Directory.Exists(tempDirectory)) Directory.Delete(tempDirectory, true); }
+            catch (Exception ex) { warnings.Add($"Offline hive temp cleanup: {ex.Message}"); }
         }
     }
 
-    private static int CollectRecursive(RegistryKey key, string displayPath, string userName, string hiveName, string rootArtifact, List<EvidenceRecord> evidence, int maxDepth, int maxItems)
+    private static (int ExitCode, string Output) RunReg(string action, string key, string? hive = null)
     {
-        if (maxDepth < 0 || maxItems <= 0)
+        using var process = new Process
         {
-            return 0;
-        }
-
-        var added = 0;
-        if (ArtifactStringExtractor.LooksInteresting(displayPath) || displayPath.Contains("Volume", StringComparison.OrdinalIgnoreCase) || rootArtifact.Contains("BagMRU", StringComparison.OrdinalIgnoreCase))
-        {
-            evidence.Add(new EvidenceRecord
+            StartInfo = new ProcessStartInfo
             {
-                Source = $"Offline Hive {hiveName}",
-                EventId = userName,
-                DeviceHint = Shorten(displayPath, 220),
-                Summary = $"{rootArtifact}: {displayPath}",
-                RawText = displayPath
-            });
-            added++;
-        }
-
-        foreach (var valueName in key.GetValueNames())
-        {
-            if (added >= maxItems)
-            {
-                return added;
+                FileName = "reg.exe",
+                Arguments = hive is null ? $"{action} \"{key}\"" : $"{action} \"{key}\" \"{hive}\"",
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             }
-
-            var valueText = ValueToSearchText(key.GetValue(valueName));
-            if (ArtifactStringExtractor.LooksInteresting(valueName) || ArtifactStringExtractor.LooksInteresting(valueText))
-            {
-                evidence.Add(new EvidenceRecord
-                {
-                    Source = $"Offline Hive {hiveName}",
-                    EventId = userName,
-                    DeviceHint = Shorten(valueName, 160),
-                    Summary = $"{rootArtifact}: {displayPath}\\{valueName}",
-                    RawText = Shorten(valueText, 1000)
-                });
-                added++;
-            }
-        }
-
-        foreach (var subName in key.GetSubKeyNames())
-        {
-            if (added >= maxItems)
-            {
-                break;
-            }
-
-            try
-            {
-                using var subKey = key.OpenSubKey(subName);
-                if (subKey is null)
-                {
-                    continue;
-                }
-
-                added += CollectRecursive(subKey, $@"{displayPath}\{subName}", userName, hiveName, rootArtifact, evidence, maxDepth - 1, maxItems - added);
-            }
-            catch
-            {
-                // Некоторые узлы shellbag могут быть недоступны для чтения на работающей системе.
-            }
-        }
-
-        return added;
-    }
-
-    private static (int ExitCode, string Output) RunReg(string action, string keyPath, string? hivePath = null)
-    {
-        var args = hivePath is null
-            ? $"{action} \"{keyPath}\""
-            : $"{action} \"{keyPath}\" \"{hivePath}\"";
-
-        using var process = new Process();
-        process.StartInfo = new ProcessStartInfo
-        {
-            FileName = "reg.exe",
-            Arguments = args,
-            CreateNoWindow = true,
-            UseShellExecute = false,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true
         };
-
         process.Start();
-        using var outputStream = new MemoryStream();
-        process.StandardOutput.BaseStream.CopyTo(outputStream);
-        process.StandardError.BaseStream.CopyTo(outputStream);
-        var output = TextSanitizer.NormalizeConsoleOutput(outputStream.ToArray());
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
         if (!process.WaitForExit(15_000))
         {
-            try
-            {
-                process.Kill(entireProcessTree: true);
-            }
-            catch
-            {
-                // Очистка по возможности; вызывающий код фиксирует таймаут.
-            }
-
+            try { process.Kill(true); } catch { }
             return (-1, "reg.exe timeout");
         }
-
-        return (process.ExitCode, output.Trim());
-    }
-
-    private static string ValueToSearchText(object? value)
-    {
-        return value switch
-        {
-            byte[] bytes => Encoding.Unicode.GetString(bytes) + "\n" + Encoding.UTF8.GetString(bytes),
-            string text => text,
-            string[] values => string.Join("; ", values),
-            _ => value?.ToString() ?? ""
-        };
-    }
-
-    private static string Shorten(string value, int max)
-    {
-        return value.Length <= max ? value : value[..max];
-    }
-
-    private static bool IsSystemProfile(string userName)
-    {
-        return userName.Equals("All Users", StringComparison.OrdinalIgnoreCase)
-               || userName.Equals("Default", StringComparison.OrdinalIgnoreCase)
-               || userName.Equals("Default User", StringComparison.OrdinalIgnoreCase)
-               || userName.Equals("Public", StringComparison.OrdinalIgnoreCase);
+        Task.WaitAll(stdout, stderr);
+        return (process.ExitCode, TextSanitizer.NormalizeDisplay(stdout.Result + stderr.Result, 1000));
     }
 }

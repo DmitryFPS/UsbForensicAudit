@@ -4,6 +4,7 @@ namespace UsbForensicAudit;
 
 public sealed class UsbDeviceRecord
 {
+    public string SessionId { get; set; } = "";
     public string DeviceInstanceId { get; set; } = "";
     public string CanonicalDeviceId { get; set; } = "";
     public string PhysicalDeviceGroup { get; set; } = "";
@@ -119,6 +120,7 @@ public sealed class VolumeIdentity
 
 public sealed class EvidenceRecord
 {
+    public string SessionId { get; set; } = "";
     public DateTimeOffset TimestampUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset AcquisitionTimestampUtc { get; set; } = DateTimeOffset.UtcNow;
     public string Source { get; set; } = "";
@@ -137,6 +139,12 @@ public sealed class EvidenceRecord
     public string RawText { get; set; } = "";
     public string SourceSha256 { get; set; } = "";
     public string Provenance { get; set; } = "";
+    public string EvidenceStrength { get; set; } = "Indirect";
+    public string Confidence { get; set; } = "Low";
+    public string UserSid { get; set; } = "";
+    public string ResolvedUserName { get; set; } = "";
+    public DateTimeOffset? RegistryLastWriteUtc { get; set; }
+    public bool CanEstablishConnectionDate { get; set; }
 
     [JsonIgnore]
     public string TimestampText => DateDisplay.FormatMoscow(TimestampUtc);
@@ -159,6 +167,7 @@ public sealed class EvidenceRecord
 
 public sealed class CleanupFinding
 {
+    public string SessionId { get; set; } = "";
     public DateTimeOffset TimestampUtc { get; set; } = DateTimeOffset.UtcNow;
     public string Severity { get; set; } = "Low";
     public string Assessment { get; set; } = "Suspicious";
@@ -170,6 +179,7 @@ public sealed class CleanupFinding
     public string Finding { get; set; } = "";
     public string Details { get; set; } = "";
     public string ActionKind { get; set; } = "Unknown";
+    public string Provenance { get; set; } = "";
 
     [JsonIgnore]
     public string TimestampText => DateDisplay.FormatMoscow(TimestampUtc);
@@ -204,6 +214,7 @@ public sealed class CleanupFinding
 
 public sealed class AuditResult
 {
+    public string SessionId { get; set; } = Guid.NewGuid().ToString("N");
     public DateTimeOffset StartedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset FinishedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public string ComputerName { get; set; } = Environment.MachineName;
@@ -217,8 +228,32 @@ public sealed class AuditResult
 
     [JsonIgnore]
     public string OsInstallGraceNote => OsInstallInfo.GracePeriodExplanation(OsInstalledAtUtc, StartedAtUtc);
-    public List<UsbDeviceRecord> Devices { get; } = [];
-    public List<EvidenceRecord> Evidence { get; } = [];
-    public List<CleanupFinding> CleanupFindings { get; } = [];
-    public List<string> SourceWarnings { get; } = [];
+    // Public setters are intentional: AuditStorage deserializes complete sessions through
+    // System.Text.Json, which otherwise cannot restore get-only collection properties.
+    public List<UsbDeviceRecord> Devices { get; set; } = [];
+    public List<EvidenceRecord> Evidence { get; set; } = [];
+    public List<CleanupFinding> CleanupFindings { get; set; } = [];
+    public List<string> SourceWarnings { get; set; } = [];
+    public ScanCoverageReport Coverage { get; set; } = new();
+}
+
+public sealed class ScanCoverageReport
+{
+    public List<SourceCoverage> Sources { get; set; } = [];
+    public int CanonicalDeviceCount { get; set; }
+    public int CanonicalDevicesWithExactDates { get; set; }
+
+    public double ExactDateCoveragePercent => CanonicalDeviceCount == 0
+        ? 0
+        : Math.Round(100d * CanonicalDevicesWithExactDates / CanonicalDeviceCount, 2);
+}
+
+public sealed class SourceCoverage
+{
+    public string Source { get; set; } = "";
+    public string Status { get; set; } = "NotRun";
+    public int Count { get; set; }
+    public bool Capped { get; set; }
+    public string Error { get; set; } = "";
+    public int Limit { get; set; }
 }
