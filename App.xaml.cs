@@ -11,6 +11,21 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        base.OnStartup(e);
+
+        if (!AdminHelper.IsAdministrator())
+        {
+            MessageBox.Show(
+                "Данное приложение можно открыть только с правами администратора.\n\n" +
+                "Закройте это сообщение и запустите программу от имени администратора.",
+                "Требуются права администратора",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+
+            Shutdown(-1);
+            return;
+        }
+
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         EndpointProtectionState.IsProtectionActive = EndpointProtectionEnvironment.IsProtectionActive;
 
@@ -36,7 +51,6 @@ public partial class App : Application
         };
 
         AppLog.Info("Application startup");
-        base.OnStartup(e);
 
         _host = Host.CreateDefaultBuilder()
             .ConfigureServices(services =>

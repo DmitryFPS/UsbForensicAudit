@@ -267,7 +267,11 @@
                                        Margin="0,4,0,0"/>
                         </StackPanel>
                     </Border>
-                    <DataGrid x:Name="DevicesGrid" AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding Devices}">
+                    <DataGrid x:Name="DevicesGrid"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding Devices}"
+                              MouseDoubleClick="DevicesGrid_MouseDoubleClick">
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
                                 <Setter Property="Background" Value="#0B1728"/>
