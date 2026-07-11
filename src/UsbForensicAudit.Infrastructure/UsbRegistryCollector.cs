@@ -7,8 +7,14 @@ namespace UsbForensicAudit;
 public sealed class UsbRegistryCollector : IUsbDeviceCollector
 {
     private static readonly Regex VidPidRegex = new(@"VID_([0-9A-F]{4})&PID_([0-9A-F]{4})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex UsbFlagsCompactRegex = new(
+        @"^([0-9A-F]{4})([0-9A-F]{4})[0-9A-F]{4}$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex UsbFlagsSuffixRegex = new(
+        @"([0-9A-F]{4})([0-9A-F]{4})$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    public string ProgressMessage => "Чтение Registry USB/USBSTOR/SCSI/WPD...";
+    public string ProgressMessage => "Чтение Registry USB/USBSTOR/SCSI/WPD/usbflags...";
 
     public IReadOnlyList<UsbDeviceRecord> Collect(List<string> warnings)
     {
@@ -17,10 +23,142 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         CollectEnumTree(@"SYSTEM\CurrentControlSet\Enum\USBSTOR", "Registry: USBSTOR", records, warnings);
         CollectEnumTree(@"SYSTEM\CurrentControlSet\Enum\SCSI", "Registry: SCSI", records, warnings);
         CollectEnumTree(@"SYSTEM\CurrentControlSet\Enum\SWD\WPDBUSENUM", "Registry: WPD/MTP", records, warnings);
+        CollectUsbFlags(records, warnings);
         EnrichUsbStorVidPid(records);
         AddMountedDeviceEvidence(records, warnings);
         return records;
     }
+
+    private static void CollectUsbFlags(List<UsbDeviceRecord> records, List<string> warnings)
+    {
+        var traces = new Dictionary<string, UsbFlagsTrace>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var controlSet in GetControlSetNames(warnings))
+        {
+            var rootPath = $@"SYSTEM\{controlSet}\Control\usbflags";
+
+            try
+            {
+                using var root = Registry.LocalMachine.OpenSubKey(rootPath);
+                if (root is null)
+                {
+                    continue;
+                }
+
+                foreach (var keyName in root.GetSubKeyNames())
+                {
+                    if (!TryParseUsbFlagsKey(keyName, out var vid, out var pid))
+                    {
+                        continue;
+                    }
+
+                    var traceKey = $"{vid}|{pid}";
+                    if (!traces.TryGetValue(traceKey, out var trace))
+                    {
+                        trace = new UsbFlagsTrace(vid, pid);
+                        traces.Add(traceKey, trace);
+                    }
+
+                    var registryPath = $@"HKLM\{rootPath}\{keyName}";
+                    using var flagKey = root.OpenSubKey(keyName);
+                    trace.Add(
+                        registryPath,
+                        keyName,
+                        flagKey is null ? null : RegistryKeyTimestamps.GetLastWriteUtc(flagKey),
+                        flagKey is null ? [] : ReadValues(flagKey));
+                }
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"Ошибка чтения HKLM\\{rootPath}: {ex.Message}");
+            }
+        }
+
+        foreach (var trace in traces.Values)
+        {
+            var enumRecord = records.FirstOrDefault(x =>
+                x.Source.Equals("Registry: USB", StringComparison.OrdinalIgnoreCase)
+                && x.Vid.Equals(trace.Vid, StringComparison.OrdinalIgnoreCase)
+                && x.Pid.Equals(trace.Pid, StringComparison.OrdinalIgnoreCase));
+            var vendorLookup = UsbVendorDatabase.Lookup(trace.Vid, trace.Pid);
+            var manufacturer = FirstNotEmpty(enumRecord?.Manufacturer, vendorLookup.VendorName);
+            var product = FirstNotEmpty(enumRecord?.Product, vendorLookup.ProductName);
+            var friendlyName = FirstNotEmpty(enumRecord?.FriendlyName, product);
+
+            records.Add(new UsbDeviceRecord
+            {
+                Source = "Registry: usbflags",
+                VisualCategory = "UsbFlagsTrace",
+                UserMeaning = "Остаточный след USB-устройства в кэше usbflags. Подтверждает, что Windows сохранила VID/PID, но сам по себе не доказывает текущее подключение.",
+                DeviceInstanceId = trace.RegistryPaths.First(),
+                DeviceType = "USBFlags",
+                Vid = trace.Vid,
+                Pid = trace.Pid,
+                FriendlyName = friendlyName,
+                Manufacturer = manufacturer,
+                Product = product,
+                RegistryLastWriteUtc = trace.LastWriteUtc,
+                LastSeenUtc = trace.LastWriteUtc,
+                RawJson = JsonSerializer.Serialize(new
+                {
+                    trace.RegistryPaths,
+                    trace.KeyNames,
+                    trace.ValuesByPath
+                })
+            });
+        }
+    }
+
+    internal static bool TryParseUsbFlagsKey(string keyName, out string vid, out string pid)
+    {
+        vid = "";
+        pid = "";
+
+        var compactMatch = UsbFlagsCompactRegex.Match(keyName);
+        if (compactMatch.Success)
+        {
+            vid = compactMatch.Groups[1].Value.ToUpperInvariant();
+            pid = compactMatch.Groups[2].Value.ToUpperInvariant();
+            return true;
+        }
+
+        if (!keyName.StartsWith("Ignore", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var suffixMatch = UsbFlagsSuffixRegex.Match(keyName);
+        if (!suffixMatch.Success)
+        {
+            return false;
+        }
+
+        vid = suffixMatch.Groups[1].Value.ToUpperInvariant();
+        pid = suffixMatch.Groups[2].Value.ToUpperInvariant();
+        return true;
+    }
+
+    private static IReadOnlyList<string> GetControlSetNames(List<string> warnings)
+    {
+        try
+        {
+            using var system = Registry.LocalMachine.OpenSubKey("SYSTEM");
+            var names = system?.GetSubKeyNames()
+                .Where(x => Regex.IsMatch(x, @"^ControlSet\d{3}$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            return names is { Length: > 0 } ? names : ["CurrentControlSet"];
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"Ошибка перечисления HKLM\\SYSTEM\\ControlSet*: {ex.Message}");
+            return ["CurrentControlSet"];
+        }
+    }
+
+    private static string FirstNotEmpty(params string?[] values) =>
+        values.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))?.Trim() ?? "";
 
     private static void CollectEnumTree(string path, string source, List<UsbDeviceRecord> records, List<string> warnings)
     {
@@ -343,5 +481,37 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         }
 
         return serial;
+    }
+
+    private sealed class UsbFlagsTrace(string vid, string pid)
+    {
+        public string Vid { get; } = vid;
+
+        public string Pid { get; } = pid;
+
+        public List<string> RegistryPaths { get; } = [];
+
+        public List<string> KeyNames { get; } = [];
+
+        public Dictionary<string, Dictionary<string, object?>> ValuesByPath { get; } =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public DateTimeOffset? LastWriteUtc { get; private set; }
+
+        public void Add(
+            string registryPath,
+            string keyName,
+            DateTimeOffset? lastWriteUtc,
+            Dictionary<string, object?> values)
+        {
+            RegistryPaths.Add(registryPath);
+            KeyNames.Add(keyName);
+            ValuesByPath[registryPath] = values;
+
+            if (lastWriteUtc.HasValue && (!LastWriteUtc.HasValue || lastWriteUtc > LastWriteUtc))
+            {
+                LastWriteUtc = lastWriteUtc;
+            }
+        }
     }
 }

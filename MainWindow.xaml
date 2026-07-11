@@ -117,6 +117,12 @@
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="6,4"/>
             <Setter Property="Foreground" Value="#D9E8F5"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#175A78"/>
+                    <Setter Property="Foreground" Value="#E5F2FF"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="Card" TargetType="Border">
@@ -257,12 +263,16 @@
                             <TextBlock Text="Здесь список USB и Type-C устройств, которые Windows когда-либо видела на этом компьютере."
                                        Foreground="{StaticResource TextMain}"
                                        TextWrapping="Wrap"/>
-                            <TextBlock Text="Цвет строк: зелёный — реальное устройство; жёлтый — связанный диск/память; серый — служебная запись Windows, не само устройство."
+                            <TextBlock Text="Цвет строк: зелёный — реальное устройство; жёлтый — связанный диск/память; фиолетовый — остаточный след usbflags; серый — служебная запись Windows."
                                        Foreground="{StaticResource TextMuted}"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
                             <TextBlock Text="«Когда отключали»: точная дата из журнала Windows, либо оценка по последней активности, либо «Подключено сейчас». VID и PID — технические коды, не названия производителя."
                                        Foreground="{StaticResource TextMuted}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,0"/>
+                            <TextBlock Text="usbflags — кэш USB-дескрипторов Windows. Такие строки подтверждают сохранённый VID/PID; производитель и модель уточняются по USBVendors, но этот след сам по себе не доказывает текущее подключение."
+                                       Foreground="#B8A9FF"
                                        TextWrapping="Wrap"
                                        Margin="0,4,0,0"/>
                         </StackPanel>
@@ -283,9 +293,17 @@
                                     <DataTrigger Binding="{Binding VisualCategory}" Value="RelatedStorage">
                                         <Setter Property="Background" Value="#3B3213"/>
                                     </DataTrigger>
+                                    <DataTrigger Binding="{Binding VisualCategory}" Value="UsbFlagsTrace">
+                                        <Setter Property="Background" Value="#302A57"/>
+                                        <Setter Property="Foreground" Value="#EEEAFE"/>
+                                    </DataTrigger>
                                     <DataTrigger Binding="{Binding VisualCategory}" Value="SupportArtifact">
                                         <Setter Property="Background" Value="#162033"/>
                                     </DataTrigger>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="#175A78"/>
+                                        <Setter Property="Foreground" Value="#E5F2FF"/>
+                                    </Trigger>
                                 </Style.Triggers>
                             </Style>
                         </DataGrid.RowStyle>
@@ -528,16 +546,18 @@
             <TabItem Header="Отчет">
                 <Border Margin="4,14,4,4" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="14" Padding="22">
                     <StackPanel>
-                        <TextBlock Text="Полный PDF — все данные для расследования. Сводный PDF — основные выводы и цифры на 2–3 страницы."
+                        <TextBlock Text="Полные отчёты содержат все данные для расследования. Сводные отчёты показывают ключевые цифры, инциденты и значимые устройства. Доступны PDF и Excel."
                                    Foreground="{StaticResource TextMain}"
                                    FontSize="16"
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,14"/>
-                        <StackPanel Orientation="Horizontal">
+                        <WrapPanel>
                             <Button x:Name="PdfReportButton" Content="Полный PDF" Click="PdfReportButton_Click" IsEnabled="False" Background="#14532D" BorderBrush="#38D996"/>
                             <Button x:Name="BriefPdfReportButton" Content="Сводный PDF" Click="BriefPdfReportButton_Click" IsEnabled="False" Background="#1E3A5F" BorderBrush="#38BDF8"/>
+                            <Button x:Name="ExcelReportButton" Content="Полный Excel" Click="ExcelReportButton_Click" IsEnabled="False" Background="#14532D" BorderBrush="#38D996"/>
+                            <Button x:Name="BriefExcelReportButton" Content="Сводный Excel" Click="BriefExcelReportButton_Click" IsEnabled="False" Background="#1E3A5F" BorderBrush="#38BDF8"/>
                             <Button Content="Открыть папку данных" Click="OpenDataFolderButton_Click"/>
-                        </StackPanel>
+                        </WrapPanel>
                         <TextBlock x:Name="ReportStatusText" Foreground="{StaticResource TextMuted}" Margin="0,16,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>

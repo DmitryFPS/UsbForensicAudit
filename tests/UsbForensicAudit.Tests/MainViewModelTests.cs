@@ -8,9 +8,10 @@ public sealed class MainViewModelTests
     [Theory]
     [InlineData("RealUsb", 0)]
     [InlineData("RelatedStorage", 1)]
-    [InlineData("SupportArtifact", 2)]
-    [InlineData("Unknown", 3)]
-    [InlineData("что-то ещё", 3)]
+    [InlineData("UsbFlagsTrace", 2)]
+    [InlineData("SupportArtifact", 3)]
+    [InlineData("Unknown", 4)]
+    [InlineData("что-то ещё", 4)]
     public void CategoryRank_ranks_known_categories_ahead_of_unknown(string category, int expected)
     {
         Assert.Equal(expected, MainViewModel.CategoryRank(category));
@@ -34,6 +35,7 @@ public sealed class MainViewModelTests
         var input = new[]
         {
             new UsbDeviceRecord { VisualCategory = "SupportArtifact", FriendlyName = "A-support" },
+            new UsbDeviceRecord { VisualCategory = "UsbFlagsTrace", FriendlyName = "C-usbflags" },
             new UsbDeviceRecord { VisualCategory = "RealUsb", FriendlyName = "Zeta" },
             new UsbDeviceRecord { VisualCategory = "RealUsb", FriendlyName = "Alpha" },
             new UsbDeviceRecord { VisualCategory = "RelatedStorage", FriendlyName = "B-storage" },
@@ -44,7 +46,8 @@ public sealed class MainViewModelTests
         Assert.Equal("Alpha", ordered[0].FriendlyName);
         Assert.Equal("Zeta", ordered[1].FriendlyName);
         Assert.Equal("B-storage", ordered[2].FriendlyName);
-        Assert.Equal("A-support", ordered[3].FriendlyName);
+        Assert.Equal("C-usbflags", ordered[3].FriendlyName);
+        Assert.Equal("A-support", ordered[4].FriendlyName);
     }
 
     [Fact]

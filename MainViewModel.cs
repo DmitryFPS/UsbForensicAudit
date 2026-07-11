@@ -104,8 +104,9 @@ public partial class MainViewModel : ObservableObject
         {
             "RealUsb" => 0,
             "RelatedStorage" => 1,
-            "SupportArtifact" => 2,
-            _ => 3
+            "UsbFlagsTrace" => 2,
+            "SupportArtifact" => 3,
+            _ => 4
         };
     }
 }

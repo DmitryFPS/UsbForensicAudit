@@ -1,6 +1,6 @@
 # UsbForensicAudit
 
-GUI-first forensic-аудитор USB/Type-C устройств для **Windows 10/11**. Собирает артефакты из реестра, журналов событий и профилей пользователей, коррелирует их с устройствами, выявляет признаки очистки следов и формирует отчёты HTML/PDF.
+GUI-first forensic-аудитор USB/Type-C устройств для **Windows 10/11**. Собирает артефакты из реестра, журналов событий и профилей пользователей, коррелирует их с устройствами, выявляет признаки очистки следов и формирует отчёты HTML/PDF/Excel.
 
 Приложение ориентировано на аналитика/администратора: русский интерфейс, пояснения к каждой записи, portable-сборка для работы с флешки без следов в `%LOCALAPPDATA%`.
 
@@ -104,7 +104,7 @@ bin\publish\PORTABLE.txt
 2. Нажать **«Полное сканирование»**.
 3. Изучить вкладки **USB устройства**, **Доказательства**, **Следы очистки**.
 4. При необходимости — **«Старт мониторинга»** и окно **«Окно USB»**.
-5. На вкладке **Отчёт** — создать HTML или PDF.
+5. На вкладке **Отчёт** — создать полный или сводный отчёт в PDF либо Excel.
 
 **Цвета строк USB:**
 
@@ -249,7 +249,7 @@ UsbForensicAudit/
 | `IAuditStorage` | персистентность результатов |
 | `ILiveDeviceMerger` | слияние с live-устройствами |
 | `IConnectedDeviceProbe` | WMI-проба «подключено сейчас» для TimelineEnricher |
-| `IReportService` | HTML/PDF отчёты |
+| `IReportService` | HTML/PDF/Excel отчёты |
 | `IPrivilegeChecker` | проверка прав администратора |
 | `IExternalUtilityRegistryTracer` | live-трассировка реестра для сторонних утилит |
 
@@ -291,7 +291,7 @@ UsbForensicAudit/
 | `external_utility_snapshot.json` | снимок сторонней утилиты |
 | `tools\Procmon64.exe` | распакованный Procmon (из embedded resource) |
 | `procmon\{session}\` | CSV-трассировки Procmon |
-| `UsbForensicAudit_*.html/pdf` | сгенерированные отчёты |
+| `UsbForensicAudit_*.html/pdf/xlsx` | сгенерированные отчёты |
 
 Логика выбора каталога — `AppPaths` (Infrastructure).
 
