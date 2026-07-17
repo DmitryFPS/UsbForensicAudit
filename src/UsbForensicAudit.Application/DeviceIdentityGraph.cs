@@ -173,7 +173,7 @@ public static class DeviceIdentityGraph
         + (IsUsbFlags(device) ? -100 : 0);
 
     private static string NormalizeInstance(string value) =>
-        value.Trim().Replace('#', '\\').Replace(@"\\", @"\").ToUpperInvariant();
+        DevicePathNormalizer.CanonicalDeviceId(value, replaceHashes: true);
 
     private static string CompositeParentKey(UsbDeviceRecord device)
     {

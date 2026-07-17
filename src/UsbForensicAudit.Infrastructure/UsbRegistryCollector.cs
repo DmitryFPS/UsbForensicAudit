@@ -563,7 +563,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                 continue;
             }
 
-            var key = record.DeviceInstanceId.Trim().Replace(@"\\", @"\");
+            var key = DevicePathNormalizer.NormalizeDeviceId(record.DeviceInstanceId);
             if (!byInstance.TryGetValue(key, out var existing))
             {
                 byInstance[key] = record;

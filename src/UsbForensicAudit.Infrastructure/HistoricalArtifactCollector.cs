@@ -632,8 +632,13 @@ public sealed partial class HistoricalArtifactCollector : IHistoricalArtifactCol
         var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         AcquireTransactionLogs(Path.Combine(windows, "System32", "config", "SYSTEM"), "Live SYSTEM", result);
 
-        var drive = Path.GetPathRoot(windows) ?? @"C:\";
-        var users = Path.Combine(drive, "Users");
+        var users = ResolveLiveProfilesDirectory();
+        if (string.IsNullOrWhiteSpace(users))
+        {
+            result.SourceWarnings.Add("Не удалось определить каталог пользовательских профилей Windows.");
+            return;
+        }
+
         if (!Directory.Exists(users))
         {
             return;
@@ -650,6 +655,29 @@ public sealed partial class HistoricalArtifactCollector : IHistoricalArtifactCol
         {
             result.SourceWarnings.Add($"NTUSER transaction log discovery: {ex.Message}");
         }
+    }
+
+    private static string? ResolveLiveProfilesDirectory()
+    {
+        try
+        {
+            using var profileList = Registry.LocalMachine.OpenSubKey(
+                @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList");
+            var configured = profileList?.GetValue("ProfilesDirectory")?.ToString();
+            if (!string.IsNullOrWhiteSpace(configured))
+            {
+                return Environment.ExpandEnvironmentVariables(configured);
+            }
+        }
+        catch (Exception exception)
+        {
+            AppLog.Error(exception, "ProfilesDirectory lookup failed");
+        }
+
+        var currentProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return string.IsNullOrWhiteSpace(currentProfile)
+            ? null
+            : Directory.GetParent(currentProfile)?.FullName;
     }
 
     private void AcquireTransactionLogs(string hivePath, string label, AuditResult result)

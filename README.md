@@ -224,7 +224,7 @@ UsbForensicAudit/
 │   ├── UsbForensicAudit.Application/      # Use cases, оркестратор, порты, аналитика
 │   └── UsbForensicAudit.Infrastructure/   # Коллекторы, SQLite, PDF, WMI, Win32, Procmon
 ├── tests/
-│   └── UsbForensicAudit.Tests/            # xUnit, coverlet (333 теста)
+│   └── UsbForensicAudit.Tests/            # xUnit, coverlet (621 тест)
 └── tools/
     ├── GenerateIcon/                      # PNG → ICO для сборки
     ├── GenerateManual/                  # Отдельная legacy-утилита, в portable-сборке не запускается
@@ -372,7 +372,7 @@ dotnet test tests\UsbForensicAudit.Tests\UsbForensicAudit.Tests.csproj --collect
 
 Конфигурация coverlet: `tests/UsbForensicAudit.Tests/coverlet.runsettings`.
 
-**Стратегия покрытия:** unit-тесты на измеряемое ядро (парсеры, корреляции, Procmon CSV, ViewModel-сортировка, DI-регистрация) с порогом **≥ 90% line coverage** по включённым файлам. Исключены из метрики: WPF code-behind, коллекторы ОС, PDF-генераторы, WMI — они требуют интерактивной Windows-среды.
+**Стратегия покрытия:** unit-тесты на измеряемое ядро (парсеры, корреляции, хранилище, таймлайн, поиск очистки, Procmon CSV, ViewModel и DI) с обязательным порогом **≥ 90% line coverage**. Из метрики исключены только интерактивные Windows-границы: WPF code-behind, OS-коллекторы, PDF/PInvoke/WMI. GitHub Actions проверяет locked restore, сборку без предупреждений, 621 тест, coverage gate, уязвимые зависимости и self-contained publish. CodeQL и Dependabot включены отдельно.
 
 Примеры тестовых классов:
 

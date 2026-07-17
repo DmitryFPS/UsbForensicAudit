@@ -32,7 +32,11 @@ public partial class App : Application
         DispatcherUnhandledException += (_, args) =>
         {
             AppLog.Error(args.Exception, "Unhandled UI exception");
-            MessageBox.Show(args.Exception.Message, "UsbForensicAudit error", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(
+                "Произошла непредвиденная ошибка. Подробности записаны в технический журнал приложения.",
+                "UsbForensicAudit error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
             args.Handled = true;
         };
 

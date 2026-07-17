@@ -196,17 +196,19 @@ public static class TextSanitizer
             sample = sample[(slash + 1)..];
         }
 
-        var latinLetters = sample.Count(ch => ch is >= 'A' and <= 'Z' or >= 'a' and <= 'z');
-        var cyrillicLetters = sample.Count(ch => ch >= '\u0400' && ch <= '\u04FF');
-        if (latinLetters == 0 || cyrillicLetters == 0)
+        foreach (var token in sample.Split(
+                     [' ', '.', '_', '-', ':', ';', ',', '(', ')', '[', ']', '{', '}'],
+                     StringSplitOptions.RemoveEmptyEntries))
         {
-            return false;
+            var latinLetters = token.Count(ch => ch is >= 'A' and <= 'Z' or >= 'a' and <= 'z');
+            var cyrillicLetters = token.Count(ch => ch >= '\u0400' && ch <= '\u04FF');
+            if (latinLetters > 0 && cyrillicLetters > 0)
+            {
+                return true;
+            }
         }
 
-        var shortLatinTokens = sample.Split([' ', '.', '_', '-'], StringSplitOptions.RemoveEmptyEntries)
-            .Count(token => token.Length <= 2 && token.All(ch => ch is >= 'A' and <= 'Z' or >= 'a' and <= 'z'));
-
-        return shortLatinTokens >= 2 || (latinLetters >= 2 && latinLetters <= cyrillicLetters);
+        return false;
     }
 
     private static bool IsAllowedDisplayChar(char ch)

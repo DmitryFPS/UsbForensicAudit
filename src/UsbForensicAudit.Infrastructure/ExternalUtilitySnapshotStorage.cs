@@ -6,6 +6,7 @@ namespace UsbForensicAudit;
 public static class ExternalUtilitySnapshotStorage
 {
     private const string FileName = "external_utility_snapshot.json";
+    private static readonly object Sync = new();
 
     public static string GetPath(string dataDirectory) => Path.Combine(dataDirectory, FileName);
 
@@ -33,7 +34,25 @@ public static class ExternalUtilitySnapshotStorage
             }).ToList()
         };
 
-        File.WriteAllText(GetPath(dataDirectory), JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = true }));
+        var path = GetPath(dataDirectory);
+        var temporaryPath = path + $".{Guid.NewGuid():N}.tmp";
+        lock (Sync)
+        {
+            try
+            {
+                File.WriteAllText(
+                    temporaryPath,
+                    JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = true }));
+                File.Move(temporaryPath, path, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath))
+                {
+                    File.Delete(temporaryPath);
+                }
+            }
+        }
     }
 
     public static ExternalUtilityReportSnapshot? Load(string dataDirectory)
@@ -46,7 +65,11 @@ public static class ExternalUtilitySnapshotStorage
 
         try
         {
-            var dto = JsonSerializer.Deserialize<SnapshotDto>(File.ReadAllText(path));
+            SnapshotDto? dto;
+            lock (Sync)
+            {
+                dto = JsonSerializer.Deserialize<SnapshotDto>(File.ReadAllText(path));
+            }
             if (dto is null)
             {
                 return null;
@@ -83,8 +106,9 @@ public static class ExternalUtilitySnapshotStorage
 
             return snapshot;
         }
-        catch
+        catch (Exception exception)
         {
+            AppLog.Error(exception, "External utility snapshot load failed");
             return null;
         }
     }

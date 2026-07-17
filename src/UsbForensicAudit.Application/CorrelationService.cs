@@ -1,7 +1,13 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace UsbForensicAudit;
 
 public sealed class CorrelationService
 {
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "The correlator is an injected application service and intentionally exposes an instance API.")]
     public IReadOnlyList<EvidenceRecord> BuildDeviceCorrelations(AuditResult result)
     {
         var records = new List<EvidenceRecord>();

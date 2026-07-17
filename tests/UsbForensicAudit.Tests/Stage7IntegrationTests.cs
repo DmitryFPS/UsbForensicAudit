@@ -63,6 +63,36 @@ public sealed class Stage7IntegrationTests
     }
 
     [Fact]
+    public async Task Orchestrator_isolates_failed_collectors_and_records_error_coverage()
+    {
+        var order = new List<string>();
+        var storage = new RecordingAuditStorage(order);
+        var orchestrator = new AuditOrchestrator(
+            new FakeDeviceCollector(order),
+            new IEvidenceCollector[]
+            {
+                new ThrowingEvidenceCollector(),
+                new FakeEvidenceCollector(order, "Healthy", 1)
+            },
+            new FakeHistoricalCollector(order),
+            new CorrelationService(),
+            new NoOpLiveMerger(order),
+            new TimelineEnricher(),
+            new CleanupDetector(),
+            storage,
+            new FakePrivilegeChecker());
+
+        var result = await orchestrator.RunFullScanAsync();
+
+        Assert.NotNull(storage.Saved);
+        Assert.Contains(result.Evidence, evidence => evidence.Source == "Healthy");
+        Assert.Contains(result.SourceWarnings, warning =>
+            warning.Contains("simulated collector failure", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Coverage.Sources, source =>
+            source.Source == nameof(ThrowingEvidenceCollector) && source.Status == "Error");
+    }
+
+    [Fact]
     public void Golden_fixture_builds_usb_scope_report_context_for_transport_variants()
     {
         var result = GoldenAuditFixtures.CreateTransportScopeResult();
@@ -312,6 +342,15 @@ public sealed class Stage7IntegrationTests
                 Provenance = "fake historical collector"
             });
         }
+    }
+
+    private sealed class ThrowingEvidenceCollector : IEvidenceCollector
+    {
+        public string ProgressMessage => "throwing";
+        public bool ShouldRun => true;
+
+        public IReadOnlyList<EvidenceRecord> Collect(List<string> warnings) =>
+            throw new InvalidOperationException("simulated collector failure");
     }
 
     private sealed class NoOpLiveMerger(List<string> order) : ILiveDeviceMerger

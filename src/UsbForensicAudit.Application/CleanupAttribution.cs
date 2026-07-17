@@ -25,7 +25,7 @@ public static class CleanupAttribution
 
         try
         {
-            if (rawText.TrimStart().StartsWith("<", StringComparison.Ordinal))
+            if (rawText.TrimStart().StartsWith('<'))
             {
                 var doc = XDocument.Parse(rawText);
                 var eventData = doc.Descendants().Where(x => x.Name.LocalName is "Data" or "SubjectUserName" or "SubjectDomainName" or "SubjectUserSid" or "UserID").ToList();
@@ -224,7 +224,7 @@ public static class CleanupAttribution
 
         try
         {
-            if (rawText.TrimStart().StartsWith("<", StringComparison.Ordinal))
+            if (rawText.TrimStart().StartsWith('<'))
             {
                 var doc = XDocument.Parse(rawText);
                 return FindDataValue(doc, "NewProcessName")

@@ -1,9 +1,14 @@
 using System.IO;
+using System.Diagnostics.CodeAnalysis;
 
 namespace UsbForensicAudit;
 
 public sealed class CleanupDetector
 {
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "The detector is an injected application service and intentionally exposes an instance API.")]
     public IReadOnlyList<CleanupFinding> Analyze(AuditResult result)
     {
         var findings = new List<CleanupFinding>();
@@ -117,8 +122,6 @@ public sealed class CleanupDetector
                 $"Найдено событие очистки журнала Event ID {evidence.EventId}",
                 baseDetails,
                 evidence.TimestampUtc);
-            finding.ActionKind = "LogClearing";
-
             if (finding.Assessment == "OsInstall")
             {
                 if (initiator.Kind == "Unknown")

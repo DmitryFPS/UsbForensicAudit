@@ -206,7 +206,7 @@ internal static class Win32ListViewReader
     public static ListViewSnapshot ReadDirect(IntPtr listViewHandle)
     {
         GetWindowRect(listViewHandle, out var rect);
-        var rowCount = SendMessage(listViewHandle, LvmGetItemCount, IntPtr.Zero, IntPtr.Zero).ToInt32();
+        var rowCount = Win32Message.Send(listViewHandle, LvmGetItemCount, IntPtr.Zero, IntPtr.Zero).ToInt32();
         var headers = ReadHeaders(listViewHandle);
         var columnCount = Math.Max(headers.Count, GuessColumnCount(listViewHandle, rowCount));
 
@@ -264,13 +264,13 @@ internal static class Win32ListViewReader
 
     private static IReadOnlyList<string> ReadHeaders(IntPtr listViewHandle)
     {
-        var headerHandle = SendMessage(listViewHandle, LvmGetHeader, IntPtr.Zero, IntPtr.Zero);
+        var headerHandle = Win32Message.Send(listViewHandle, LvmGetHeader, IntPtr.Zero, IntPtr.Zero);
         if (headerHandle == IntPtr.Zero)
         {
             return Array.Empty<string>();
         }
 
-        var count = SendMessage(headerHandle, HdmGetItemCount, IntPtr.Zero, IntPtr.Zero).ToInt32();
+        var count = Win32Message.Send(headerHandle, HdmGetItemCount, IntPtr.Zero, IntPtr.Zero).ToInt32();
         var headers = new List<string>();
         for (var index = 0; index < count; index++)
         {
@@ -296,7 +296,7 @@ internal static class Win32ListViewReader
             try
             {
                 Marshal.StructureToPtr(item, pointer, false);
-                if (SendMessage(headerHandle, HdmGetItemW, new IntPtr(index), pointer) == IntPtr.Zero)
+                if (Win32Message.Send(headerHandle, HdmGetItemW, new IntPtr(index), pointer) == IntPtr.Zero)
                 {
                     return "";
                 }
@@ -333,7 +333,7 @@ internal static class Win32ListViewReader
             try
             {
                 Marshal.StructureToPtr(item, pointer, false);
-                SendMessage(listViewHandle, LvmGetItemTextW, IntPtr.Zero, pointer);
+                Win32Message.Send(listViewHandle, LvmGetItemTextW, IntPtr.Zero, pointer);
                 item = Marshal.PtrToStructure<Lvitem>(pointer)!;
                 return TextSanitizer.NormalizeDisplay(Marshal.PtrToStringUni(item.PszText) ?? "", 500);
             }
@@ -382,9 +382,6 @@ internal static class Win32ListViewReader
         public int Right;
         public int Bottom;
     }
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr hWnd, out Rect lpRect);

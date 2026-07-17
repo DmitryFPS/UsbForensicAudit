@@ -33,6 +33,9 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, IReadOnlyList<ExternalUtilitySourceHit>> _procmonHitsByRowKey = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _procmonSessionByRowKey = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _procmonSummaryByRowKey = new(StringComparer.Ordinal);
+    private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private readonly SemaphoreSlim _exclusiveOperation = new(1, 1);
+    private readonly SemaphoreSlim _liveRefreshGate = new(1, 1);
     private DateTimeOffset _lastAutoScanUtc = DateTimeOffset.MinValue;
     private ActiveDevicesWindow? _activeDevicesWindow;
 
@@ -144,6 +147,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!await _exclusiveOperation.WaitAsync(0))
+        {
+            AppendLog("Другая длительная операция уже выполняется, сканирование отложено.");
+            return;
+        }
+
         try
         {
             _vm.IsScanning = true;
@@ -156,7 +165,7 @@ public partial class MainWindow : Window
                 AppendLog(message);
             });
 
-            var result = await _vm.RunFullScanAsync(progress);
+            var result = await _vm.RunFullScanAsync(progress, _lifetimeCancellation.Token);
             _vm.LastResult = result;
             BindResult(result);
             PdfReportButton.IsEnabled = true;
@@ -166,6 +175,10 @@ public partial class MainWindow : Window
             AppendLog($"Дата установки Windows: {result.OsInstalledAtText}.");
             var suspiciousCount = result.CleanupFindings.Count(x => x.IsSuspicious);
             AppendLog($"Готово: устройств {result.Devices.Count}, доказательств {result.Evidence.Count}, записей об очистке {result.CleanupFindings.Count} (подозрительных {suspiciousCount}).");
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+            AppendLog("Сканирование отменено при завершении приложения.");
         }
         catch (Exception ex)
         {
@@ -178,6 +191,7 @@ public partial class MainWindow : Window
             _vm.IsScanning = false;
             SetBusy(false);
             StatusText.Text = "Готово";
+            _exclusiveOperation.Release();
         }
     }
 
@@ -226,6 +240,10 @@ public partial class MainWindow : Window
             StopMonitorButton.IsEnabled = true;
             ShowActiveDevicesButton.IsEnabled = true;
             AppendLog("Live-мониторинг запущен. Обновление идёт по событиям Windows, без постоянного опроса каждые 2 секунды.");
+            if (_monitor.UsesPollingFallback)
+            {
+                AppendLog("WMI-события недоступны: включён резервный опрос USB каждые 5 секунд.");
+            }
             if (!string.IsNullOrWhiteSpace(EndpointProtectionEnvironment.Summary))
             {
                 AppendLog(EndpointProtectionEnvironment.Summary);
@@ -254,27 +272,40 @@ public partial class MainWindow : Window
         AppendLog("Окно текущих USB/Type-C устройств открыто.");
     }
 
-    private void Monitor_RefreshRequested(object? sender, EventArgs e)
+    private async void Monitor_RefreshRequested(object? sender, EventArgs e)
     {
-        Dispatcher.Invoke(RefreshActiveDevicesWindow);
+        await RefreshActiveDevicesWindowAsync();
     }
 
     private async void Monitor_DeviceChanged(object? sender, string e)
     {
-        await Dispatcher.InvokeAsync(async () =>
+        try
         {
-            AppendLog(e);
-            await Task.Delay(800);
-            RefreshActiveDevicesWindow();
+            await Dispatcher.InvokeAsync(() => AppendLog(e));
+            await Task.Delay(800, _lifetimeCancellation.Token);
+            await RefreshActiveDevicesWindowAsync();
 
-            if (DateTimeOffset.UtcNow - _lastAutoScanUtc < TimeSpan.FromSeconds(15))
+            var shouldAutoScan = await Dispatcher.InvokeAsync(() =>
             {
-                return;
-            }
+                if (_vm.IsProcmonTracing
+                    || DateTimeOffset.UtcNow - _lastAutoScanUtc < TimeSpan.FromSeconds(15))
+                {
+                    return false;
+                }
 
-            _lastAutoScanUtc = DateTimeOffset.UtcNow;
-            await RunScanAsync("Автоснимок после изменения USB.");
-        });
+                _lastAutoScanUtc = DateTimeOffset.UtcNow;
+                return true;
+            });
+            if (shouldAutoScan)
+            {
+                await Dispatcher.InvokeAsync(
+                    () => RunScanAsync("Автоснимок после изменения USB.")).Task.Unwrap();
+            }
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+            // Ожидаемое завершение фонового обработчика.
+        }
     }
 
     private void ShowAndRefreshActiveDevicesWindow()
@@ -297,7 +328,7 @@ public partial class MainWindow : Window
             }
         }
 
-        RefreshActiveDevicesWindow();
+        _ = RefreshActiveDevicesWindowAsync();
     }
 
     private bool IsActiveDevicesWindowOpen()
@@ -315,122 +346,162 @@ public partial class MainWindow : Window
         _activeDevicesWindow = null;
     }
 
-    private void RefreshActiveDevicesWindow()
+    private async Task RefreshActiveDevicesWindowAsync()
     {
-        if (!StopMonitorButton.IsEnabled)
+        var shouldRefresh = await Dispatcher.InvokeAsync(
+            () => StopMonitorButton.IsEnabled && IsActiveDevicesWindowOpen());
+        if (!shouldRefresh)
+        {
+            return;
+        }
+
+        if (!await _liveRefreshGate.WaitAsync(0))
         {
             return;
         }
 
         try
         {
-            if (!IsActiveDevicesWindowOpen())
+            var devices = await Task.Run(
+                _liveUsbSnapshotService.GetCurrentDevices,
+                _lifetimeCancellation.Token);
+            await Dispatcher.InvokeAsync(() =>
             {
-                return;
-            }
-
-            _activeDevicesWindow!.UpdateDevices(_liveUsbSnapshotService.GetCurrentDevices());
+                if (IsActiveDevicesWindowOpen())
+                {
+                    _activeDevicesWindow!.UpdateDevices(devices);
+                }
+            });
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+            // Ожидаемое завершение фонового обновления.
         }
         catch (Exception ex)
         {
             AppLog.Error(ex, "Active USB snapshot failed");
-            AppendLog($"Не удалось обновить окно текущих USB: {ex.Message}");
+            await Dispatcher.InvokeAsync(() => AppendLog($"Не удалось обновить окно текущих USB: {ex.Message}"));
+        }
+        finally
+        {
+            _liveRefreshGate.Release();
         }
     }
 
-    private void PdfReportButton_Click(object sender, RoutedEventArgs e)
+    private async void PdfReportButton_Click(object sender, RoutedEventArgs e)
     {
         if (_vm.LastResult is null)
         {
             return;
         }
 
-        try
-        {
-            var path = _vm.ReportService.CreatePdf(_vm.LastResult, _vm.Storage.DataDirectory, GetExternalUtilitySnapshotForReport());
-            ReportStatusText.Text = $"PDF отчет создан: {path}";
-            _vm.ReportService.OpenFile(path);
-        }
-        catch (Exception ex)
-        {
-            AppLog.Error(ex, "PDF creation failed");
-            MessageBox.Show(this, ex.Message, "Ошибка PDF", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        var result = _vm.LastResult;
+        var snapshot = GetExternalUtilitySnapshotForReport();
+        await RunReportAsync(
+            () => _vm.ReportService.CreatePdf(result, _vm.Storage.DataDirectory, snapshot),
+            "PDF отчет создан",
+            "PDF creation failed",
+            "Ошибка PDF");
     }
 
-    private void BriefPdfReportButton_Click(object sender, RoutedEventArgs e)
+    private async void BriefPdfReportButton_Click(object sender, RoutedEventArgs e)
     {
         if (_vm.LastResult is null)
         {
             return;
         }
 
-        try
-        {
-            var path = _vm.ReportService.CreateBriefPdf(_vm.LastResult, _vm.Storage.DataDirectory, GetExternalUtilitySnapshotForReport());
-            ReportStatusText.Text = $"Сводный PDF создан: {path}";
-            _vm.ReportService.OpenFile(path);
-        }
-        catch (Exception ex)
-        {
-            AppLog.Error(ex, "Brief PDF creation failed");
-            MessageBox.Show(this, ex.Message, "Ошибка PDF", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        var result = _vm.LastResult;
+        var snapshot = GetExternalUtilitySnapshotForReport();
+        await RunReportAsync(
+            () => _vm.ReportService.CreateBriefPdf(result, _vm.Storage.DataDirectory, snapshot),
+            "Сводный PDF создан",
+            "Brief PDF creation failed",
+            "Ошибка PDF");
     }
 
-    private void ExcelReportButton_Click(object sender, RoutedEventArgs e)
+    private async void ExcelReportButton_Click(object sender, RoutedEventArgs e)
     {
         if (_vm.LastResult is null)
         {
             return;
         }
 
-        try
-        {
-            var path = _vm.ReportService.CreateExcel(
-                _vm.LastResult,
-                _vm.Storage.DataDirectory,
-                GetExternalUtilitySnapshotForReport());
-            ReportStatusText.Text = $"Полный Excel создан: {path}";
-            _vm.ReportService.OpenFile(path);
-        }
-        catch (Exception ex)
-        {
-            AppLog.Error(ex, "Excel creation failed");
-            MessageBox.Show(this, ex.Message, "Ошибка Excel", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        var result = _vm.LastResult;
+        var snapshot = GetExternalUtilitySnapshotForReport();
+        await RunReportAsync(
+            () => _vm.ReportService.CreateExcel(result, _vm.Storage.DataDirectory, snapshot),
+            "Полный Excel создан",
+            "Excel creation failed",
+            "Ошибка Excel");
     }
 
-    private void BriefExcelReportButton_Click(object sender, RoutedEventArgs e)
+    private async void BriefExcelReportButton_Click(object sender, RoutedEventArgs e)
     {
         if (_vm.LastResult is null)
         {
             return;
         }
 
+        var result = _vm.LastResult;
+        var snapshot = GetExternalUtilitySnapshotForReport();
+        await RunReportAsync(
+            () => _vm.ReportService.CreateBriefExcel(result, _vm.Storage.DataDirectory, snapshot),
+            "Сводный Excel создан",
+            "Brief Excel creation failed",
+            "Ошибка Excel");
+    }
+
+    private async Task RunReportAsync(
+        Func<string> createReport,
+        string successText,
+        string errorContext,
+        string errorTitle)
+    {
+        if (!await _exclusiveOperation.WaitAsync(0))
+        {
+            ReportStatusText.Text = "Другая длительная операция уже выполняется.";
+            return;
+        }
+
         try
         {
-            var path = _vm.ReportService.CreateBriefExcel(
-                _vm.LastResult,
-                _vm.Storage.DataDirectory,
-                GetExternalUtilitySnapshotForReport());
-            ReportStatusText.Text = $"Сводный Excel создан: {path}";
+            SetBusy(true);
+            var path = await Task.Run(createReport, _lifetimeCancellation.Token);
+            ReportStatusText.Text = $"{successText}: {path}";
             _vm.ReportService.OpenFile(path);
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+            ReportStatusText.Text = "Создание отчёта отменено.";
         }
         catch (Exception ex)
         {
-            AppLog.Error(ex, "Brief Excel creation failed");
-            MessageBox.Show(this, ex.Message, "Ошибка Excel", MessageBoxButton.OK, MessageBoxImage.Error);
+            AppLog.Error(ex, errorContext);
+            MessageBox.Show(this, ex.Message, errorTitle, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            SetBusy(false);
+            _exclusiveOperation.Release();
         }
     }
 
     private void OpenDataFolderButton_Click(object sender, RoutedEventArgs e)
     {
-        Process.Start(new ProcessStartInfo
+        try
         {
-            FileName = _vm.Storage.DataDirectory,
-            UseShellExecute = true
-        });
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = _vm.Storage.DataDirectory,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception exception)
+        {
+            AppLog.Error(exception, "Open data directory failed");
+            MessageBox.Show(this, exception.Message, "Не удалось открыть папку", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void FindExternalUtilitiesButton_Click(object sender, RoutedEventArgs e)
@@ -483,11 +554,17 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!await _exclusiveOperation.WaitAsync(0))
+        {
+            ExternalUtilityStatusText.Text = "Другая длительная операция уже выполняется.";
+            return;
+        }
+
         try
         {
             SetBusy(true);
             ExternalUtilityStatusText.Text = $"Считывание «{selected.DisplayName}» без переключения окон…";
-            var capture = await ExternalUtilityCaptureRunner.CaptureAsync(selected);
+            var capture = await ExternalUtilityCaptureRunner.CaptureAsync(selected, _lifetimeCancellation.Token);
 
             _externalUtilityRows.Clear();
             foreach (var section in capture.Sections)
@@ -527,6 +604,10 @@ public partial class MainWindow : Window
 
             UpdateExternalUtilityControls();
         }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+            ExternalUtilityStatusText.Text = "Считывание отменено.";
+        }
         catch (Exception ex)
         {
             AppLog.Error(ex, "External utility capture failed");
@@ -536,6 +617,7 @@ public partial class MainWindow : Window
         finally
         {
             SetBusy(false);
+            _exclusiveOperation.Release();
         }
     }
 
@@ -786,6 +868,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!await _exclusiveOperation.WaitAsync(0))
+        {
+            ProcmonTraceStatusText.Text = "Другая длительная операция уже выполняется.";
+            return;
+        }
+
         _vm.IsProcmonTracing = true;
         UpdateExternalUtilityControls();
 
@@ -810,7 +898,8 @@ public partial class MainWindow : Window
                     UtilityId = runningUtility.UtilityId,
                     CaptureDuration = TimeSpan.FromSeconds(20)
                 },
-                progress);
+                progress,
+                _lifetimeCancellation.Token);
 
             var rowKey = ExternalUtilityRowKey.Build(row);
             _procmonHitsByRowKey[rowKey] = result.Hits;
@@ -822,6 +911,10 @@ public partial class MainWindow : Window
             ExternalUtilityStatusText.Text =
                 $"Procmon завершён: {result.Hits.Count} совпадений, событий в CSV: {result.ParsedEventCount}. Папка: {result.SessionDirectory}";
             ProcmonTraceStatusText.Text = ExternalUtilityStatusText.Text;
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+            ProcmonTraceStatusText.Text = "Трассировка отменена.";
         }
         catch (Exception ex)
         {
@@ -843,6 +936,7 @@ public partial class MainWindow : Window
         {
             _vm.IsProcmonTracing = false;
             UpdateExternalUtilityControls();
+            _exclusiveOperation.Release();
         }
     }
 
@@ -1203,6 +1297,12 @@ public partial class MainWindow : Window
         ExcelReportButton.IsEnabled = !busy && _vm.LastResult is not null;
         BriefExcelReportButton.IsEnabled = !busy && _vm.LastResult is not null;
         UpdateExternalUtilityControls();
+        if (busy)
+        {
+            CopyExternalUtilityRowButton.IsEnabled = false;
+            CopyExternalUtilityAnalysisButton.IsEnabled = false;
+            CaptureExternalUtilityButton.IsEnabled = false;
+        }
         Cursor = busy ? System.Windows.Input.Cursors.Wait : null;
     }
 
@@ -1214,6 +1314,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _lifetimeCancellation.Cancel();
         _deviceChangeNotifier.Dispose();
         _monitor.Dispose();
         _activeDevicesWindow?.Close();

@@ -15,7 +15,7 @@ internal static class Win32WindowHelper
 
     public static void ScrollToBottom(IntPtr hWnd)
     {
-        SendMessage(hWnd, WmVscroll, new IntPtr(SbBottom), IntPtr.Zero);
+        Win32Message.Send(hWnd, WmVscroll, new IntPtr(SbBottom), IntPtr.Zero);
     }
 
     public static void PrepareUsbDetectorCapture(IntPtr mainWindow)
@@ -35,6 +35,4 @@ internal static class Win32WindowHelper
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr hWnd, out Rect lpRect);
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 }

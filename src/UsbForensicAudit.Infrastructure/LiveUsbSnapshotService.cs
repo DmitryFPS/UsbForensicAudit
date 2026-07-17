@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Management;
 using System.Text.RegularExpressions;
 
@@ -6,7 +7,7 @@ namespace UsbForensicAudit;
 public sealed class LiveUsbSnapshotService
 {
     private static readonly Regex VidPidRegex = new(@"VID_([0-9A-F]{4})&PID_([0-9A-F]{4})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private readonly Dictionary<string, DateTimeOffset> _firstSeenByStableKey = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _firstSeenByStableKey = new(StringComparer.OrdinalIgnoreCase);
 
     public IReadOnlyList<LiveUsbDevice> GetCurrentDevices()
     {
@@ -53,9 +54,10 @@ public sealed class LiveUsbSnapshotService
                 AddEndpointProtectionFilteredDevices(devicesByStableKey, vidPidResolver);
             }
         }
-        catch
+        catch (Exception exception)
         {
-            // По возможности; опрос повторит попытку на следующем тике.
+            AppLog.Error(exception, "Live USB snapshot failed");
+            throw new InvalidOperationException("Не удалось получить текущий список USB-устройств.", exception);
         }
 
         RemoveMissingDevices(devicesByStableKey.Keys);
@@ -165,13 +167,15 @@ public sealed class LiveUsbSnapshotService
     {
         try
         {
+            var escapedDriveLetter = EscapeWqlValue(driveLetter);
             using var searcher = new ManagementObjectSearcher(
-                $"ASSOCIATORS OF {{Win32_LogicalDisk.DeviceID='{driveLetter}'}} WHERE AssocClass=Win32_LogicalDiskToPartition");
+                $"ASSOCIATORS OF {{Win32_LogicalDisk.DeviceID='{escapedDriveLetter}'}} WHERE AssocClass=Win32_LogicalDiskToPartition");
 
             foreach (ManagementObject partition in searcher.Get())
             {
+                var partitionId = EscapeWqlValue(partition["DeviceID"]?.ToString() ?? "");
                 using var diskSearcher = new ManagementObjectSearcher(
-                    $"ASSOCIATORS OF {{Win32_DiskPartition.DeviceID='{partition["DeviceID"]}'}} WHERE AssocClass=Win32_DiskDriveToDiskPartition");
+                    $"ASSOCIATORS OF {{Win32_DiskPartition.DeviceID='{partitionId}'}} WHERE AssocClass=Win32_DiskDriveToDiskPartition");
 
                 foreach (ManagementObject disk in diskSearcher.Get())
                 {
@@ -200,11 +204,7 @@ public sealed class LiveUsbSnapshotService
         }
 
         var stableKey = LiveDeviceIdentity.StableKey(pnpId, vidPid.Vid, vidPid.Pid);
-        if (!_firstSeenByStableKey.TryGetValue(stableKey, out var firstSeen))
-        {
-            firstSeen = DateTimeOffset.UtcNow;
-            _firstSeenByStableKey[stableKey] = firstSeen;
-        }
+        var firstSeen = _firstSeenByStableKey.GetOrAdd(stableKey, _ => DateTimeOffset.UtcNow);
 
         var metadata = LiveDeviceMetadataReader.Read(pnpId);
         return new LiveUsbDevice
@@ -274,14 +274,17 @@ public sealed class LiveUsbSnapshotService
     private void RemoveMissingDevices(IEnumerable<string> currentStableKeys)
     {
         var current = currentStableKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var knownKey in _firstSeenByStableKey.Keys.ToArray())
+        foreach (var knownKey in _firstSeenByStableKey.Keys)
         {
             if (!current.Contains(knownKey))
             {
-                _firstSeenByStableKey.Remove(knownKey);
+                _firstSeenByStableKey.TryRemove(knownKey, out _);
             }
         }
     }
+
+    private static string EscapeWqlValue(string value) =>
+        value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("'", "\\'", StringComparison.Ordinal);
 
     private static string Read(ManagementBaseObject item, string property)
     {

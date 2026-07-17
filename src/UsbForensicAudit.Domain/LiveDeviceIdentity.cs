@@ -8,7 +8,7 @@ internal static class LiveDeviceIdentity
 
     public static string NormalizeDeviceId(string deviceId)
     {
-        return deviceId.Trim().Replace(@"\\", @"\").ToUpperInvariant();
+        return DevicePathNormalizer.CanonicalDeviceId(deviceId);
     }
 
     public static string StableKey(string deviceId, string vid, string pid)

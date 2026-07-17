@@ -76,7 +76,7 @@ public static class ExternalUtilityRowFormatter
                 continue;
             }
 
-            builder.AppendLine($"{ReadableLabel(key)}: {value}");
+            builder.Append(ReadableLabel(key)).Append(": ").AppendLine(value);
         }
 
         foreach (var pair in row.Values.OrderBy(x => FieldOrder(x.Key)))
@@ -86,7 +86,7 @@ public static class ExternalUtilityRowFormatter
                 continue;
             }
 
-            builder.AppendLine($"{ReadableLabel(pair.Key)}: {pair.Value}");
+            builder.Append(ReadableLabel(pair.Key)).Append(": ").AppendLine(pair.Value);
         }
 
         return builder.ToString().TrimEnd();

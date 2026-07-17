@@ -82,7 +82,7 @@ public sealed class OfflineHiveCollector : IEvidenceCollector
             if (loaded)
             {
                 Registry.Users.Flush();
-                var unload = RunReg("unload", $@"HKU\{mount}");
+                var unload = RunRegWithRetry("unload", $@"HKU\{mount}");
                 if (unload.ExitCode != 0) warnings.Add($"Offline hive unload HKU\\{mount}: {unload.Output}");
             }
             try { if (Directory.Exists(tempDirectory)) Directory.Delete(tempDirectory, true); }
@@ -114,5 +114,22 @@ public sealed class OfflineHiveCollector : IEvidenceCollector
         }
         Task.WaitAll(stdout, stderr);
         return (process.ExitCode, TextSanitizer.NormalizeDisplay(stdout.Result + stderr.Result, 1000));
+    }
+
+    private static (int ExitCode, string Output) RunRegWithRetry(string action, string key)
+    {
+        (int ExitCode, string Output) result = (-1, "not started");
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            result = RunReg(action, key);
+            if (result.ExitCode == 0)
+            {
+                return result;
+            }
+
+            Thread.Sleep(250 * (attempt + 1));
+        }
+
+        return result;
     }
 }

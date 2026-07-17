@@ -30,7 +30,9 @@ public sealed class ShellLinkInfo
             return left;
         }
 
-        return left.EndsWith('\\') ? left + right : left + "\\" + right;
+        var normalizedLeft = left.Replace('/', '\\').TrimEnd('\\');
+        var normalizedRight = right.Replace('/', '\\').TrimStart('\\');
+        return Path.Join(normalizedLeft, normalizedRight);
     }
 }
 

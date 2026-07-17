@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UsbForensicAudit.Applicatio
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UsbForensicAudit.Infrastructure", "src\UsbForensicAudit.Infrastructure\UsbForensicAudit.Infrastructure.csproj", "{5BB16880-87AD-4035-849D-6878A0742A83}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UsbForensicAudit.Tests", "tests\UsbForensicAudit.Tests\UsbForensicAudit.Tests.csproj", "{C12871F4-3774-4BD5-A477-135F3EF1D8D1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -38,6 +40,10 @@ Global
 		{5BB16880-87AD-4035-849D-6878A0742A83}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5BB16880-87AD-4035-849D-6878A0742A83}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5BB16880-87AD-4035-849D-6878A0742A83}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C12871F4-3774-4BD5-A477-135F3EF1D8D1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C12871F4-3774-4BD5-A477-135F3EF1D8D1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C12871F4-3774-4BD5-A477-135F3EF1D8D1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C12871F4-3774-4BD5-A477-135F3EF1D8D1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{78D00CDD-9D5C-4BCC-9E5F-0F7B3D9C3B4C} = {BFEA281D-DE4D-4352-B9F8-06C3FB307DFF}
