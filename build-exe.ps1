@@ -14,9 +14,24 @@ $procmonExtract = Join-Path $procmonDir "pmextract"
 $infrastructureDll = Join-Path $PSScriptRoot "src\UsbForensicAudit.Infrastructure\bin\$Configuration\net8.0-windows\UsbForensicAudit.Infrastructure.dll"
 $engineeringGuideDirectory = Join-Path $PSScriptRoot "docs"
 
+function Assert-TrustedProcmon {
+    param([string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        throw "Procmon executable not found: $Path"
+    }
+
+    $signature = Get-AuthenticodeSignature -FilePath $Path
+    if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid `
+        -or $signature.SignerCertificate.Subject -notmatch "(^|,\s*)O=Microsoft Corporation(,|$)") {
+        throw "Procmon Authenticode signature is not trusted: $($signature.Status); $($signature.StatusMessage)"
+    }
+}
+
 function Ensure-ProcmonForOfflineBuild {
     New-Item -ItemType Directory -Force -Path $procmonDir | Out-Null
     if (Test-Path $procmonExe) {
+        Assert-TrustedProcmon $procmonExe
         Write-Host "Procmon64.exe already present for offline bundle."
         return
     }
@@ -36,13 +51,16 @@ function Ensure-ProcmonForOfflineBuild {
     }
 
     Copy-Item $found.FullName $procmonExe -Force
+    Assert-TrustedProcmon $procmonExe
     Remove-Item $procmonZip -Force -ErrorAction SilentlyContinue
     Remove-Item $procmonExtract -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host "Procmon64.exe prepared: $procmonExe"
 }
 
 function Prepare-BuildEnvironment {
-    Get-Process -Name UsbForensicAudit -ErrorAction SilentlyContinue | Stop-Process -Force
+    if (Get-Process -Name UsbForensicAudit -ErrorAction SilentlyContinue) {
+        throw "UsbForensicAudit is running. Close it before creating the portable build."
+    }
     dotnet build-server shutdown 2>$null | Out-Null
 }
 
@@ -70,7 +88,7 @@ Prepare-BuildEnvironment
 
 dotnet clean $solution -c $Configuration --nologo -v q
 
-dotnet restore $solution
+dotnet restore $solution --locked-mode
 
 $iconTool = Join-Path $PSScriptRoot "tools\GenerateIcon\GenerateIcon.csproj"
 $iconPng = Join-Path $PSScriptRoot "Assets\app-icon.png"

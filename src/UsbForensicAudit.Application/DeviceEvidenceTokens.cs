@@ -42,7 +42,7 @@ internal static class DeviceEvidenceTokens
     }
 
     private static string NormalizeStrong(string value)
-        => value.Trim().Trim('{', '}').Replace(@"\\", @"\");
+        => DevicePathNormalizer.NormalizeDeviceId(value);
 
     private static bool IsStrong(string value)
     {

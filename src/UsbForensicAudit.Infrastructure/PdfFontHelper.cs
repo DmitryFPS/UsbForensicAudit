@@ -8,33 +8,37 @@ public static class PdfFontHelper
 {
     public const string DefaultFamily = "Segoe UI";
 
+    private static readonly object RegistrationSync = new();
     private static bool _registered;
 
     public static void EnsureRegistered()
     {
-        if (_registered)
+        lock (RegistrationSync)
         {
-            return;
+            if (_registered)
+            {
+                return;
+            }
+
+            QuestPDF.Settings.License = LicenseType.Community;
+
+            foreach (var fileName in new[]
+                     {
+                         "segoeui.ttf",
+                         "segoeuib.ttf",
+                         "segoeuii.ttf",
+                         "segoeuisl.ttf",
+                         "arial.ttf",
+                         "arialbd.ttf",
+                         "calibri.ttf",
+                         "calibrib.ttf"
+                     })
+            {
+                RegisterFontFile(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts", fileName));
+            }
+
+            _registered = true;
         }
-
-        QuestPDF.Settings.License = LicenseType.Community;
-
-        foreach (var fileName in new[]
-                 {
-                     "segoeui.ttf",
-                     "segoeuib.ttf",
-                     "segoeuii.ttf",
-                     "segoeuisl.ttf",
-                     "arial.ttf",
-                     "arialbd.ttf",
-                     "calibri.ttf",
-                     "calibrib.ttf"
-                 })
-        {
-            RegisterFontFile(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts", fileName));
-        }
-
-        _registered = true;
     }
 
     private static void RegisterFontFile(string path)

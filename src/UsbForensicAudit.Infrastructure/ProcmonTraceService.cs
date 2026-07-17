@@ -34,7 +34,7 @@ public static class ProcmonTraceService
             throw new InvalidOperationException("Procmon требует запуска UsbForensicAudit от администратора.");
         }
 
-        var utilityProcess = ResolveUtilityProcess(request);
+        using var utilityProcess = ResolveUtilityProcess(request);
         if (utilityProcess is null)
         {
             throw new InvalidOperationException(
@@ -120,7 +120,20 @@ public static class ProcmonTraceService
         }
 
         var processName = Path.GetFileNameWithoutExtension(request.UtilityProcessName);
-        return Process.GetProcessesByName(processName).FirstOrDefault(x => !x.HasExited);
+        var candidates = Process.GetProcessesByName(processName);
+        Process? selected = null;
+        foreach (var candidate in candidates)
+        {
+            if (selected is null && !candidate.HasExited)
+            {
+                selected = candidate;
+                continue;
+            }
+
+            candidate.Dispose();
+        }
+
+        return selected;
     }
 
     private static string CreateSessionDirectory()
@@ -141,6 +154,8 @@ public static class ProcmonTraceService
         IProgress<string>? progress,
         CancellationToken cancellationToken)
     {
+        EnsureTrustedProcmon(procmonPath);
+        EnsureNoExistingProcmon(procmonPath);
         if (File.Exists(pmlPath))
         {
             File.Delete(pmlPath);
@@ -206,7 +221,11 @@ public static class ProcmonTraceService
             {
                 if (!procmon.HasExited)
                 {
-                    procmon.WaitForExit(5000);
+                    if (!procmon.WaitForExit(5000))
+                    {
+                        procmon.Kill(entireProcessTree: true);
+                        procmon.WaitForExit(5000);
+                    }
                 }
             }
             catch
@@ -218,6 +237,28 @@ public static class ProcmonTraceService
         if (!File.Exists(pmlPath))
         {
             throw new InvalidOperationException("Procmon не создал файл трассировки (.pml).");
+        }
+    }
+
+    private static void EnsureNoExistingProcmon(string procmonPath)
+    {
+        var processName = Path.GetFileNameWithoutExtension(procmonPath);
+        var running = Process.GetProcessesByName(processName);
+        try
+        {
+            if (running.Any(process => !process.HasExited))
+            {
+                throw new InvalidOperationException(
+                    "Process Monitor уже запущен. Закройте существующий Procmon перед трассировкой, " +
+                    "чтобы приложение не завершило чужую сессию.");
+            }
+        }
+        finally
+        {
+            foreach (var process in running)
+            {
+                process.Dispose();
+            }
         }
     }
 
@@ -242,6 +283,7 @@ public static class ProcmonTraceService
     {
         try
         {
+            EnsureTrustedProcmon(procmonPath);
             using var process = Process.Start(new ProcessStartInfo
             {
                 FileName = procmonPath,
@@ -250,19 +292,40 @@ public static class ProcmonTraceService
                 CreateNoWindow = true
             });
 
-            process?.WaitForExit(120_000);
+            if (process is null)
+            {
+                return false;
+            }
+
+            if (!process.WaitForExit(120_000))
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit(5_000);
+                AppLog.Error(
+                    new TimeoutException("Команда Procmon превысила таймаут 120 секунд."),
+                    "Procmon command timed out: " + arguments);
+                return false;
+            }
 
             if (!string.IsNullOrWhiteSpace(expectedOutputPath) && File.Exists(expectedOutputPath))
             {
                 return true;
             }
 
-            return process?.ExitCode == 0;
+            return process.ExitCode == 0;
         }
         catch (Exception ex)
         {
             AppLog.Error(ex, "Procmon command failed: " + arguments);
             return false;
+        }
+    }
+
+    private static void EnsureTrustedProcmon(string path)
+    {
+        if (!AuthenticodeTrust.IsTrustedMicrosoftBinary(path))
+        {
+            throw new InvalidOperationException("Procmon не имеет действительной подписи Microsoft.");
         }
     }
 

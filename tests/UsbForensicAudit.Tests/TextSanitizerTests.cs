@@ -43,6 +43,18 @@ public class TextSanitizerTests
     }
 
     [Fact]
+    public void NormalizeDisplay_keeps_russian_text_with_separate_technical_acronym()
+    {
+        Assert.Equal("Отключение USB", TextSanitizer.NormalizeDisplay("Отключение USB"));
+    }
+
+    [Fact]
+    public void IsReadableForDisplay_rejects_mixed_scripts_inside_one_token()
+    {
+        Assert.False(TextSanitizer.IsReadableForDisplay("РayРal"));
+    }
+
+    [Fact]
     public void NormalizeConsoleOutput_decodes_cp866_bytes()
     {
         Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);

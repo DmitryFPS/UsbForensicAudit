@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -46,13 +47,24 @@ public sealed class DeviceChangeNotifier : IDisposable
         };
 
         _notificationHandle = RegisterDeviceNotification(helper.Handle, ref filter, DeviceNotifyWindowHandle);
+        if (_notificationHandle == IntPtr.Zero)
+        {
+            _hwndSource?.RemoveHook(WndProc);
+            _hwndSource = null;
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Не удалось зарегистрировать уведомления USB.");
+        }
     }
 
     public void Stop()
     {
         if (_notificationHandle != IntPtr.Zero)
         {
-            UnregisterDeviceNotification(_notificationHandle);
+            if (!UnregisterDeviceNotification(_notificationHandle))
+            {
+                AppLog.Error(
+                    new Win32Exception(Marshal.GetLastWin32Error()),
+                    "Failed to unregister USB notifications");
+            }
             _notificationHandle = IntPtr.Zero;
         }
 

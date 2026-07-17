@@ -5,11 +5,15 @@ namespace UsbForensicAudit;
 public sealed class WmiUsbMonitor : IDisposable
 {
     private static readonly TimeSpan DebounceInterval = TimeSpan.FromMilliseconds(750);
+    private static readonly TimeSpan PollingInterval = TimeSpan.FromSeconds(5);
+    private readonly object _timerSync = new();
     private ManagementEventWatcher? _watcher;
     private System.Threading.Timer? _debounceTimer;
+    private System.Threading.Timer? _pollingTimer;
     private DeviceChangeNotifier? _deviceNotifier;
     private int _refreshPending;
     private int _refreshInProgress;
+    private int _isRunning;
     private string _lastReason = "Обновление списка USB";
 
     public event EventHandler<string>? DeviceChanged;
@@ -36,19 +40,20 @@ public sealed class WmiUsbMonitor : IDisposable
     public void Start()
     {
         Stop();
+        Volatile.Write(ref _isRunning, 1);
         StartWatcher();
         RequestRefresh("Старт мониторинга USB");
     }
 
     public void Stop()
     {
-        _debounceTimer?.Dispose();
-        _debounceTimer = null;
-
-        if (_deviceNotifier is not null)
+        Volatile.Write(ref _isRunning, 0);
+        lock (_timerSync)
         {
-            _deviceNotifier.DeviceChanged -= OnExternalDeviceChanged;
-            _deviceNotifier = null;
+            _debounceTimer?.Dispose();
+            _debounceTimer = null;
+            _pollingTimer?.Dispose();
+            _pollingTimer = null;
         }
 
         if (_watcher is null)
@@ -56,10 +61,20 @@ public sealed class WmiUsbMonitor : IDisposable
             return;
         }
 
-        _watcher.EventArrived -= OnEventArrived;
-        _watcher.Stop();
-        _watcher.Dispose();
-        _watcher = null;
+        try
+        {
+            _watcher.EventArrived -= OnEventArrived;
+            _watcher.Stop();
+            _watcher.Dispose();
+        }
+        catch (Exception exception)
+        {
+            AppLog.Error(exception, "WMI monitor stop failed");
+        }
+        finally
+        {
+            _watcher = null;
+        }
     }
 
     private void StartWatcher()
@@ -73,10 +88,31 @@ public sealed class WmiUsbMonitor : IDisposable
             _watcher.EventArrived += OnEventArrived;
             _watcher.Start();
         }
-        catch
+        catch (Exception exception)
         {
+            AppLog.Error(exception, "WMI monitor unavailable; polling fallback enabled");
+            if (_watcher is not null)
+            {
+                try
+                {
+                    _watcher.EventArrived -= OnEventArrived;
+                    _watcher.Dispose();
+                }
+                catch (Exception cleanupException)
+                {
+                    AppLog.Error(cleanupException, "Failed to dispose incomplete WMI watcher");
+                }
+            }
             _watcher = null;
             UsesPollingFallback = true;
+            lock (_timerSync)
+            {
+                _pollingTimer = new System.Threading.Timer(
+                    _ => RequestRefresh("Периодическое обновление USB (WMI fallback)"),
+                    null,
+                    PollingInterval,
+                    PollingInterval);
+            }
         }
     }
 
@@ -102,11 +138,19 @@ public sealed class WmiUsbMonitor : IDisposable
 
     private void RequestRefresh(string reason)
     {
+        if (Volatile.Read(ref _isRunning) == 0)
+        {
+            return;
+        }
+
         _lastReason = reason;
         Interlocked.Exchange(ref _refreshPending, 1);
 
-        _debounceTimer ??= new System.Threading.Timer(_ => FlushRefresh(), null, DebounceInterval, Timeout.InfiniteTimeSpan);
-        _debounceTimer.Change(DebounceInterval, Timeout.InfiniteTimeSpan);
+        lock (_timerSync)
+        {
+            _debounceTimer ??= new System.Threading.Timer(_ => FlushRefresh(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            _debounceTimer.Change(DebounceInterval, Timeout.InfiniteTimeSpan);
+        }
     }
 
     private void FlushRefresh()
@@ -119,13 +163,20 @@ public sealed class WmiUsbMonitor : IDisposable
         if (Interlocked.Exchange(ref _refreshInProgress, 1) == 1)
         {
             Interlocked.Exchange(ref _refreshPending, 1);
-            _debounceTimer?.Change(DebounceInterval, Timeout.InfiniteTimeSpan);
+            lock (_timerSync)
+            {
+                _debounceTimer?.Change(DebounceInterval, Timeout.InfiniteTimeSpan);
+            }
             return;
         }
 
         try
         {
             RefreshRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception exception)
+        {
+            AppLog.Error(exception, $"USB refresh callback failed: {_lastReason}");
         }
         finally
         {
@@ -136,5 +187,10 @@ public sealed class WmiUsbMonitor : IDisposable
     public void Dispose()
     {
         Stop();
+        if (_deviceNotifier is not null)
+        {
+            _deviceNotifier.DeviceChanged -= OnExternalDeviceChanged;
+            _deviceNotifier = null;
+        }
     }
 }

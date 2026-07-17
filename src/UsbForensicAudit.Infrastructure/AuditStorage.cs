@@ -16,6 +16,7 @@ public sealed class AuditStorage : IAuditStorage
     public string DataDirectory { get; }
     public string DatabasePath { get; }
     public string JsonlPath { get; }
+    private readonly Mutex _storageMutex;
 
     public AuditStorage() : this(AppPaths.DataDirectory) { }
 
@@ -24,20 +25,35 @@ public sealed class AuditStorage : IAuditStorage
         DataDirectory = dataDirectory;
         DatabasePath = Path.Combine(DataDirectory, "audit.sqlite");
         JsonlPath = Path.Combine(DataDirectory, "evidence.jsonl");
+        var mutexId = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            Path.GetFullPath(DataDirectory).ToUpperInvariant())))[..24];
+        _storageMutex = new Mutex(false, $@"Local\UsbForensicAudit.Storage.{mutexId}");
         Directory.CreateDirectory(DataDirectory);
-        Initialize();
+        ExecuteExclusive(Initialize);
     }
 
     public void Save(AuditResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
-        if (string.IsNullOrWhiteSpace(result.SessionId)) result.SessionId = Guid.NewGuid().ToString("N");
-        var inserted = SaveSqlite(result);
-        if (inserted || !WasJsonlAppended(result.SessionId))
+        ExecuteExclusive(() =>
         {
-            AppendJsonl(result);
-            MarkJsonlAppended(result.SessionId);
-        }
+            if (string.IsNullOrWhiteSpace(result.SessionId)) result.SessionId = Guid.NewGuid().ToString("N");
+            var inserted = SaveSqlite(result);
+            if (inserted)
+            {
+                AppendJsonl(result);
+                MarkJsonlAppended(result.SessionId);
+            }
+            else if (!WasJsonlAppended(result.SessionId))
+            {
+                if (!WasSessionCompletedInJsonl(result.SessionId))
+                {
+                    AppendJsonl(result);
+                }
+
+                MarkJsonlAppended(result.SessionId);
+            }
+        });
     }
 
     public AuditResult? Load(string sessionId)
@@ -273,7 +289,8 @@ public sealed class AuditStorage : IAuditStorage
     private void AppendJsonl(AuditResult result)
     {
         var previousHash = ReadLastHash();
-        using var writer = new StreamWriter(JsonlPath, true, new UTF8Encoding(false));
+        using var stream = new FileStream(JsonlPath, FileMode.Append, FileAccess.Write, FileShare.Read);
+        using var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true);
         var sessionMetadata = new
         {
             result.SessionId, result.StartedAtUtc, result.FinishedAtUtc, result.ComputerName,
@@ -283,7 +300,14 @@ public sealed class AuditStorage : IAuditStorage
         foreach (var (type, item) in new[] { ("AuditSession", (object)sessionMetadata) }
                      .Concat(result.Devices.Select(x => ("UsbDeviceRecord", (object)x)))
                      .Concat(result.Evidence.Select(x => ("EvidenceRecord", (object)x)))
-                     .Concat(result.CleanupFindings.Select(x => ("CleanupFinding", (object)x))))
+                     .Concat(result.CleanupFindings.Select(x => ("CleanupFinding", (object)x)))
+                     .Concat(new[]
+                     {
+                         ("AuditSessionComplete", (object)new
+                         {
+                             recordCount = 1 + result.Devices.Count + result.Evidence.Count + result.CleanupFindings.Count
+                         })
+                     }))
         {
             var payload = JsonSerializer.Serialize(new { sessionId = result.SessionId, recordType = type, previousHash, data = item }, JsonOptions);
             var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
@@ -293,19 +317,26 @@ public sealed class AuditStorage : IAuditStorage
             }, JsonOptions));
             previousHash = hash;
         }
+        writer.Flush();
+        stream.Flush(flushToDisk: true);
     }
 
     private string ReadLastHash()
     {
         if (!File.Exists(JsonlPath)) return "";
-        var last = File.ReadLines(JsonlPath).LastOrDefault();
+        var last = ReadLastNonEmptyLine(JsonlPath);
         if (string.IsNullOrWhiteSpace(last)) return "";
         try
         {
             using var doc = JsonDocument.Parse(last);
             return doc.RootElement.TryGetProperty("recordHash", out var hash) ? hash.GetString() ?? "" : "";
         }
-        catch { return ""; }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
+        {
+            throw new InvalidDataException(
+                "Последняя запись evidence.jsonl повреждена; продолжение нарушило бы hash-chain.",
+                exception);
+        }
     }
 
     private void MarkJsonlAppended(string sessionId)
@@ -324,6 +355,43 @@ public sealed class AuditStorage : IAuditStorage
         cmd.CommandText = "SELECT jsonl_appended FROM audit_sessions WHERE session_id=$id;";
         cmd.Parameters.AddWithValue("$id", sessionId);
         return Convert.ToInt64(cmd.ExecuteScalar() ?? 0L) != 0;
+    }
+
+    private bool WasSessionCompletedInJsonl(string sessionId)
+    {
+        if (!File.Exists(JsonlPath))
+        {
+            return false;
+        }
+
+        foreach (var line in File.ReadLines(JsonlPath))
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(line);
+                var root = document.RootElement;
+                if (root.TryGetProperty("sessionId", out var storedSession)
+                    && root.TryGetProperty("recordType", out var recordType)
+                    && storedSession.ValueEquals(sessionId)
+                    && recordType.ValueEquals("AuditSessionComplete"))
+                {
+                    return true;
+                }
+            }
+            catch (JsonException exception)
+            {
+                throw new InvalidDataException(
+                    "evidence.jsonl содержит повреждённую запись; автоматический повтор сохранения остановлен.",
+                    exception);
+            }
+        }
+
+        return false;
     }
 
     private static void LoadRecords<T>(
@@ -355,9 +423,83 @@ public sealed class AuditStorage : IAuditStorage
 
     private SqliteConnection Open()
     {
-        var connection = new SqliteConnection($"Data Source={DatabasePath}");
+        var connection = new SqliteConnection($"Data Source={DatabasePath};Default Timeout=30;Pooling=True");
         connection.Open();
+        using var timeout = connection.CreateCommand();
+        timeout.CommandText = "PRAGMA busy_timeout=30000;";
+        timeout.ExecuteNonQuery();
         return connection;
+    }
+
+    private void ExecuteExclusive(Action action)
+    {
+        var lockTaken = false;
+        try
+        {
+            try
+            {
+                lockTaken = _storageMutex.WaitOne(TimeSpan.FromSeconds(30));
+            }
+            catch (AbandonedMutexException)
+            {
+                lockTaken = true;
+            }
+
+            if (!lockTaken)
+            {
+                throw new TimeoutException("Хранилище аудита занято другим процессом более 30 секунд.");
+            }
+
+            action();
+        }
+        finally
+        {
+            if (lockTaken)
+            {
+                _storageMutex.ReleaseMutex();
+            }
+        }
+    }
+
+    private static string? ReadLastNonEmptyLine(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        if (stream.Length == 0)
+        {
+            return null;
+        }
+
+        var bytes = new List<byte>();
+        var foundContent = false;
+        var buffer = new byte[4096];
+        var position = stream.Length;
+        while (position > 0)
+        {
+            var count = (int)Math.Min(buffer.Length, position);
+            position -= count;
+            stream.Position = position;
+            var read = stream.Read(buffer, 0, count);
+            for (var index = read - 1; index >= 0; index--)
+            {
+                var value = buffer[index];
+                if (!foundContent && value is (byte)'\r' or (byte)'\n')
+                {
+                    continue;
+                }
+
+                foundContent = true;
+                if (value == (byte)'\n')
+                {
+                    bytes.Reverse();
+                    return Encoding.UTF8.GetString(bytes.ToArray()).TrimEnd('\r');
+                }
+
+                bytes.Add(value);
+            }
+        }
+
+        bytes.Reverse();
+        return Encoding.UTF8.GetString(bytes.ToArray()).TrimEnd('\r');
     }
 
     private static void Execute(SqliteConnection connection, string sql)

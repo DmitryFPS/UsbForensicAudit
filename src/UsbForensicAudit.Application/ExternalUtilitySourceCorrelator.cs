@@ -115,8 +115,12 @@ public static class ExternalUtilitySourceCorrelator
         if (isOtherTraces)
         {
             var allHits = hits.Where(x => x.Found).ToArray();
-            var foundDirect = allHits.Any(x => x.Title.Contains("Enum\\USB", StringComparison.OrdinalIgnoreCase)
-                                               || x.Title.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase));
+            var foundDirectUsb = allHits.Any(x =>
+                x.Title.Contains(@"Enum\USB", StringComparison.OrdinalIgnoreCase)
+                && !x.Title.Contains(@"Enum\USBSTOR", StringComparison.OrdinalIgnoreCase));
+            var foundDirectUsbStor = allHits.Any(x =>
+                x.Title.Contains(@"Enum\USBSTOR", StringComparison.OrdinalIgnoreCase));
+            var foundDirect = foundDirectUsb || foundDirectUsbStor;
             var foundIndirect = allHits.Any(x => x.Title.Contains("MountedDevices", StringComparison.OrdinalIgnoreCase)
                                                  || x.Title.Contains("MountPoints2", StringComparison.OrdinalIgnoreCase));
             var procmonDirect = procmonHits.Any(x => x.ResultText.Contains("прямой", StringComparison.OrdinalIgnoreCase));
@@ -145,10 +149,19 @@ public static class ExternalUtilitySourceCorrelator
         return builder.ToString().TrimEnd();
     }
 
-    private static bool PathsEquivalent(string left, string right) =>
-        left.Equals(right, StringComparison.OrdinalIgnoreCase)
-        || left.Contains(right, StringComparison.OrdinalIgnoreCase)
-        || right.Contains(left, StringComparison.OrdinalIgnoreCase);
+    private static bool PathsEquivalent(string left, string right)
+    {
+        var normalizedLeft = DevicePathNormalizer.NormalizeDeviceId(left).TrimEnd('\\');
+        var normalizedRight = DevicePathNormalizer.NormalizeDeviceId(right).TrimEnd('\\');
+        return normalizedLeft.Equals(normalizedRight, StringComparison.OrdinalIgnoreCase)
+               || IsRegistryAncestor(normalizedLeft, normalizedRight)
+               || IsRegistryAncestor(normalizedRight, normalizedLeft);
+    }
+
+    private static bool IsRegistryAncestor(string ancestor, string candidate) =>
+        candidate.Length > ancestor.Length
+        && candidate.StartsWith(ancestor, StringComparison.OrdinalIgnoreCase)
+        && candidate[ancestor.Length] == '\\';
 
     private static void AppendAuditDeviceHits(
         ExternalUtilityIdentifierInfo identifier,

@@ -54,9 +54,21 @@ public sealed class AuditOrchestrator
 
             progress?.Report(_deviceCollector.ProgressMessage);
             var warningCount = result.SourceWarnings.Count;
-            var devices = _deviceCollector.Collect(result.SourceWarnings);
-            result.Devices.AddRange(devices);
-            AddCoverage(result, _deviceCollector.GetType().Name, devices.Count, warningCount);
+            try
+            {
+                var devices = _deviceCollector.Collect(result.SourceWarnings);
+                result.Devices.AddRange(devices);
+                AddCoverage(result, _deviceCollector.GetType().Name, devices.Count, warningCount);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                result.SourceWarnings.Add($"{_deviceCollector.GetType().Name}: {exception.Message}");
+                AddCoverage(result, _deviceCollector.GetType().Name, 0, warningCount);
+            }
             cancellationToken.ThrowIfCancellationRequested();
 
             foreach (var collector in _evidenceCollectors)
@@ -73,9 +85,21 @@ public sealed class AuditOrchestrator
 
                 progress?.Report(collector.ProgressMessage);
                 warningCount = result.SourceWarnings.Count;
-                var collected = collector.Collect(result.SourceWarnings);
-                result.Evidence.AddRange(collected);
-                AddCoverage(result, collector.GetType().Name, collected.Count, warningCount);
+                try
+                {
+                    var collected = collector.Collect(result.SourceWarnings);
+                    result.Evidence.AddRange(collected);
+                    AddCoverage(result, collector.GetType().Name, collected.Count, warningCount);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    result.SourceWarnings.Add($"{collector.GetType().Name}: {exception.Message}");
+                    AddCoverage(result, collector.GetType().Name, 0, warningCount);
+                }
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
@@ -84,7 +108,18 @@ public sealed class AuditOrchestrator
             progress?.Report(_historicalArtifactCollector.ProgressMessage);
             var historicalEvidenceBefore = result.Evidence.Count;
             warningCount = result.SourceWarnings.Count;
-            _historicalArtifactCollector.Collect(result, cancellationToken);
+            try
+            {
+                _historicalArtifactCollector.Collect(result, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                result.SourceWarnings.Add($"{_historicalArtifactCollector.GetType().Name}: {exception.Message}");
+            }
             AddCoverage(result, _historicalArtifactCollector.GetType().Name,
                 result.Evidence.Count - historicalEvidenceBefore, warningCount);
             cancellationToken.ThrowIfCancellationRequested();

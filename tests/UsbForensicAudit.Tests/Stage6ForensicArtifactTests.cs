@@ -195,7 +195,7 @@ public sealed class Stage6ForensicArtifactTests
             var report = ForensicReportBuilder.BuildHtml(loaded);
             Assert.Contains($"{loaded.Coverage.ExactDateCoveragePercent:0.##}%", report);
             Assert.Contains("Покрытие источников", report);
-            Assert.Equal(4, File.ReadLines(storage.JsonlPath).Count());
+            Assert.Equal(5, File.ReadLines(storage.JsonlPath).Count());
             Assert.All(File.ReadLines(storage.JsonlPath), line => Assert.Contains(result.SessionId, line));
         }
         finally

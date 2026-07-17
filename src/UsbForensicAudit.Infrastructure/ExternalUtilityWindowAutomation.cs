@@ -177,7 +177,7 @@ internal static class ExternalUtilityWindowAutomation
         var clicked = 0;
         foreach (var button in toolButtons.Take(4))
         {
-            SendMessage(button, BmClick, IntPtr.Zero, IntPtr.Zero);
+            Win32Message.Send(button, BmClick, IntPtr.Zero, IntPtr.Zero);
             log.Add($"BM_CLICK:{GetClassName(button)}");
             clicked++;
             Thread.Sleep(350);
@@ -255,9 +255,6 @@ internal static class ExternalUtilityWindowAutomation
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);

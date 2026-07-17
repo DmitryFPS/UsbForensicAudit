@@ -11,6 +11,7 @@ internal sealed class ClipboardReadOptions
 
 internal static class Win32ListViewClipboardReader
 {
+    private static readonly object ClipboardSync = new();
     private const int SwRestore = 9;
     private const int VkControl = 0x11;
     private const int VkA = 0x41;
@@ -21,6 +22,17 @@ internal static class Win32ListViewClipboardReader
         IntPtr mainWindowHandle,
         IntPtr listViewHandle,
         ClipboardReadOptions? options = null)
+    {
+        lock (ClipboardSync)
+        {
+            return TryReadCore(mainWindowHandle, listViewHandle, options);
+        }
+    }
+
+    private static Win32ListViewReader.ListViewSnapshot? TryReadCore(
+        IntPtr mainWindowHandle,
+        IntPtr listViewHandle,
+        ClipboardReadOptions? options)
     {
         options ??= new ClipboardReadOptions { BringTargetToForeground = true };
         GetWindowRect(listViewHandle, out var rect);
@@ -178,8 +190,8 @@ internal static class Win32ListViewClipboardReader
         Thread.Sleep(20);
 
         var lParam = (IntPtr)((y << 16) | (x & 0xFFFF));
-        SendMessage(listViewHandle, WmLbuttondown, (IntPtr)1, lParam);
-        SendMessage(listViewHandle, WmLbuttonup, IntPtr.Zero, lParam);
+        Win32Message.Send(listViewHandle, WmLbuttondown, (IntPtr)1, lParam);
+        Win32Message.Send(listViewHandle, WmLbuttonup, IntPtr.Zero, lParam);
         SetFocus(listViewHandle);
     }
 
@@ -236,9 +248,6 @@ internal static class Win32ListViewClipboardReader
 
     [DllImport("user32.dll")]
     private static extern bool SetCursorPos(int x, int y);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll")]
     private static extern void keybd_event(byte bVk, byte bScan, int dwFlags, UIntPtr dwExtraInfo);

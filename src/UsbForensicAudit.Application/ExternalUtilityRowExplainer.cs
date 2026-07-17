@@ -109,9 +109,9 @@ public static class ExternalUtilityRowExplainer
     {
         var builder = new StringBuilder();
 
-        builder.AppendLine($"{row.UtilityName} · {row.SectionTitle}");
-        builder.AppendLine($"Запись: {row.PrimaryText}");
-        builder.AppendLine($"Вердикт: {verdictTitle}");
+        builder.Append(row.UtilityName).Append(" · ").AppendLine(row.SectionTitle);
+        builder.Append("Запись: ").AppendLine(row.PrimaryText);
+        builder.Append("Вердикт: ").AppendLine(verdictTitle);
         builder.AppendLine();
 
         builder.AppendLine("ФОРМУЛИРОВКА ПО СТРОКЕ (для отчёта):");
@@ -133,13 +133,16 @@ public static class ExternalUtilityRowExplainer
         builder.AppendLine();
 
         builder.AppendLine("Кратко:");
-        builder.AppendLine($"• Откуда строка: {origin}");
-        builder.AppendLine($"• Замечание: {detectorNote}");
-        builder.AppendLine($"• Аудит: {auditSummary}");
+        builder.Append("• Откуда строка: ").AppendLine(origin);
+        builder.Append("• Замечание: ").AppendLine(detectorNote);
+        builder.Append("• Аудит: ").AppendLine(auditSummary);
 
         if (identifier.HasVid)
         {
-            builder.AppendLine($"• VID/PID: {identifier.VidPidText} · {identifier.VendorProductText}");
+            builder.Append("• VID/PID: ")
+                .Append(identifier.VidPidText)
+                .Append(" · ")
+                .AppendLine(identifier.VendorProductText);
         }
 
         if (hasEpochDate)
@@ -149,7 +152,11 @@ public static class ExternalUtilityRowExplainer
 
         if (beforeOsInstall && audit?.OsInstalledAtUtc is not null)
         {
-            builder.AppendLine($"• Дата в утилите ({installText}) раньше установки Windows ({audit.OsInstalledAtText}) — ненадёжна.");
+            builder.Append("• Дата в утилите (")
+                .Append(installText)
+                .Append(") раньше установки Windows (")
+                .Append(audit.OsInstalledAtText)
+                .AppendLine(") — ненадёжна.");
         }
 
         if (matches.Count > 0)
@@ -157,7 +164,10 @@ public static class ExternalUtilityRowExplainer
             builder.AppendLine("• Совпадения в аудите:");
             foreach (var device in matches)
             {
-                builder.AppendLine($"  — {device.DisplayName}: {ToRegistryPath(device)}");
+                builder.Append("  — ")
+                    .Append(device.DisplayName)
+                    .Append(": ")
+                    .AppendLine(ToRegistryPath(device));
             }
         }
 

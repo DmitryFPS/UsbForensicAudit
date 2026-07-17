@@ -12,7 +12,9 @@ public static class DateDisplay
         }
 
         var moscow = ToMoscow(timestampUtc.Value);
-        return moscow.ToString("dd.MM.yyyy HH:mm:ss") + " МСК";
+        return moscow.ToString(
+            "dd.MM.yyyy HH:mm:ss",
+            System.Globalization.CultureInfo.InvariantCulture) + " МСК";
     }
 
     public static string FormatMoscowOr(DateTimeOffset? timestampUtc, string fallback)

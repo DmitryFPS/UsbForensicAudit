@@ -7,5 +7,11 @@ namespace UsbForensicAudit;
 /// </summary>
 public static class EndpointProtectionState
 {
-    public static bool IsProtectionActive { get; set; }
+    private static int _isProtectionActive;
+
+    public static bool IsProtectionActive
+    {
+        get => Volatile.Read(ref _isProtectionActive) != 0;
+        set => Volatile.Write(ref _isProtectionActive, value ? 1 : 0);
+    }
 }

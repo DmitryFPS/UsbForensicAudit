@@ -2,8 +2,10 @@ namespace UsbForensicAudit;
 
 public static class DeviceLiveMatcher
 {
+    private static readonly char[] ModelTokenSeparators = [' ', '_', '-'];
+
     public static string NormalizePnpId(string? value) =>
-        (value ?? "").Trim().Replace('#', '\\').ToUpperInvariant();
+        DevicePathNormalizer.CanonicalDeviceId(value, replaceHashes: true);
 
     public static bool PnpIdsMatch(string? left, string? right) =>
         NormalizePnpId(left).Length > 0
@@ -109,7 +111,7 @@ public static class DeviceLiveMatcher
 
     private static string NormalizeModelName(string? value)
     {
-        var tokens = (value ?? "").Split(new[] { ' ', '_', '-' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var tokens = (value ?? "").Split(ModelTokenSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return string.Join(' ', tokens.Where(x => x.Length > 0));
     }
 

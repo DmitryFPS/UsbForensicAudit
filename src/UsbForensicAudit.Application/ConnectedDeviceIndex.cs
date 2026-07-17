@@ -147,7 +147,7 @@ public sealed class ConnectedDeviceIndex
 
     private static string Normalize(string? value)
     {
-        return (value ?? "").Trim().Trim('{', '}').Replace(@"\\", @"\").ToUpperInvariant();
+        return DevicePathNormalizer.CanonicalDeviceId(value);
     }
 
     private static string TrimInstanceSuffix(string value)
