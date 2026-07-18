@@ -11,7 +11,7 @@ $procmonDir = Join-Path $PSScriptRoot "tools"
 $procmonExe = Join-Path $procmonDir "Procmon64.exe"
 $procmonZip = Join-Path $procmonDir "ProcessMonitor.zip"
 $procmonExtract = Join-Path $procmonDir "pmextract"
-$infrastructureDll = Join-Path $PSScriptRoot "src\UsbForensicAudit.Infrastructure\bin\$Configuration\net8.0-windows\UsbForensicAudit.Infrastructure.dll"
+$infrastructureDll = Join-Path $PSScriptRoot "src\UsbForensicAudit.Infrastructure\bin\$Configuration\net8.0-windows\$Runtime\UsbForensicAudit.Infrastructure.dll"
 $engineeringGuideDirectory = Join-Path $PSScriptRoot "docs"
 
 function Assert-TrustedProcmon {
@@ -87,8 +87,14 @@ Ensure-ProcmonForOfflineBuild
 Prepare-BuildEnvironment
 
 dotnet clean $solution -c $Configuration --nologo -v q
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet clean failed with exit code $LASTEXITCODE"
+}
 
-dotnet restore $solution --locked-mode
+dotnet restore $solution --locked-mode -r $Runtime
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet restore --locked-mode failed with exit code $LASTEXITCODE"
+}
 
 $iconTool = Join-Path $PSScriptRoot "tools\GenerateIcon\GenerateIcon.csproj"
 $iconPng = Join-Path $PSScriptRoot "Assets\app-icon.png"
@@ -109,6 +115,7 @@ dotnet publish $project `
     -c $Configuration `
     -r $Runtime `
     --self-contained true `
+    --no-restore `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:IncludeAllContentForSelfExtract=true `
