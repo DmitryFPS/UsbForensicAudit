@@ -128,10 +128,15 @@ public partial class MainWindow : Window
         }
 
         var selected = (DeviceFilterCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
-        return selected == "All"
-               || device.Classification.Equals(selected, StringComparison.OrdinalIgnoreCase)
-               || device.Transport.Equals(selected, StringComparison.OrdinalIgnoreCase)
-               || device.Connection.Equals(selected, StringComparison.OrdinalIgnoreCase);
+        return selected switch
+        {
+            "All" => true,
+            "ExternalOnly" => device.IsExternalDevice,
+            "ExternalMedia" => device.Externality == DeviceExternality.ExternalMedia,
+            _ => device.Classification.Equals(selected, StringComparison.OrdinalIgnoreCase)
+                 || device.Transport.Equals(selected, StringComparison.OrdinalIgnoreCase)
+                 || device.Connection.Equals(selected, StringComparison.OrdinalIgnoreCase)
+        };
     }
 
     private async void ScanButton_Click(object sender, RoutedEventArgs e)

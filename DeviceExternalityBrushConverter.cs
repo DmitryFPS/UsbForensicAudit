@@ -5,11 +5,11 @@ using System.Windows.Media;
 namespace UsbForensicAudit;
 
 /// <summary>
-/// Красит строку таблицы по категории записи. Цвета берутся из общей палитры,
-/// а не перечисляются в разметке: иначе новая категория появляется в сборщике,
-/// а строка остаётся неокрашенной.
+/// Красит строку таблицы по тому, приносили ли устройство с собой. Цвета берутся
+/// из общей палитры, а не перечисляются в разметке: иначе новая группа появляется
+/// в коде, а строка остаётся неокрашенной.
 /// </summary>
-public sealed class DeviceCategoryBrushConverter : IValueConverter
+public sealed class DeviceExternalityBrushConverter : IValueConverter
 {
     private static readonly Dictionary<string, SolidColorBrush> Cache = [];
 
@@ -18,7 +18,7 @@ public sealed class DeviceCategoryBrushConverter : IValueConverter
     /// </summary>
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        var colors = DeviceCategoryPalette.For(value as string);
+        var colors = DeviceExternalityPalette.For(value as string);
         var hex = parameter as string == "Foreground" ? colors.Foreground : colors.Background;
         return Brush(hex);
     }

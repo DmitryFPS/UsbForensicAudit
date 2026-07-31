@@ -70,11 +70,12 @@ public sealed class ExcelReportTests
                 c => c.GetString() == "TestCollector");
 
             var devices = workbook.Worksheet("USB устройства");
-            Assert.Equal("Категория", devices.Cell("A4").GetString());
-            Assert.Equal("Тестовая флешка", devices.Cell("B5").GetString());
+            Assert.Equal("Приносили ли с собой", devices.Cell("A4").GetString());
+            Assert.Equal("Категория", devices.Cell("B4").GetString());
+            Assert.Equal("Тестовая флешка", devices.Cell("C5").GetString());
             Assert.True(devices.AutoFilter.IsEnabled);
-            Assert.True(devices.Cell("C5").Style.Alignment.WrapText);
-            Assert.True(devices.Column(2).Width >= 30);
+            Assert.True(devices.Cell("D5").Style.Alignment.WrapText);
+            Assert.True(devices.Column(3).Width >= 30);
             Assert.InRange(devices.Row(5).Height, 22, 108);
             Assert.Equal(4, devices.SheetView.SplitRow);
             Assert.Equal(1, devices.SheetView.SplitColumn);
@@ -127,9 +128,9 @@ public sealed class ExcelReportTests
                 workbook.Worksheets.Select(x => x.Name).ToArray());
             Assert.Contains("Сводный отчёт", workbook.Worksheet("Сводка").Cell("A1").GetString());
             var devices = workbook.Worksheet("Все USB устройства");
-            Assert.Equal(31, devices.Column(2).CellsUsed().Count() - 1);
-            Assert.Contains(devices.Column(2).CellsUsed(), cell => cell.GetString() == "Тестовая флешка");
-            Assert.Contains(devices.Column(2).CellsUsed(), cell => cell.GetString() == "USB устройство 29");
+            Assert.Equal(31, devices.Column(3).CellsUsed().Count() - 1);
+            Assert.Contains(devices.Column(3).CellsUsed(), cell => cell.GetString() == "Тестовая флешка");
+            Assert.Contains(devices.Column(3).CellsUsed(), cell => cell.GetString() == "USB устройство 29");
             Assert.Equal(4, devices.SheetView.SplitRow);
             Assert.Equal(1, devices.SheetView.SplitColumn);
             Assert.True(workbook.Worksheet("Инциденты").AutoFilter.IsEnabled);
