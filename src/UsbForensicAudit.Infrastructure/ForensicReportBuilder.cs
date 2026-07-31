@@ -480,6 +480,7 @@ internal static class ForensicReportBuilder
             html.AppendLine($"<b>Модель:</b> {E(device.ModelText)}<br>");
             html.AppendLine($"<b>VID/PID:</b> {E(device.VidPidText)}<br>");
             html.AppendLine($"<b>Серийный номер:</b> {E(device.SerialText)}<br>");
+            html.AppendLine($"<b>Доверие к идентификаторам:</b> {E(device.IdentityTrustText)}<br>");
             html.AppendLine($"<b>Container ID:</b> {E(device.ContainerId)}<br>");
             html.AppendLine($"<b>Canonical device:</b> {E(device.CanonicalDeviceId)} ({E(device.IdentityConfidence)})<br>");
             html.AppendLine($"<b>Связанные source IDs:</b> {E(string.Join("; ", device.LinkedSourceIds))}<br>");

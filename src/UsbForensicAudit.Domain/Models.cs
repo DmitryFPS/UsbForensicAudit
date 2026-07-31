@@ -76,6 +76,12 @@ public sealed class UsbDeviceRecord
     /// сколько раз устройство подключали и как долго оно оставалось в машине.
     /// </summary>
     public List<ConnectionSession> Sessions { get; set; } = [];
+
+    /// <summary>
+    /// Замечания о том, насколько можно верить идентификаторам устройства:
+    /// серийный номер и VID/PID устройство сообщает о себе само.
+    /// </summary>
+    public List<IdentityTrustFinding> IdentityTrustFindings { get; set; } = [];
     public bool IsCurrentlyConnected { get; set; }
     public string ConnectionDisplayKind { get; set; } = "";
     public string DisconnectDisplayKind { get; set; } = "";
@@ -123,6 +129,18 @@ public sealed class UsbDeviceRecord
 
     [JsonIgnore]
     public string DeviceKindText => DeviceKindResolver.Describe(DeviceKind);
+
+    [JsonIgnore]
+    public string IdentityTrustText => IdentityTrustFindings.Count == 0
+        ? "Идентификаторы выглядят достоверно."
+        : string.Join(" ", IdentityTrustFindings.Select(x => $"{x.Title}: {x.Explanation}"));
+
+    /// <summary>
+    /// Есть ли основание не доверять отождествлению устройства по серийному номеру.
+    /// </summary>
+    [JsonIgnore]
+    public bool IdentityIsUntrustworthy =>
+        IdentityTrustFindings.Any(x => x.Severity.Equals("High", StringComparison.OrdinalIgnoreCase));
 
     [JsonIgnore]
     public string TransportDisplayText => DeviceKindResolver.DescribeTransport(Transport, Connection);
