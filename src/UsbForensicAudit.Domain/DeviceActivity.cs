@@ -44,7 +44,7 @@ public sealed class DeviceActivityEntry
     public string KindText => DeviceActivityKind.Describe(Kind);
 
     [JsonIgnore]
-    public string PathText => ReportText.ForDisplay(Path, 500);
+    public string PathText => DeviceActivityTarget.Describe(Path, Kind);
 
     [JsonIgnore]
     public string UserText => string.IsNullOrWhiteSpace(ResolvedUserName)
@@ -56,6 +56,44 @@ public sealed class DeviceActivityEntry
 
     [JsonIgnore]
     public string SourceText => UserDisplayText.Source(Source);
+}
+
+/// <summary>
+/// Как показать то, на что указывает запись.
+///
+/// Папка есть не у каждой записи. Событие подключения называет устройство —
+/// «SWD\WPDBUSENUM\_??_USBSTOR#Disk&amp;Ven_General&amp;Prod_UDisk#…», — а запись
+/// проводника о подключении тома называет GUID тома. В столбце «Папка или файл»
+/// такой идентификатор читался как непонятный путь, хотя никакой папки в этой
+/// записи нет и быть не может. Сам идентификатор остаётся в данных: скрыт он
+/// только там, где читатель ждёт путь.
+/// </summary>
+public static class DeviceActivityTarget
+{
+    public static string Describe(string? path, string? kind)
+    {
+        var text = ReportText.ForDisplay(path ?? "", 500);
+        if (text.Length == 0)
+        {
+            return "Путь в артефакте не записан";
+        }
+
+        return NamesDeviceInsteadOfFolder(text) ? Explain(kind) : text;
+    }
+
+    private static string Explain(string? kind) => kind switch
+    {
+        DeviceActivityKind.Connection => "Папки нет: это запись о подключении или отключении устройства",
+        DeviceActivityKind.Mount => "Папки нет: проводник запомнил том, а не папку",
+        _ => "Папки нет: артефакт называет устройство, а не папку"
+    };
+
+    private static bool NamesDeviceInsteadOfFolder(string text) =>
+        TextSanitizer.LooksLikeDeviceIdentifier(text) || IsGuidOnly(text);
+
+    /// <summary>GUID тома целиком, без пути: «{F7821AA0-8B1D-11F1-9B5E-9010376EDA10}».</summary>
+    private static bool IsGuidOnly(string text) =>
+        text.StartsWith('{') && text.EndsWith('}') && Guid.TryParse(text, out _);
 }
 
 /// <summary>
@@ -282,8 +320,19 @@ public sealed class DeviceActivityHistory
             parts.Add($"программ запускали — {ProgramCount}");
         }
 
-        var summary = parts.Count > 0 ? string.Join(", ", parts) : $"записей — {Entries.Count}";
-        return $"Найдено {Entries.Count} действий: {summary}. Искали по признакам: {string.Join("; ", LinkKeys)}.";
+        // Записи о подключении — не работа с файлами. Прежний вывод в этом случае
+        // читался как «найдено 8 действий», хотя ни одной папки на устройстве не
+        // открывали: все восемь записей говорили только о том, что его втыкали.
+        if (parts.Count == 0)
+        {
+            return $"Следов работы с файлами не найдено: все {Entries.Count} записей — о самом устройстве "
+                   + "(подключение, отключение, запомненный том), а не о папках и файлах. "
+                   + $"Искали по признакам: {string.Join("; ", LinkKeys)}. Это значит, что артефакты "
+                   + "проводника не сохранили обращений к этому устройству либо были очищены.";
+        }
+
+        return $"Найдено {Entries.Count} действий: {string.Join(", ", parts)}. "
+               + $"Искали по признакам: {string.Join("; ", LinkKeys)}.";
     }
 
     /// <summary>
