@@ -38,6 +38,15 @@ public sealed class EventLogCollector : IEvidenceCollector
         ArgumentOutOfRangeException.ThrowIfLessThan(maxPerChannel, 1);
         var results = new List<EvidenceRecord>();
 
+        foreach (var state in ReadChannelStates())
+        {
+            results.Add(ToEvidence(state));
+            if (!state.Exists || !state.IsEnabled || !string.IsNullOrEmpty(state.Error))
+            {
+                warnings.Add(state.Describe());
+            }
+        }
+
         foreach (var definition in Definitions)
         {
             try
@@ -56,6 +65,87 @@ public sealed class EventLogCollector : IEvidenceCollector
 
         return results;
     }
+
+    /// <summary>
+    /// Состояние каждого канала выясняется до чтения событий: пустой результат
+    /// по выключенному или переполненному каналу и пустой результат по исправному
+    /// каналу означают разное, и в отчёте это должно быть видно.
+    /// </summary>
+    internal static IReadOnlyList<EventChannelState> ReadChannelStates()
+    {
+        var states = new List<EventChannelState>();
+        foreach (var channel in Definitions.Select(x => x.Channel).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var state = new EventChannelState { Channel = channel };
+            try
+            {
+                using var configuration = new EventLogConfiguration(channel);
+                state.Exists = true;
+                state.IsEnabled = configuration.IsEnabled;
+                state.MaximumSizeBytes = (long)configuration.MaximumSizeInBytes;
+
+                using var session = new EventLogSession();
+                var information = session.GetLogInformation(channel, PathType.LogName);
+                state.FileSizeBytes = (long)(information.FileSize ?? 0);
+                state.RecordCount = (long)(information.RecordCount ?? 0);
+                state.OldestRecordUtc = ReadOldestRecordTime(channel);
+            }
+            catch (EventLogNotFoundException)
+            {
+                state.Exists = false;
+            }
+            catch (Exception ex)
+            {
+                state.Error = ex.Message;
+            }
+
+            states.Add(state);
+        }
+
+        return states;
+    }
+
+    /// <summary>
+    /// Всё, что произошло раньше самой ранней сохранившейся записи, из канала уже
+    /// вытеснено: искать там события подключения бесполезно.
+    /// </summary>
+    private static DateTimeOffset? ReadOldestRecordTime(string channel)
+    {
+        try
+        {
+            using var reader = new EventLogReader(new EventLogQuery(channel, PathType.LogName));
+            using var record = reader.ReadEvent();
+            return record?.TimeCreated is { } created
+                ? new DateTimeOffset(created.ToUniversalTime(), TimeSpan.Zero)
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static EvidenceRecord ToEvidence(EventChannelState state) => new()
+    {
+        TimestampUtc = state.OldestRecordUtc ?? DateTimeOffset.UtcNow,
+        Source = "Состояние журнала Windows",
+        Provider = state.Channel,
+        Channel = state.Channel,
+        EvidenceCategory = "Полнота источника",
+        EvidenceStrength = "Context",
+        Confidence = "High",
+        CanEstablishConnectionDate = false,
+        Summary = state.Describe(),
+        UserExplanation = state.Exists && state.IsEnabled && string.IsNullOrEmpty(state.Error)
+            ? "Канал работает: отсутствие события в охваченном им периоде — довод в пользу того, "
+              + "что подключения не было."
+            : "Канал не даёт данных: отсутствие события в нём ничего не доказывает.",
+        Provenance = $"EventLogConfiguration({state.Channel})",
+        RawText = $"Channel={state.Channel}\nExists={state.Exists}\nEnabled={state.IsEnabled}\n"
+                  + $"RecordCount={state.RecordCount}\nFileSize={state.FileSizeBytes}\n"
+                  + $"MaximumSize={state.MaximumSizeBytes}\nOldestRecordUtc={state.OldestRecordUtc:O}\n"
+                  + $"Error={state.Error}"
+    };
 
     private static void ReadLog(
         ChannelDefinition definition,
