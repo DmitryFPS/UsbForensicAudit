@@ -119,6 +119,8 @@ public interface IAuditStorage
 
     void Save(AuditResult result);
 
+    void SaveNetworkEnvironment(string sessionId, NetworkEnvironmentSnapshot snapshot);
+
     AuditResult? Load(string sessionId);
 }
 

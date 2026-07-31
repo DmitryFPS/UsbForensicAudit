@@ -376,6 +376,14 @@ public sealed class Stage7IntegrationTests
             Saved = result;
         }
 
+        public void SaveNetworkEnvironment(string sessionId, NetworkEnvironmentSnapshot snapshot)
+        {
+            if (Saved?.SessionId == sessionId)
+            {
+                Saved.NetworkEnvironment = snapshot;
+            }
+        }
+
         public AuditResult? Load(string sessionId) => Saved?.SessionId == sessionId ? Saved : null;
     }
 

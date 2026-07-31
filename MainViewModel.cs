@@ -11,10 +11,15 @@ namespace UsbForensicAudit;
 public partial class MainViewModel : ObservableObject
 {
     private readonly AuditOrchestrator _orchestrator;
+    private readonly INetworkEnvironmentService _networkEnvironmentService;
 
-    public MainViewModel(AuditOrchestrator orchestrator, IReportService reportService)
+    public MainViewModel(
+        AuditOrchestrator orchestrator,
+        IReportService reportService,
+        INetworkEnvironmentService networkEnvironmentService)
     {
         _orchestrator = orchestrator;
+        _networkEnvironmentService = networkEnvironmentService;
         ReportService = reportService;
     }
 
@@ -25,6 +30,12 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<CleanupFinding> CleanupFindings { get; } = [];
 
     public ObservableCollection<NetworkConnectionRecord> NetworkConnections { get; } = [];
+
+    public ObservableCollection<WirelessNetworkRecord> WirelessNetworks { get; } = [];
+
+    public ObservableCollection<NetworkNeighborRecord> NetworkNeighbors { get; } = [];
+
+    public ObservableCollection<NetworkAdapterRecord> NetworkAdapters { get; } = [];
 
     public ObservableCollection<ExternalUtilityRow> ExternalUtilityRows { get; } = [];
 
@@ -52,6 +63,13 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private string _networkSummary = "Сканирование ещё не выполнялось.";
+
+    /// <summary>Сводка снимка Wi-Fi и соседей по сети.</summary>
+    [ObservableProperty]
+    private string _networkEnvironmentSummary = "Обстановка вокруг машины не снималась.";
+
+    [ObservableProperty]
+    private bool _isCapturingNetworkEnvironment;
 
     public AuditResult? LastResult { get; set; }
 
@@ -95,6 +113,65 @@ public partial class MainViewModel : ObservableObject
 
         ExternalDeviceSummary = DescribeExternalDevices(result.Devices);
         NetworkSummary = NetworkConnectionSummary.Create(result.NetworkConnections).Describe();
+        PopulateNetworkEnvironment(result.NetworkEnvironment);
+    }
+
+    public void PopulateNetworkEnvironment(NetworkEnvironmentSnapshot snapshot)
+    {
+        WirelessNetworks.Clear();
+        foreach (var network in snapshot.WirelessNetworks
+                     .OrderByDescending(x => x.IsConnected)
+                     .ThenByDescending(x => x.HasSavedProfile)
+                     .ThenByDescending(x => x.SignalPercent)
+                     .ThenBy(x => x.Ssid, StringComparer.OrdinalIgnoreCase))
+        {
+            WirelessNetworks.Add(network);
+        }
+
+        NetworkNeighbors.Clear();
+        foreach (var neighbor in snapshot.Neighbors
+                     .OrderBy(x => NeighborRole.Rank(x.Role))
+                     .ThenBy(x => x.IpAddress, StringComparer.Ordinal))
+        {
+            NetworkNeighbors.Add(neighbor);
+        }
+
+        NetworkAdapters.Clear();
+        foreach (var adapter in snapshot.Adapters)
+        {
+            NetworkAdapters.Add(adapter);
+        }
+
+        NetworkEnvironmentSummary = snapshot.Describe();
+    }
+
+    public async Task CaptureNetworkEnvironmentAsync(
+        bool activeProbe,
+        IProgress<string>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        IsCapturingNetworkEnvironment = true;
+        try
+        {
+            var snapshot = await Task.Run(async () =>
+                    await _networkEnvironmentService.CaptureAsync(activeProbe, progress, cancellationToken)
+                        .ConfigureAwait(false),
+                cancellationToken).ConfigureAwait(true);
+
+            if (LastResult is not null)
+            {
+                LastResult.NetworkEnvironment = snapshot;
+                var sessionId = LastResult.SessionId;
+                await Task.Run(() => Storage.SaveNetworkEnvironment(sessionId, snapshot), cancellationToken)
+                    .ConfigureAwait(true);
+            }
+
+            PopulateNetworkEnvironment(snapshot);
+        }
+        finally
+        {
+            IsCapturingNetworkEnvironment = false;
+        }
     }
 
     /// <summary>

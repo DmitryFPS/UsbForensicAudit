@@ -56,13 +56,36 @@ public sealed class AuditStorage : IAuditStorage
         });
     }
 
+    public void SaveNetworkEnvironment(string sessionId, NetworkEnvironmentSnapshot snapshot)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            return;
+        }
+
+        ExecuteExclusive(() =>
+        {
+            using var connection = Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE audit_sessions
+                SET network_environment_json=$environment
+                WHERE session_id=$session;
+                """;
+            command.Parameters.AddWithValue("$session", sessionId);
+            command.Parameters.AddWithValue("$environment", JsonSerializer.Serialize(snapshot, JsonOptions));
+            command.ExecuteNonQuery();
+        });
+    }
+
     public AuditResult? Load(string sessionId)
     {
         using var connection = Open();
         using var session = connection.CreateCommand();
         session.CommandText = """
             SELECT started_at_utc, finished_at_utc, computer_name, user_name, windows_version,
-                   os_installed_at_utc, is_administrator, warnings_json, coverage_json
+                   os_installed_at_utc, is_administrator, warnings_json, coverage_json,
+                   network_environment_json
             FROM audit_sessions WHERE session_id=$session;
             """;
         session.Parameters.AddWithValue("$session", sessionId);
@@ -82,6 +105,8 @@ public sealed class AuditStorage : IAuditStorage
         };
         foreach (var warning in Deserialize<List<string>>(reader.IsDBNull(7) ? "" : reader.GetString(7)) ?? [])
             result.SourceWarnings.Add(warning);
+        result.NetworkEnvironment = Deserialize<NetworkEnvironmentSnapshot>(reader.IsDBNull(9) ? "" : reader.GetString(9))
+                                    ?? new NetworkEnvironmentSnapshot();
         reader.Close();
         LoadRecords(connection, "devices", sessionId, json => Deserialize<UsbDeviceRecord>(json), result.Devices);
         LoadRecords(connection, "evidence", sessionId, json => Deserialize<EvidenceRecord>(json), result.Evidence);
@@ -180,6 +205,10 @@ public sealed class AuditStorage : IAuditStorage
                 sessions_json TEXT, visits_json TEXT
             );
             """);
+        EnsureColumns(connection, "audit_sessions", new Dictionary<string, string>
+        {
+            ["network_environment_json"] = "TEXT"
+        });
         Execute(connection, "CREATE UNIQUE INDEX IF NOT EXISTS ux_network_session_record ON network_connections(session_id, record_key) WHERE session_id IS NOT NULL;");
         Execute(connection, "CREATE UNIQUE INDEX IF NOT EXISTS ux_devices_session_record ON devices(session_id, record_key) WHERE session_id IS NOT NULL;");
         Execute(connection, "CREATE UNIQUE INDEX IF NOT EXISTS ux_evidence_session_record ON evidence(session_id, record_key) WHERE session_id IS NOT NULL;");
@@ -196,8 +225,8 @@ public sealed class AuditStorage : IAuditStorage
             insert.CommandText = """
                 INSERT OR IGNORE INTO audit_sessions (
                     session_id, started_at_utc, finished_at_utc, computer_name, user_name, windows_version,
-                    os_installed_at_utc, is_administrator, warnings_json, coverage_json)
-                VALUES ($id,$started,$finished,$computer,$user,$windows,$installed,$admin,$warnings,$coverage);
+                    os_installed_at_utc, is_administrator, warnings_json, coverage_json, network_environment_json)
+                VALUES ($id,$started,$finished,$computer,$user,$windows,$installed,$admin,$warnings,$coverage,$environment);
                 """;
             insert.Parameters.AddWithValue("$id", result.SessionId);
             insert.Parameters.AddWithValue("$started", result.StartedAtUtc.ToString("O"));
@@ -209,6 +238,7 @@ public sealed class AuditStorage : IAuditStorage
             insert.Parameters.AddWithValue("$admin", result.IsAdministrator ? 1 : 0);
             insert.Parameters.AddWithValue("$warnings", JsonSerializer.Serialize(result.SourceWarnings, JsonOptions));
             insert.Parameters.AddWithValue("$coverage", JsonSerializer.Serialize(result.Coverage, JsonOptions));
+            insert.Parameters.AddWithValue("$environment", JsonSerializer.Serialize(result.NetworkEnvironment, JsonOptions));
             if (insert.ExecuteNonQuery() == 0)
             {
                 tx.Rollback();

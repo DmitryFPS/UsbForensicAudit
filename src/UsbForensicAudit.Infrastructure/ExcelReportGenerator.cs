@@ -31,6 +31,7 @@ internal static class ExcelReportGenerator
         AddFileTransferSheet(workbook, context);
         AddEvidenceSheet(workbook, context.Timeline);
         AddNetworkSheet(workbook, context);
+        AddNetworkEnvironmentSheet(workbook, context);
         AddNetworkVisitsSheet(workbook, context);
         AddNetworkSessionsSheet(workbook, context);
         AddCleanupSheet(workbook, context.CleanupFindings, brief: false);
@@ -386,6 +387,45 @@ internal static class ExcelReportGenerator
                 worksheet.Range(index + 5, 1, index + 5, 14).Style.Fill.BackgroundColor = DangerColor;
             }
         }
+    }
+
+    private static void AddNetworkEnvironmentSheet(XLWorkbook workbook, ForensicReportContext context)
+    {
+        var env = context.NetworkEnvironment;
+        AddDataSheet(
+            workbook,
+            "Wi-Fi в эфире",
+            env.Describe(),
+            env.WirelessNetworks,
+            [
+                Column<WirelessNetworkRecord>("SSID", 34, x => x.SsidText),
+                Column<WirelessNetworkRecord>("Связь с машиной", 40, x => x.RelationText),
+                Column<WirelessNetworkRecord>("Сигнал", 12, x => x.SignalText),
+                Column<WirelessNetworkRecord>("Канал", 18, x => x.ChannelText),
+                Column<WirelessNetworkRecord>("Защита", 50, x => x.SecurityText),
+                Column<WirelessNetworkRecord>("BSSID", 20, x => x.BssidText),
+                Column<WirelessNetworkRecord>("Производитель AP", 24, x => x.VendorText),
+                Column<WirelessNetworkRecord>("Адаптер", 34, x => x.Adapter),
+                Column<WirelessNetworkRecord>("Когда слышали", 24, x => x.SeenAtText)
+            ]);
+
+        AddDataSheet(
+            workbook,
+            "Устройства в сети",
+            env.Describe(),
+            env.Neighbors,
+            [
+                Column<NetworkNeighborRecord>("Роль", 34, x => x.RoleText),
+                Column<NetworkNeighborRecord>("IP", 18, x => x.AddressText),
+                Column<NetworkNeighborRecord>("MAC", 20, x => x.MacText),
+                Column<NetworkNeighborRecord>("Имя", 34, x => x.NameText),
+                Column<NetworkNeighborRecord>("Производитель", 24, x => x.VendorText),
+                Column<NetworkNeighborRecord>("Как найдено", 44, x => x.DiscoveryText),
+                Column<NetworkNeighborRecord>("Состояние", 18, x => x.StateText),
+                Column<NetworkNeighborRecord>("Сеть", 24, x => x.NetworkText),
+                Column<NetworkNeighborRecord>("Адаптер", 28, x => x.AdapterText),
+                Column<NetworkNeighborRecord>("Когда видели", 24, x => x.SeenAtText)
+            ]);
     }
 
     /// <summary>

@@ -313,6 +313,47 @@ public partial class MainWindow : Window
         _cleanupFindingsView.Refresh();
     }
 
+    private async void CaptureEnvironmentButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.IsCapturingNetworkEnvironment)
+        {
+            return;
+        }
+
+        if (_vm.LastResult is null)
+        {
+            MessageBox.Show(this,
+                "Сначала выполните полное сканирование — снимок привязывается к его результату.",
+                "Обстановка вокруг машины",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        CaptureEnvironmentButton.IsEnabled = false;
+        ActiveProbeCheck.IsEnabled = false;
+        EnvironmentStatusText.Text = "Снимаю...";
+        AppendLog("Съёмка обстановки запущена.");
+        try
+        {
+            var progress = new Progress<string>(message => EnvironmentStatusText.Text = message);
+            await _vm.CaptureNetworkEnvironmentAsync(ActiveProbeCheck.IsChecked == true, progress, _lifetimeCancellation.Token);
+            EnvironmentStatusText.Text = "Готово.";
+            AppendLog(_vm.NetworkEnvironmentSummary);
+        }
+        catch (Exception ex)
+        {
+            EnvironmentStatusText.Text = "Ошибка.";
+            AppendLog($"Ошибка съёмки обстановки: {ex.Message}");
+            MessageBox.Show(this, ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            CaptureEnvironmentButton.IsEnabled = true;
+            ActiveProbeCheck.IsEnabled = true;
+        }
+    }
+
     private void UpdateOsInstallDisplay(AuditResult? result)
     {
         var installAtUtc = result?.OsInstalledAtUtc ?? OsInstallInfo.GetInstalledAtUtc();

@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="..\..\Assets\USBVendors.txt" LogicalName="UsbForensicAudit.Assets.USBVendors.txt" Condition="Exists('..\..\Assets\USBVendors.txt')" />
+    <EmbeddedResource Include="..\..\Assets\MacVendors.txt" LogicalName="UsbForensicAudit.Assets.MacVendors.txt" Condition="Exists('..\..\Assets\MacVendors.txt')" />
   </ItemGroup>
 
   <ItemGroup>
