@@ -227,28 +227,42 @@ public static class UserDisplayText
         return $"VID {vid} / PID {pid}";
     }
 
+    /// <summary>
+    /// Имя устройства для таблицы. Windows часто хранит имя ссылкой на строку в
+    /// файле драйвера, поэтому каждое значение сначала разбирается: без этого во
+    /// вкладке стояло «@usb.inf,%usb\composite.devicedesc%;USB Composite Device»
+    /// вместо «USB Composite Device».
+    /// </summary>
     public static string DeviceDisplayName(string friendlyName, string manufacturer, string product, string deviceInstanceId)
     {
-        if (!string.IsNullOrWhiteSpace(friendlyName)
-            && !friendlyName.StartsWith(@"USB\", StringComparison.OrdinalIgnoreCase)
-            && !friendlyName.StartsWith(@"USBSTOR\", StringComparison.OrdinalIgnoreCase))
+        var name = IndirectString.Resolve(friendlyName);
+        var vendor = IndirectString.Resolve(manufacturer);
+        var model = IndirectString.Resolve(product);
+
+        if (!string.IsNullOrWhiteSpace(name)
+            && !name.StartsWith(@"USB\", StringComparison.OrdinalIgnoreCase)
+            && !name.StartsWith(@"USBSTOR\", StringComparison.OrdinalIgnoreCase))
         {
-            return friendlyName;
+            return name;
         }
 
-        if (!string.IsNullOrWhiteSpace(manufacturer) && !string.IsNullOrWhiteSpace(product))
+        if (!string.IsNullOrWhiteSpace(vendor) && !string.IsNullOrWhiteSpace(model))
         {
-            return $"{manufacturer} {product}".Trim();
+            // «Microsoft Microsoft Bluetooth A2dp Sink» — имя производителя уже
+            // стоит в названии модели, и повторять его незачем.
+            return model.StartsWith(vendor, StringComparison.OrdinalIgnoreCase)
+                ? model
+                : $"{vendor} {model}".Trim();
         }
 
-        if (!string.IsNullOrWhiteSpace(product))
+        if (!string.IsNullOrWhiteSpace(model))
         {
-            return product;
+            return model;
         }
 
-        if (!string.IsNullOrWhiteSpace(manufacturer))
+        if (!string.IsNullOrWhiteSpace(vendor))
         {
-            return manufacturer;
+            return vendor;
         }
 
         return deviceInstanceId;
@@ -256,15 +270,17 @@ public static class UserDisplayText
 
     public static string ManufacturerName(string manufacturer, string friendlyName, string vid)
     {
-        if (!string.IsNullOrWhiteSpace(manufacturer))
+        var vendor = IndirectString.Resolve(manufacturer);
+        if (!string.IsNullOrWhiteSpace(vendor))
         {
-            return manufacturer;
+            return vendor;
         }
 
-        if (!string.IsNullOrWhiteSpace(friendlyName))
+        var name = IndirectString.Resolve(friendlyName);
+        if (!string.IsNullOrWhiteSpace(name))
         {
-            var parts = friendlyName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length > 1 && !friendlyName.Contains("USB Device", StringComparison.OrdinalIgnoreCase))
+            var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length > 1 && !name.Contains("USB Device", StringComparison.OrdinalIgnoreCase))
             {
                 return parts[0];
             }
@@ -275,25 +291,27 @@ public static class UserDisplayText
 
     public static string ModelName(string product, string friendlyName, string revision, string pid)
     {
-        if (!string.IsNullOrWhiteSpace(product))
+        var model = IndirectString.Resolve(product);
+        if (!string.IsNullOrWhiteSpace(model))
         {
-            return string.IsNullOrWhiteSpace(revision) ? product : $"{product} {revision}".Trim();
+            return string.IsNullOrWhiteSpace(revision) ? model : $"{model} {revision}".Trim();
         }
 
-        if (!string.IsNullOrWhiteSpace(friendlyName))
+        var name = IndirectString.Resolve(friendlyName);
+        if (!string.IsNullOrWhiteSpace(name))
         {
-            if (friendlyName.Contains("USB Device", StringComparison.OrdinalIgnoreCase))
+            if (name.Contains("USB Device", StringComparison.OrdinalIgnoreCase))
             {
-                return friendlyName.Replace(" USB Device", "", StringComparison.OrdinalIgnoreCase).Trim();
+                return name.Replace(" USB Device", "", StringComparison.OrdinalIgnoreCase).Trim();
             }
 
-            var parts = friendlyName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length > 1)
             {
                 return string.Join(' ', parts.Skip(1));
             }
 
-            return friendlyName;
+            return name;
         }
 
         return string.IsNullOrWhiteSpace(pid) ? "не определена" : $"неизвестна (PID {pid})";
