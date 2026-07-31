@@ -294,6 +294,14 @@ public sealed class UserArtifactCollector : IEvidenceCollector
         WalkShellBags(root, $@"HKU\{sidClasses}\{relative}", "", profile, sourcePrefix, evidence, ref count, 0);
     }
 
+    /// <summary>
+    /// Имя элемента оболочки удаётся прочитать не всегда: часть элементов MTP
+    /// хранит его в собственном двоичном формате. Прежде вместо имени в отчёт
+    /// попадал прочитанный со сдвигом мусор, и он выглядел как настоящий путь.
+    /// </summary>
+    private static string ShellBagPathText(string path) =>
+        string.IsNullOrWhiteSpace(path) ? "Имя элемента не прочитано" : path;
+
     private static void WalkShellBags(
         RegistryKey key, string registryPath, string parentPath, UserProfileIdentity profile,
         string sourcePrefix, List<EvidenceRecord> evidence, ref int count, int depth)
@@ -306,7 +314,7 @@ public sealed class UserArtifactCollector : IEvidenceCollector
                 key.GetValue(name) as byte[], parentPath, slot, SystemDriveLetter);
             if (!parsed.IsUsbRelevant) continue;
             AddDeduplicated(evidence, NewRegistryEvidence(
-                $"{sourcePrefix} Shellbags", profile, $"{registryPath}\\{name}", parsed.Path,
+                $"{sourcePrefix} Shellbags", profile, $"{registryPath}\\{name}", ShellBagPathText(parsed.Path),
                 $"Structured BagMRU node; slot={parsed.Slot?.ToString() ?? "unknown"}. {parsed.RelevanceReason} Показывает просмотр папки, а не подключение устройства.",
                 RegistryKeyTimestamps.GetLastWriteUtc(key), "Indirect", "Medium"));
             count++;

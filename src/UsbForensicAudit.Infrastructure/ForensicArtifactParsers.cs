@@ -445,7 +445,35 @@ internal static partial class ForensicArtifactParsers
         value.Replace('\0', ' ').Trim(' ', '\t', '\r', '\n', '\u0001');
 
     private static bool IsUsefulFragment(string value) =>
-        value.Length is >= 2 and <= 2048 && value.Any(char.IsLetterOrDigit);
+        value.Length is >= 2 and <= 2048
+        && value.Any(char.IsLetterOrDigit)
+        && LooksLikeReadableName(value);
+
+    /// <summary>
+    /// Поиск строк идёт по двоичному телу элемента оболочки побайтно, поэтому
+    /// начало строки иногда угадывается со сдвигом в один байт, и то же имя
+    /// читается как набор иероглифов: "UsbForensicAudit" превращается в
+    /// "唀猀戀䘀漀爀攀渀猀椀挀䄀甀搀椀琀". Двоичные GUID тем же способом дают "PàOÐ ê:i".
+    /// В отчёте такой мусор выглядел как настоящий путь, куда заходил
+    /// пользователь, поэтому фрагмент принимается, только если почти целиком
+    /// состоит из знаков, которыми записываются имена файлов и папок.
+    /// </summary>
+    private static bool LooksLikeReadableName(string value)
+    {
+        var readable = value.Count(IsNameCharacter);
+        return readable >= value.Length * 0.8;
+    }
+
+    private static bool IsNameCharacter(char value) =>
+        value is >= ' ' and <= '~'
+        || value is >= '\u0400' and <= '\u04FF'
+        || value == '\u00A0'
+        || value == '\u2014'
+        || value == '\u2013'
+        || value == '\u00AB'
+        || value == '\u00BB'
+        || value == '\u2026'
+        || value == '\u2116';
 
     private static string ExtractVolumeGuid(string value)
     {
