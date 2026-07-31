@@ -279,9 +279,11 @@ internal static class UsbRegistryForensicHelpers
         var decoded = Uri.UnescapeDataString(keyName).Replace('#', '\\').Trim('\\');
         var parts = decoded.Split('\\', StringSplitOptions.RemoveEmptyEntries).ToList();
 
-        // Хвостовой {GUID} — это класс интерфейса устройства (например, GUID_DEVINTERFACE_DISK),
-        // одинаковый у всех устройств своего класса. Серийным номером он быть не может.
-        if (parts.Count > 1 && IsGuidSegment(parts[^1]))
+        // Хвостовые {GUID} — классы интерфейса устройства (например, GUID_DEVINTERFACE_DISK),
+        // одинаковые у всех устройств своего класса. Серийным номером они быть не могут.
+        // У узлов WPDBUSENUM в ключах DeviceClasses таких GUID два подряд: один входит в
+        // само имя экземпляра, второй дописывает ветка DeviceClasses.
+        while (parts.Count > 1 && IsGuidSegment(parts[^1]))
         {
             parts.RemoveAt(parts.Count - 1);
         }
