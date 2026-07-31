@@ -22,6 +22,66 @@ public static class VolumeCorrelationService
         AttachMappingsToDevices(result.Devices, mappings);
         CorrelatePartitionEvents(result, mappings);
         CorrelateArtifactVolumeSerials(result);
+        AddDiskCreationAnchors(result);
+    }
+
+    /// <summary>
+    /// Идентификатор диска GPT — это UUID версии 1, в который записан момент
+    /// разметки носителя. Отметка лежит на самом носителе, поэтому не зависит от
+    /// чистки журналов и реестра и служит независимой точкой отсчёта. Если
+    /// система утверждает, что устройство впервые подключили раньше, чем диск
+    /// был размечен, — что-то в датах не сходится, и это надо показать.
+    /// </summary>
+    private static void AddDiskCreationAnchors(AuditResult result)
+    {
+        var additions = new List<EvidenceRecord>();
+        foreach (var device in result.Devices.Where(IsPhysicalDevice))
+        {
+            foreach (var volume in device.Volumes)
+            {
+                if (!Uuid1Timestamp.TryDecode(volume.DiskId, out var createdUtc))
+                {
+                    continue;
+                }
+
+                var conflict = device.FirstConnectedUtc.HasValue
+                               && device.FirstConnectedUtc.Value < createdUtc.AddMinutes(-1);
+
+                additions.Add(new EvidenceRecord
+                {
+                    TimestampUtc = createdUtc,
+                    Source = "Идентификатор диска (UUID версии 1)",
+                    Provider = "Разметка носителя",
+                    EvidenceCategory = "Независимая отметка времени",
+                    EvidenceStrength = "Corroborating",
+                    Confidence = "High",
+                    DeviceHint = device.CanonicalDeviceId,
+                    CanEstablishConnectionDate = false,
+                    Summary = $"Диск {volume.DiskId} размечен {DateDisplay.FormatMoscowOr(createdUtc, "")}."
+                              + (conflict
+                                  ? " Первое подключение по данным Windows раньше разметки — даты противоречивы."
+                                  : ""),
+                    UserExplanation = conflict
+                        ? "Время разметки записано в самом идентификаторе диска и не меняется при чистке "
+                          + "журналов. Windows сообщает более раннее первое подключение, чем момент разметки: "
+                          + "либо даты в реестре подменены, либо носитель размечали заново."
+                        : "Время разметки записано в самом идентификаторе диска и не зависит от журналов "
+                          + "Windows. Подключение раньше этого момента невозможно.",
+                    Provenance = $"DiskId={volume.DiskId}; source={volume.Source}",
+                    RawText = $"DiskId={volume.DiskId}\nCreatedUtc={createdUtc:O}\n"
+                              + $"DeviceFirstConnectedUtc={device.FirstConnectedUtc:O}"
+                });
+
+                if (conflict)
+                {
+                    device.DateConfidence = string.IsNullOrWhiteSpace(device.DateConfidence)
+                        ? "Даты противоречивы: первое подключение раньше разметки диска."
+                        : device.DateConfidence + " Даты противоречивы: первое подключение раньше разметки диска.";
+                }
+            }
+        }
+
+        result.Evidence.AddRange(additions);
     }
 
     private static void CorrelatePartitionEvents(AuditResult result, IReadOnlyList<VolumeIdentity> mappings)
