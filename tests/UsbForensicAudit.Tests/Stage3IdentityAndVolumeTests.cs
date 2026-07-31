@@ -152,6 +152,54 @@ public sealed class Stage3IdentityAndVolumeTests
     }
 
     [Fact]
+    public void Mounted_devices_parser_reads_escaped_removable_device_path()
+    {
+        // Реальное значение \DosDevices\E: с исследованной машины.
+        var raw = "_??_USBSTOR#Disk&Ven_General&Prod_UDisk&Rev_5.00#2412242109410569603146&0"
+                  + "#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}";
+        var data = Encoding.Unicode.GetBytes(raw + "\0");
+
+        var parsed = MountedDevicesParser.Parse(@"\DosDevices\E:", data);
+
+        Assert.Equal("E:", parsed.DriveLetter);
+        Assert.Equal("High", parsed.Confidence);
+        Assert.Equal(
+            @"USBSTOR\Disk&Ven_General&Prod_UDisk&Rev_5.00\2412242109410569603146&0",
+            parsed.DevicePath);
+        Assert.DoesNotContain(parsed.Provenance, x => x.Contains("Unrecognized", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Escaped_removable_mapping_links_drive_letter_to_its_device()
+    {
+        var result = new AuditResult();
+        var device = Device(
+            @"USBSTOR\Disk&Ven_General&Prod_UDisk&Rev_5.00\2412242109410569603146&0",
+            "2412242109410569603146");
+        result.Devices.Add(device);
+        result.Devices.Add(new UsbDeviceRecord
+        {
+            Source = "Registry: MountedDevices",
+            VisualCategory = "SupportArtifact",
+            DeviceType = "VolumeMapping",
+            DeviceInstanceId = @"HKLM\SYSTEM\MountedDevices\DosDevices\E:",
+            Volumes =
+            [
+                MountedDevicesParser.Parse(
+                    @"\DosDevices\E:",
+                    Encoding.Unicode.GetBytes(
+                        "_??_USBSTOR#Disk&Ven_General&Prod_UDisk&Rev_5.00#2412242109410569603146&0"
+                        + "#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}\0"))
+            ]
+        });
+
+        DeviceIdentityGraph.Process(result.Devices);
+        VolumeCorrelationService.Process(result);
+
+        Assert.Contains("E:", device.DriveLetters, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Mounted_devices_parser_reads_mbr_signature_and_offset()
     {
         var data = new byte[12];

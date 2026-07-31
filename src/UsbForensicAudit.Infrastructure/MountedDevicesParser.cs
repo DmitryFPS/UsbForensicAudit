@@ -41,9 +41,15 @@ public static class MountedDevicesParser
 
         if (TryReadUtf16Path(data, out var path))
         {
-            identity.DevicePath = path;
+            var instancePath = NormalizeDeviceInstancePath(path);
+            identity.DevicePath = instancePath;
             identity.Confidence = "High";
             identity.Provenance.Add("MountedDevices UTF-16 device path");
+            if (!instancePath.Equals(path, StringComparison.Ordinal))
+            {
+                identity.Provenance.Add($"Raw MountedDevices value: {path}");
+            }
+
             return identity;
         }
 
@@ -78,7 +84,12 @@ public static class MountedDevicesParser
         }
 
         var candidate = Encoding.Unicode.GetString(data).TrimEnd('\0').Trim();
+
+        // Съёмные носители Windows записывает в экранированной форме _??_USBSTOR#...
+        // Без этого префикса значение не распознавалось и буква диска не связывалась
+        // с носителем.
         if (!(candidate.StartsWith(@"\??\", StringComparison.OrdinalIgnoreCase)
+              || candidate.StartsWith("_??_", StringComparison.OrdinalIgnoreCase)
               || candidate.StartsWith(@"\DosDevices\", StringComparison.OrdinalIgnoreCase)
               || candidate.StartsWith(@"\\?\", StringComparison.OrdinalIgnoreCase)
               || candidate.StartsWith(@"\Device\", StringComparison.OrdinalIgnoreCase)))
@@ -93,6 +104,32 @@ public static class MountedDevicesParser
 
         path = candidate;
         return true;
+    }
+
+    /// <summary>
+    /// Приводит значение вида _??_USBSTOR#Disk&amp;Ven_...#SERIAL&amp;0#{GUID интерфейса}
+    /// к идентификатору экземпляра USBSTOR\Disk&amp;Ven_...\SERIAL&amp;0, по которому
+    /// том связывается с записью устройства из Enum.
+    /// </summary>
+    public static string NormalizeDeviceInstancePath(string path)
+    {
+        if (!path.StartsWith("_??_", StringComparison.OrdinalIgnoreCase)
+            && !path.StartsWith(@"\??\", StringComparison.OrdinalIgnoreCase))
+        {
+            return path;
+        }
+
+        var value = path[4..].Replace('#', '\\');
+        var segments = value.Split('\\', StringSplitOptions.RemoveEmptyEntries).ToList();
+        if (segments.Count > 1
+            && segments[^1].StartsWith('{')
+            && segments[^1].EndsWith('}')
+            && Guid.TryParse(segments[^1], out _))
+        {
+            segments.RemoveAt(segments.Count - 1);
+        }
+
+        return segments.Count == 0 ? path : string.Join('\\', segments);
     }
 
     public static bool TryReadMbr(byte[] data, out string diskSignature, out long partitionOffset)
