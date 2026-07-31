@@ -86,6 +86,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
 
         CollectPortableDevices(records, warnings);
         CollectReadyBoostVolumeHistory(records, warnings);
+        CollectVolumeLabelCache(records, warnings);
         CollectDeviceInterfaceArrivals(controlSets, records, warnings);
         records = DeduplicateEnumRecords(records);
         CorrelatePortableDevices(records);
@@ -158,6 +159,101 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         {
             warnings.Add($"Ошибка чтения HKLM\\{path}: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Кэш меток томов службы поиска. Единственный источник, где метка тома
+    /// сохраняется после того, как носитель извлекли: по ней «Флешка Иванова»
+    /// в ярлыке или недавнем документе превращается в конкретный носитель.
+    /// </summary>
+    private static void CollectVolumeLabelCache(List<UsbDeviceRecord> records, List<string> warnings)
+    {
+        const string path = @"SOFTWARE\Microsoft\Windows Search\VolumeInfoCache";
+        try
+        {
+            using var root = Registry.LocalMachine.OpenSubKey(path);
+            if (root is null)
+            {
+                return;
+            }
+
+            foreach (var driveName in root.GetSubKeyNames().Take(64))
+            {
+                using var driveKey = root.OpenSubKey(driveName);
+                if (driveKey is null)
+                {
+                    continue;
+                }
+
+                var label = ReadString(driveKey, "VolumeLabel");
+                var serial = NormalizeVolumeSerial(ReadString(driveKey, "VolumeSerialNumber"));
+                if (string.IsNullOrWhiteSpace(label) && string.IsNullOrWhiteSpace(serial))
+                {
+                    continue;
+                }
+
+                var driveLetter = driveName.TrimEnd('\\');
+                records.Add(new UsbDeviceRecord
+                {
+                    Source = "Registry: кэш меток томов",
+                    VisualCategory = "SupportArtifact",
+                    DeviceType = "VolumeLabel",
+                    UserMeaning = $"Метка тома «{label}» для диска {driveLetter}. "
+                                  + "Сохраняется и после извлечения носителя.",
+                    DeviceInstanceId = $@"HKLM\{path}\{driveName}",
+                    FriendlyName = label,
+                    VolumeHints = label,
+                    DriveLetters = driveLetter,
+                    Volumes =
+                    [
+                        new VolumeIdentity
+                        {
+                            DriveLetter = driveLetter,
+                            VolumeSerialNumber = serial,
+                            Source = "Registry: кэш меток томов",
+                            Confidence = string.IsNullOrWhiteSpace(serial) ? "Low" : "Medium",
+                            Provenance = [$@"HKLM\{path}\{driveName}"]
+                        }
+                    ],
+                    RegistryLastWriteUtc = RegistryKeyTimestamps.GetLastWriteUtc(driveKey),
+                    RawJson = JsonSerializer.Serialize(new
+                    {
+                        RegistryPath = $@"HKLM\{path}\{driveName}",
+                        VolumeLabel = label,
+                        VolumeSerialNumber = serial,
+                        Values = ReadValues(driveKey)
+                    })
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"Ошибка чтения HKLM\\{path}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Служба поиска пишет серийный номер тома десятичным числом, а ярлыки и
+    /// MountedDevices — шестнадцатеричным. Без приведения к одному виду
+    /// сопоставление не срабатывает.
+    /// </summary>
+    internal static string NormalizeVolumeSerial(string value)
+    {
+        var text = value.Trim();
+        if (text.Length == 0)
+        {
+            return "";
+        }
+
+        if (uint.TryParse(text, out var decimalValue))
+        {
+            return decimalValue.ToString("X8");
+        }
+
+        text = text.TrimStart('0', 'x', 'X').Replace("-", "", StringComparison.Ordinal);
+        return uint.TryParse(text, System.Globalization.NumberStyles.HexNumber, null, out var hexValue)
+            ? hexValue.ToString("X8")
+            : "";
     }
 
     /// <summary>

@@ -166,6 +166,17 @@ public sealed class UsbRegistryForensicHelpersTests
         Assert.Equal("8dde262e", identity.Serial);
     }
 
+    [Theory]
+    [InlineData("3512837709", "D161A64D")]
+    [InlineData("0xD16CE60D", "D16CE60D")]
+    [InlineData("D16C-E60D", "D16CE60D")]
+    [InlineData("", "")]
+    [InlineData("не число", "")]
+    public void Volume_serial_is_normalized_to_one_form(string raw, string expected)
+    {
+        Assert.Equal(expected, UsbRegistryCollector.NormalizeVolumeSerial(raw));
+    }
+
     [Fact]
     public void ReadyBoost_key_gives_volume_label_and_serial_for_a_flash_drive()
     {
