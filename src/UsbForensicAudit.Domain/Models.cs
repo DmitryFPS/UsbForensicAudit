@@ -24,6 +24,12 @@ public sealed class UsbDeviceRecord
     public string VisualCategory { get; set; } = "Unknown";
     public string UserMeaning { get; set; } = "";
     public string DeviceType { get; set; } = "";
+
+    /// <summary>
+    /// Что за устройство: носитель, телефон, устройство ввода. Хранится отдельно
+    /// от способа подключения, потому что это разные вопросы.
+    /// </summary>
+    public string DeviceKind { get; set; } = "Unknown";
     public string Transport { get; set; } = "Unknown";
     public string TransportConfidence { get; set; } = "Unknown";
     public List<string> TransportProvenance { get; set; } = [];
@@ -116,8 +122,25 @@ public sealed class UsbDeviceRecord
     public string DeviceTypeText => UserDisplayText.DeviceType(DeviceType);
 
     [JsonIgnore]
+    public string DeviceKindText => DeviceKindResolver.Describe(DeviceKind);
+
+    [JsonIgnore]
+    public string TransportDisplayText => DeviceKindResolver.DescribeTransport(Transport, Connection);
+
+    [JsonIgnore]
+    public string OriginDisplayText => DeviceKindResolver.DescribeOrigin(Classification);
+
+    [JsonIgnore]
     public string ClassificationDisplayText =>
-        $"{Transport} / {Connection} / {Classification} ({ClassificationConfidence})";
+        $"{DeviceKindText}. {TransportDisplayText}. {OriginDisplayText} "
+        + $"({DeviceKindResolver.DescribeConfidence(ClassificationConfidence)})";
+
+    /// <summary>
+    /// Технические значения для тех, кто сверяет отчёт с реестром.
+    /// </summary>
+    [JsonIgnore]
+    public string ClassificationCodesText =>
+        $"kind={DeviceKind}; transport={Transport}; connection={Connection}; class={Classification}";
 
     [JsonIgnore]
     public string ClassificationEvidenceText => string.Join("; ",
