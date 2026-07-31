@@ -56,6 +56,7 @@ internal static partial class ForensicArtifactParsers
         }
 
         var fragments = new List<string>();
+        var itemNames = new List<string>();
         var hasPortableDeviceItem = false;
         var offset = 0;
         for (var count = 0; count < MaxPidlItems && offset + 2 <= bytes.Length; count++)
@@ -71,8 +72,22 @@ internal static partial class ForensicArtifactParsers
             }
 
             var body = bytes.AsSpan(offset + 2, size - 2);
-            hasPortableDeviceItem |= ExtractShellItemNames(body, fragments);
-            ExtractReadableStrings(body, fragments);
+            var itemFragments = new List<string>();
+            hasPortableDeviceItem |= ExtractShellItemNames(body, itemFragments);
+
+            // Имена из блоков с подписью — то, что оболочка показывает человеку.
+            // Всё, что найдено дальше простым поиском строк, годится только как
+            // запасной вариант: там же лежат свойства элемента и GUID-ы.
+            var preferred = itemFragments.Count;
+            ExtractReadableStrings(body, itemFragments);
+            fragments.AddRange(itemFragments);
+
+            var name = ChooseItemName(itemFragments, preferred);
+            if (name.Length > 0)
+            {
+                itemNames.Add(name);
+            }
+
             offset += size;
         }
 
@@ -88,11 +103,84 @@ internal static partial class ForensicArtifactParsers
             .Take(64)
             .ToArray();
         var volume = unique.Select(ExtractVolumeGuid).FirstOrDefault(x => x.Length > 0) ?? "";
-        var bestPath = unique
-            .Where(x => DrivePathRegex().IsMatch(x) || VolumePathRegex().IsMatch(x) || x.Contains('\\'))
-            .OrderByDescending(x => x.Length)
-            .FirstOrDefault() ?? string.Join("\\", unique.Where(x => !GuidOnlyRegex().IsMatch(x)).Take(12));
-        return new PidlArtifact(unique, bestPath, volume, hasPortableDeviceItem);
+        return new PidlArtifact(unique, BuildPath(itemNames, unique), volume, hasPortableDeviceItem);
+    }
+
+    /// <summary>
+    /// Путь — это цепочка имён элементов оболочки, по одному имени на элемент.
+    ///
+    /// Прежде путь склеивался из всех найденных в элементе строк, и один узел
+    /// BagMRU давал строку вида «Общий накопитель\10001,,48582488064}\структура\
+    /// 107D5-A52A-4243...». Читалось это как перечень вложенных папок, которых
+    /// никогда не существовало: на самом деле там имя папки и рядом свойства
+    /// элемента с обрубками GUID-ов.
+    /// </summary>
+    private static string BuildPath(List<string> itemNames, string[] fragments)
+    {
+        if (itemNames.Count == 0)
+        {
+            // Готовый путь целиком в одной строке бывает в ярлыках и в списках диалогов.
+            return fragments.FirstOrDefault(x => DrivePathRegex().IsMatch(x) || VolumePathRegex().IsMatch(x)) ?? "";
+        }
+
+        // «E:\» и «\\сервер\ресурс» уже несут разделитель. Первое имя берётся как
+        // есть, а перед каждым следующим ставится ровно один разделитель.
+        var path = new StringBuilder();
+        foreach (var name in itemNames.Where(x => x.Length > 0))
+        {
+            if (path.Length == 0)
+            {
+                path.Append(name);
+                continue;
+            }
+
+            if (path[^1] != '\\')
+            {
+                path.Append('\\');
+            }
+
+            path.Append(name.TrimStart('\\'));
+        }
+
+        return path.ToString();
+    }
+
+    /// <summary>
+    /// Имя элемента — первое похожее на имя папки или файла. Именно первое, а не
+    /// самое длинное: оболочка хранит отображаемое имя перед свойствами, и самой
+    /// длинной строкой в элементе обычно оказывается путь устройства вида
+    /// «\\?\usb#vid_2717&amp;pid_ff40#...», который человеку ничего не говорит.
+    /// </summary>
+    private static string ChooseItemName(List<string> fragments, int preferredCount)
+    {
+        var cleaned = fragments.Select(CleanFragment).ToArray();
+        var fromNameBlocks = cleaned.Take(preferredCount).FirstOrDefault(IsPlausibleItemName);
+        return fromNameBlocks ?? cleaned.Skip(preferredCount).FirstOrDefault(IsPlausibleItemName) ?? "";
+    }
+
+    /// <summary>
+    /// Имена папок не содержат фигурных скобок и решёток, а свойства элементов
+    /// оболочки и идентификаторы устройств состоят из них почти целиком. Ещё
+    /// отбрасываются шестнадцатеричные наборы: это обрубки GUID-ов, прочитанные
+    /// с чужого выравнивания.
+    ///
+    /// В отличие от отбора фрагментов, здесь требуется, чтобы имя состояло из
+    /// знаков имени целиком, без единого исключения. Часть элементов хранит имя
+    /// однобайтовой строкой, и тот же однобайтовый проход читает как текст любые
+    /// двоичные поля: так в отчёт попадали «корневые папки» «1SPSsCå», «Yr?§D» и
+    /// «Ñ». Одного чужого знака достаточно, чтобы отличить их от имени.
+    /// </summary>
+    private static bool IsPlausibleItemName(string value)
+    {
+        if (!IsUsefulFragment(value)
+            || value.AsSpan().IndexOfAny('{', '}', '#') >= 0
+            || !value.All(IsNameCharacter))
+        {
+            return false;
+        }
+
+        var meaningful = value.Where(char.IsLetterOrDigit).ToArray();
+        return meaningful.Length < 8 || !meaningful.All(Uri.IsHexDigit);
     }
 
     internal static ShellBagArtifact ParseShellBagNode(
@@ -113,13 +201,17 @@ internal static partial class ForensicArtifactParsers
     /// removable или GUID тома. Папка на флешке выглядит как обычный путь E:\Фото,
     /// а папка на телефоне — как имя устройства, и обе отбрасывались: в отчёте не
     /// было видно, куда пользователь заходил на съёмном носителе.
+    ///
+    /// Признак ищется по всем строкам элемента, а не только по пути. Путь теперь
+    /// содержит имя, которое видит человек: у телефона это «POCO X3 NFC», и слова
+    /// USB в нём нет — оно осталось в служебной строке «\\?\usb#vid_2717&amp;…».
     /// </summary>
     private static string RelevanceReason(string path, PidlArtifact pidl, string? systemDrive)
     {
-        var text = $"{path} {pidl.VolumeGuid}";
+        var text = $"{path} {pidl.VolumeGuid} {string.Join(' ', pidl.PathFragments)}";
         if (IsUsbOrVolumeMarker(text))
         {
-            return "Явный признак USB, WPD или тома в пути.";
+            return "Явный признак USB, WPD или тома в элементе оболочки.";
         }
 
         if (pidl.HasPortableDeviceItem)
@@ -323,10 +415,16 @@ internal static partial class ForensicArtifactParsers
     }
 
     /// <summary>
-    /// Прежний поиск строк UTF-16 требовал, чтобы старший байт кода был нулевым,
-    /// поэтому находил только латиницу. Кириллические имена папок (U+0400..U+04FF)
-    /// пропускались целиком, а затем подбирались однобайтовым проходом уже
-    /// в виде мусора. Здесь проверяется сам символ, а не его старший байт.
+    /// Ищет строки UTF-16 с шагом в символ, а не в байт.
+    ///
+    /// Прежний поиск при неудаче сдвигался на один байт и потому мог начать
+    /// чтение с середины пары. Байты имени «POCO X3 NFC» при таком сдвиге
+    /// складываются в иероглифы «倀伀䌀伀» — а это буквы, так что чтение
+    /// продолжалось и съедало начало имени. Дальше поиск подхватывал остаток
+    /// « X3 NFC», и в отчёт попадал обрубок, выглядевший как имя папки.
+    ///
+    /// Строки в элементах оболочки лежат на границе символа, поэтому сдвиг на
+    /// байт не находит ничего нового — он только портит настоящие имена.
     /// </summary>
     private static void ExtractUtf16Strings(ReadOnlySpan<byte> data, int minimumChars, List<string> output)
     {
@@ -335,7 +433,7 @@ internal static partial class ForensicArtifactParsers
         {
             if (!IsReadableUtf16Char(data, index))
             {
-                index += 1;
+                index += 2;
                 continue;
             }
 
@@ -400,32 +498,134 @@ internal static partial class ForensicArtifactParsers
         // Элемент тома: буква диска записана однобайтовой строкой сразу за типом.
         if (body[0] == 0x2F && body.Length >= 4)
         {
-            var end = body[1..].IndexOf((byte)0);
-            var drive = Encoding.Latin1.GetString(end < 0 ? body[1..] : body.Slice(1, end)).Trim();
-            if (drive.Length > 0)
+            AddAsciiName(body, 1, output);
+        }
+
+        // Элемент сетевого расположения: сразу за признаками лежит сам адрес вида
+        // «\\20.20.20.76\r0», а за ним — название сети. Без разбора по структуре
+        // выбиралось название сети, и из отчёта пропадало, с какого сервера
+        // открывали папку.
+        if (body[0] == 0xC3 || (body[0] >= 0x41 && body[0] <= 0x4F))
+        {
+            AddAsciiName(body, 3, output);
+        }
+
+        // Сначала точное имя по структуре блока, и только потом — поиск строк.
+        // Порядок важен: имя элемента выбирается как первое подходящее.
+        foreach (var found in Occurrences(body, 0xBEEF0004))
+        {
+            var name = ReadLongName(body, found);
+            if (name.Length > 0)
             {
-                output.Add(drive);
+                output.Add(name);
             }
         }
 
         foreach (var signature in NameBearingSignatures)
         {
-            var position = 0;
-            while (position + 4 <= body.Length)
+            foreach (var found in Occurrences(body, signature))
             {
-                var found = IndexOfUInt32(body, signature, position);
-                if (found < 0)
-                {
-                    break;
-                }
-
                 ExtractUtf16Strings(body[(found + 4)..], minimumChars: 1, output);
                 portableDevice |= signature is 0x07192006 or 0x10312005;
-                position = found + 4;
             }
         }
 
         return portableDevice;
+    }
+
+    private static void AddAsciiName(ReadOnlySpan<byte> body, int offset, List<string> output)
+    {
+        if (offset >= body.Length)
+        {
+            return;
+        }
+
+        var rest = body[offset..];
+        var end = rest.IndexOf((byte)0);
+        var name = Encoding.Latin1.GetString(end < 0 ? rest : rest[..end]).Trim();
+        if (name.Length > 0)
+        {
+            output.Add(name);
+        }
+    }
+
+    private static IEnumerable<int> Occurrences(ReadOnlySpan<byte> body, uint signature)
+    {
+        var found = new List<int>();
+        var position = 0;
+        while (position + 4 <= body.Length)
+        {
+            var next = IndexOfUInt32(body, signature, position);
+            if (next < 0)
+            {
+                break;
+            }
+
+            found.Add(next);
+            position = next + 4;
+        }
+
+        return found;
+    }
+
+    /// <summary>
+    /// Длинное имя из расширения 0xBEEF0004 — ровно то имя, которое показывает
+    /// проводник. Лежит оно по определённому структурой смещению, и брать его
+    /// надо оттуда, а не искать в теле элемента любую печатную строку.
+    ///
+    /// Перед именем стоят двоичные поля, и последние два байта одного из них
+    /// нередко складываются в печатный знак. Поиск строк подхватывал его вместе
+    /// с именем: «Windows 10 by Eagle123» доходило до отчёта как
+    /// «謕JWindows 10 by Eagle123», а «архиваторы» — как «¼архиваторы».
+    /// </summary>
+    private static string ReadLongName(ReadOnlySpan<byte> body, int signaturePosition)
+    {
+        var start = signaturePosition - 4;
+        if (start < 0 || start + 4 > body.Length)
+        {
+            return "";
+        }
+
+        var size = BinaryPrimitives.ReadUInt16LittleEndian(body.Slice(start, 2));
+        var version = BinaryPrimitives.ReadUInt16LittleEndian(body.Slice(start + 2, 2));
+        if (version < 3 || start + size > body.Length)
+        {
+            return "";
+        }
+
+        var offset = 18; // подпись, две метки времени DOS и признак версии
+        if (version >= 7)
+        {
+            offset += 18; // выравнивание и ссылка на запись файла NTFS
+        }
+
+        offset += 2; // размер длинной строки
+        if (version >= 9)
+        {
+            offset += 4;
+        }
+
+        if (version >= 8)
+        {
+            offset += 4;
+        }
+
+        return offset + 2 <= size
+            ? ReadTerminatedUtf16(body[(start + offset)..(start + size)])
+            : "";
+    }
+
+    private static string ReadTerminatedUtf16(ReadOnlySpan<byte> data)
+    {
+        for (var index = 0; index + 1 < data.Length; index += 2)
+        {
+            if (data[index] == 0 && data[index + 1] == 0)
+            {
+                return Encoding.Unicode.GetString(data[..index]);
+            }
+        }
+
+        return Encoding.Unicode.GetString(data[..(data.Length - data.Length % 2)]);
     }
 
     private static int IndexOfUInt32(ReadOnlySpan<byte> data, uint value, int start)
