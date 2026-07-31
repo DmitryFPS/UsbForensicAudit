@@ -43,12 +43,28 @@ public class DeviceExternalityTests
     {
         var device = Classified(new UsbDeviceRecord
         {
-            DeviceInstanceId = @"BTHENUM\{0000111e-0000-1000-8000-00805f9b34fb}_LOCALMFG&0000\7&1a2b3c4d&0",
+            DeviceInstanceId = @"BTHENUM\Dev_887598C2F5F2\7&1a2b3c4d&0&BluetoothDevice_887598C2F5F2",
             FriendlyName = "Гарнитура"
         });
 
         Assert.Equal(DeviceExternality.ExternalPeripheral, device.Externality);
         Assert.True(device.IsExternalDevice);
+    }
+
+    /// <summary>
+    /// Услуга сопряжённого устройства живёт на той же шине, но принесённой
+    /// вещью не является: у одной гарнитуры таких записей около десятка.
+    /// </summary>
+    [Fact]
+    public void Bluetooth_service_of_that_pair_is_not_a_device_of_its_own()
+    {
+        var device = Classified(new UsbDeviceRecord
+        {
+            DeviceInstanceId = @"BTHENUM\{0000111e-0000-1000-8000-00805f9b34fb}_LOCALMFG&0000\7&1a2b3c4d&0"
+        });
+
+        Assert.Equal(DeviceExternality.BusInfrastructure, device.Externality);
+        Assert.False(device.IsExternalDevice);
     }
 
     [Fact]
@@ -59,6 +75,24 @@ public class DeviceExternalityTests
             DeviceInstanceId = @"USB\ROOT_HUB30\4&1a2b3c4d&0&0",
             Service = "USBHUB3",
             FriendlyName = "Корневой USB-концентратор (USB 3.0)"
+        });
+
+        Assert.Equal(DeviceExternality.BusInfrastructure, device.Externality);
+        Assert.False(device.IsExternalDevice);
+    }
+
+    /// <summary>
+    /// Контроллер Thunderbolt распаян на материнской плате. Через него внешние
+    /// устройства подключают, но принесённой вещью он от этого не становится.
+    /// </summary>
+    [Fact]
+    public void Thunderbolt_controller_of_the_machine_is_not_a_brought_device()
+    {
+        var device = Classified(new UsbDeviceRecord
+        {
+            DeviceInstanceId = @"PCI\VEN_8086&DEV_7EC2&SUBSYS_3D6C17AA&REV_10\3&11583659&0&6A",
+            Service = "nhi",
+            FriendlyName = "Thunderbolt(TM) Controller - 7EC2"
         });
 
         Assert.Equal(DeviceExternality.BusInfrastructure, device.Externality);
