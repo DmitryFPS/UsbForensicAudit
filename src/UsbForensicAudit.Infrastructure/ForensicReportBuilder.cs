@@ -39,6 +39,7 @@ internal sealed class ForensicReportContext
             .OrderByDescending(g => g.Count())
             .Select(g => (Category: g.Key, Count: g.Count()))
             .ToArray();
+        Counts = DeviceCountSummary.FromDevices(ReportableDevices);
     }
 
     public AuditResult Result { get; }
@@ -51,6 +52,11 @@ internal sealed class ForensicReportContext
     public IReadOnlyList<UsbDeviceRecord> RealDevices { get; }
     public IReadOnlyList<(string Source, int Count)> EvidenceBySource { get; }
     public IReadOnlyList<(string Category, int Count)> DevicesByCategory { get; }
+
+    /// <summary>
+    /// Единственный источник чисел об устройствах для всех отчётов.
+    /// </summary>
+    public DeviceCountSummary Counts { get; }
 
     public int SuspiciousCount => SuspiciousFindings.Count;
     public int HighRiskCount => HighRiskFindings.Count;
@@ -349,8 +355,8 @@ internal static class ForensicReportBuilder
         var result = ctx.Result;
         html.AppendLine("<h2 id=\"summary\">1. Сводка для расследования</h2>");
         html.AppendLine("<div class=\"note\">");
-        html.AppendLine($"<b>USB/Type-C записей:</b> {ctx.ReportableDevices.Count}; ");
-        html.AppendLine($"<b>реальных USB:</b> {ctx.RealDevices.Count}; ");
+        html.AppendLine($"<b>Физических устройств:</b> {ctx.Counts.PhysicalDevices}<br>");
+        html.AppendLine($"<span class=\"muted\">{E(ctx.Counts.Describe())}</span><br>");
         html.AppendLine($"<b>USB-доказательств:</b> {ctx.Timeline.Count}; ");
         html.AppendLine($"<b>релевантных признаков очистки:</b> {ctx.CleanupFindings.Count}; ");
         html.AppendLine($"<b>подозрительных:</b> {ctx.SuspiciousCount}; ");
