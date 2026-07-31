@@ -172,13 +172,26 @@ public static class TextSanitizer
             }
         }
 
-        if (allowed < Math.Max(4, (int)(value.Length * 0.82)))
+        // Доля допустимых знаков считается от длины, но не меньше четырёх: на
+        // коротких строках доля ничего не значит. Порог в четыре знака недостижим
+        // для корня диска, и «E:\» пропадал целиком — в истории действий строка
+        // «открывали папку» приходила с пустой клеткой пути. От такой строки
+        // требуется, чтобы допустимым был каждый её знак.
+        var minimum = IsDriveRoot(value) ? value.Length : 4;
+        if (allowed < Math.Max(minimum, (int)(value.Length * 0.82)))
         {
             return false;
         }
 
         return !HasSuspiciousMixedScript(value);
     }
+
+    /// <summary>Корень диска: «E:» или «E:\».</summary>
+    private static bool IsDriveRoot(string value) =>
+        value.Length is 2 or 3
+        && char.IsAsciiLetter(value[0])
+        && value[1] == ':'
+        && (value.Length == 2 || value[2] == '\\');
 
     public static bool LooksLikeMojibake(string value)
     {

@@ -92,4 +92,33 @@ public class TextSanitizerTests
         var text = TextSanitizer.NormalizeConsoleOutput(bytes);
         Assert.False(string.IsNullOrWhiteSpace(text));
     }
+
+    /// <summary>
+    /// Доля допустимых знаков считалась не меньше чем от четырёх, и строка короче
+    /// четырёх знаков этот порог не брала никогда. В истории действий строка
+    /// «открывали папку E:\» приходила с пустой клеткой пути: корень диска
+    /// стирался целиком.
+    /// </summary>
+    [Theory]
+    [InlineData(@"E:\")]
+    [InlineData("E:")]
+    [InlineData(@"C:\")]
+    [InlineData("Фото")]
+    public void NormalizeDisplay_keeps_the_drive_root(string value)
+    {
+        Assert.Equal(value, TextSanitizer.NormalizeDisplay(value));
+    }
+
+    /// <summary>
+    /// Послабление сделано только для корня диска: короткие обрывки двоичных
+    /// данных по-прежнему не должны показываться как текст.
+    /// </summary>
+    [Theory]
+    [InlineData("Ð ")]
+    [InlineData("å")]
+    [InlineData("Ԁԁ")]
+    public void NormalizeDisplay_still_hides_short_binary_noise(string value)
+    {
+        Assert.Equal("", TextSanitizer.NormalizeDisplay(value));
+    }
 }
