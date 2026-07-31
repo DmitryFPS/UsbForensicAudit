@@ -86,6 +86,7 @@ public sealed class AuditStorage : IAuditStorage
         LoadRecords(connection, "devices", sessionId, json => Deserialize<UsbDeviceRecord>(json), result.Devices);
         LoadRecords(connection, "evidence", sessionId, json => Deserialize<EvidenceRecord>(json), result.Evidence);
         LoadRecords(connection, "cleanup_findings", sessionId, json => Deserialize<CleanupFinding>(json), result.CleanupFindings);
+        LoadRecords(connection, "network_connections", sessionId, Deserialize<NetworkConnectionRecord>, result.NetworkConnections);
         return result;
     }
 
@@ -163,6 +164,23 @@ public sealed class AuditStorage : IAuditStorage
             ["possible_tool"] = "TEXT", ["confidence"] = "TEXT", ["action_kind"] = "TEXT",
             ["provenance"] = "TEXT"
         });
+        // Сетевые связи хранятся вместе с вложенными сеансами и обращениями:
+        // отдельные таблицы под них дали бы третий уровень связей, а читают эти
+        // данные всегда целиком — одной связью со всей её историей.
+        Execute(connection, """
+            CREATE TABLE IF NOT EXISTS network_connections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT, record_key TEXT, record_json TEXT,
+                kind TEXT NOT NULL, name TEXT, address TEXT, canonical_key TEXT,
+                first_seen_utc TEXT, last_seen_utc TEXT,
+                first_seen_provenance TEXT, last_seen_provenance TEXT,
+                security TEXT, adapter TEXT, account TEXT, user_sid TEXT, resolved_user_name TEXT,
+                direction TEXT, local_addresses_json TEXT, details TEXT,
+                source TEXT, provenance TEXT, sources_json TEXT,
+                sessions_json TEXT, visits_json TEXT
+            );
+            """);
+        Execute(connection, "CREATE UNIQUE INDEX IF NOT EXISTS ux_network_session_record ON network_connections(session_id, record_key) WHERE session_id IS NOT NULL;");
         Execute(connection, "CREATE UNIQUE INDEX IF NOT EXISTS ux_devices_session_record ON devices(session_id, record_key) WHERE session_id IS NOT NULL;");
         Execute(connection, "CREATE UNIQUE INDEX IF NOT EXISTS ux_evidence_session_record ON evidence(session_id, record_key) WHERE session_id IS NOT NULL;");
         Execute(connection, "CREATE UNIQUE INDEX IF NOT EXISTS ux_cleanup_session_record ON cleanup_findings(session_id, record_key) WHERE session_id IS NOT NULL;");
@@ -214,6 +232,11 @@ public sealed class AuditStorage : IAuditStorage
         {
             item.SessionId = result.SessionId;
             InsertCleanup(connection, tx, result.SessionId, item, JsonSerializer.Serialize(item, JsonOptions));
+        }
+        foreach (var item in result.NetworkConnections)
+        {
+            item.SessionId = result.SessionId;
+            InsertNetworkConnection(connection, tx, result.SessionId, item, JsonSerializer.Serialize(item, JsonOptions));
         }
         tx.Commit();
         return true;
@@ -286,6 +309,34 @@ public sealed class AuditStorage : IAuditStorage
         cmd.ExecuteNonQuery();
     }
 
+    private static void InsertNetworkConnection(
+        SqliteConnection c, SqliteTransaction tx, string sessionId, NetworkConnectionRecord x, string json)
+    {
+        using var cmd = c.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = """
+            INSERT OR IGNORE INTO network_connections (
+              session_id,record_key,record_json,kind,name,address,canonical_key,first_seen_utc,last_seen_utc,
+              first_seen_provenance,last_seen_provenance,security,adapter,account,user_sid,resolved_user_name,
+              direction,local_addresses_json,details,source,provenance,sources_json,sessions_json,visits_json)
+            VALUES ($s,$k,$j,$kind,$name,$address,$canonical,$first,$last,$firstp,$lastp,$security,$adapter,$account,
+              $sid,$username,$direction,$addresses,$details,$source,$provenance,$sources,$sessions,$visits);
+            """;
+        Add(cmd, "$s", sessionId, "$k", HashKey(json), "$j", json,
+            "$kind", x.Kind, "$name", x.Name, "$address", x.Address, "$canonical", x.CanonicalKey,
+            "$first", (object?)x.FirstSeenUtc?.ToString("O") ?? DBNull.Value,
+            "$last", (object?)x.LastSeenUtc?.ToString("O") ?? DBNull.Value,
+            "$firstp", x.FirstSeenProvenance, "$lastp", x.LastSeenProvenance,
+            "$security", x.Security, "$adapter", x.Adapter, "$account", x.Account,
+            "$sid", x.UserSid, "$username", x.ResolvedUserName, "$direction", x.Direction,
+            "$addresses", JsonSerializer.Serialize(x.LocalAddresses, JsonOptions),
+            "$details", x.Details, "$source", x.Source, "$provenance", x.Provenance,
+            "$sources", JsonSerializer.Serialize(x.Sources, JsonOptions),
+            "$sessions", JsonSerializer.Serialize(x.Sessions, JsonOptions),
+            "$visits", JsonSerializer.Serialize(x.Visits, JsonOptions));
+        cmd.ExecuteNonQuery();
+    }
+
     private void AppendJsonl(AuditResult result)
     {
         var previousHash = ReadLastHash();
@@ -301,11 +352,13 @@ public sealed class AuditStorage : IAuditStorage
                      .Concat(result.Devices.Select(x => ("UsbDeviceRecord", (object)x)))
                      .Concat(result.Evidence.Select(x => ("EvidenceRecord", (object)x)))
                      .Concat(result.CleanupFindings.Select(x => ("CleanupFinding", (object)x)))
+                     .Concat(result.NetworkConnections.Select(x => ("NetworkConnectionRecord", (object)x)))
                      .Concat(new[]
                      {
                          ("AuditSessionComplete", (object)new
                          {
-                             recordCount = 1 + result.Devices.Count + result.Evidence.Count + result.CleanupFindings.Count
+                             recordCount = 1 + result.Devices.Count + result.Evidence.Count
+                                           + result.CleanupFindings.Count + result.NetworkConnections.Count
                          })
                      }))
         {
