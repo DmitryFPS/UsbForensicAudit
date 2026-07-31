@@ -11,6 +11,19 @@ public static class TextSanitizer
         "Secret Net Studio",
         "Secret Net"
     ];
+
+    /// <summary>
+    /// Признаки того, что строка несёт идентификатор устройства или путь реестра.
+    /// Такие строки нельзя чистить по белому списку символов: потеря '&amp;' или '?'
+    /// делает идентификатор несуществующим и приводит к склейке разных устройств.
+    /// </summary>
+    private static readonly string[] IdentifierMarkers =
+    [
+        @"USB\", @"USBSTOR\", @"USB4\", @"SWD\", @"SCSI\", @"HID\", @"PCI\", @"BTH\",
+        @"BTHENUM\", @"BTHLEDEVICE\", @"SD\", @"SDBUS\", @"USBSER\", @"WPDBUSENUM\",
+        @"HKLM\", @"HKU\", @"HKEY_", @"_??_", @"\??\", "VID_", "PID_", "VOLUME{"
+    ];
+
     private static bool _codePagesRegistered;
 
     public static string Clean(string value, int maxLength = 1000)
@@ -51,10 +64,64 @@ public static class TextSanitizer
             return "";
         }
 
+        if (LooksLikeDeviceIdentifier(value))
+        {
+            return CleanIdentifier(value, maxLength);
+        }
+
         var candidate = TryFixEncoding(value);
         candidate = KeepReadableText(candidate);
         candidate = Clean(candidate, maxLength);
         return IsReadableForDisplay(candidate) ? candidate : "";
+    }
+
+    /// <summary>
+    /// Очистка строки, несущей идентификатор устройства или путь реестра.
+    /// Удаляются только управляющие символы: любая другая правка делает
+    /// идентификатор непроверяемым по реестру.
+    /// </summary>
+    public static string CleanIdentifier(string value, int maxLength = 1000)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "";
+        }
+
+        var builder = new StringBuilder(value.Length);
+        foreach (var ch in value)
+        {
+            if (ch is '\r' or '\n' or '\t')
+            {
+                builder.Append(' ');
+                continue;
+            }
+
+            if (!char.IsControl(ch) && !ReplacementLikeChars.Contains(ch))
+            {
+                builder.Append(ch);
+            }
+        }
+
+        var cleaned = CollapseSpaces(builder.ToString()).Trim();
+        return cleaned.Length > maxLength ? cleaned[..maxLength] : cleaned;
+    }
+
+    public static bool LooksLikeDeviceIdentifier(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        foreach (var marker in IdentifierMarkers)
+        {
+            if (value.Contains(marker, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static string NormalizeConsoleOutput(byte[] bytes)
@@ -216,6 +283,7 @@ public static class TextSanitizer
         return char.IsLetterOrDigit(ch)
                || char.IsWhiteSpace(ch)
                || ch is '\\' or '/' or ':' or '_' or '-' or '.' or '(' or ')' or '[' or ']' or '{' or '}' or '@' or '#' or ';' or ','
+               || ch is '&' or '+' or '%' or '=' or '\'' or '!' or '$' or '~'
                || (ch >= '\u0400' && ch <= '\u04FF');
     }
 

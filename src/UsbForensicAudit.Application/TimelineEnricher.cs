@@ -51,19 +51,34 @@ public sealed class TimelineEnricher
 
     private static void SanitizeEvidence(EvidenceRecord evidence)
     {
-        evidence.Source = TextSanitizer.NormalizeDisplay(evidence.Source, 220);
-        evidence.EvidenceCategory = TextSanitizer.NormalizeDisplay(evidence.EvidenceCategory, 220);
-        evidence.UserExplanation = TextSanitizer.NormalizeDisplay(evidence.UserExplanation, 800);
-        evidence.EventId = TextSanitizer.NormalizeDisplay(evidence.EventId, 120);
-        evidence.Level = TextSanitizer.NormalizeDisplay(evidence.Level, 120);
-        evidence.Provider = TextSanitizer.NormalizeDisplay(evidence.Provider, 220);
-        evidence.Channel = TextSanitizer.NormalizeDisplay(evidence.Channel, 220);
-        evidence.Computer = TextSanitizer.NormalizeDisplay(evidence.Computer, 220);
-        evidence.SourceFile = TextSanitizer.NormalizeDisplay(evidence.SourceFile, 800);
-        evidence.SourceRecord = TextSanitizer.NormalizeDisplay(evidence.SourceRecord, 220);
-        evidence.DeviceHint = TextSanitizer.NormalizeDisplay(evidence.DeviceHint, 500);
-        evidence.Summary = TextSanitizer.NormalizeDisplay(evidence.Summary, 800);
-        evidence.RawText = TextSanitizer.NormalizeDisplay(evidence.RawText, 4000);
+        evidence.Source = Sanitize(evidence.Source, 220);
+        evidence.EvidenceCategory = Sanitize(evidence.EvidenceCategory, 220);
+        evidence.UserExplanation = Sanitize(evidence.UserExplanation, 800);
+        evidence.EventId = Sanitize(evidence.EventId, 120);
+        evidence.Level = Sanitize(evidence.Level, 120);
+        evidence.Provider = Sanitize(evidence.Provider, 220);
+        evidence.Channel = Sanitize(evidence.Channel, 220);
+        evidence.Computer = Sanitize(evidence.Computer, 220);
+        evidence.SourceFile = Sanitize(evidence.SourceFile, 800);
+        evidence.SourceRecord = Sanitize(evidence.SourceRecord, 220);
+        evidence.DeviceHint = Sanitize(evidence.DeviceHint, 500);
+        evidence.Summary = Sanitize(evidence.Summary, 800);
+        evidence.RawText = Sanitize(evidence.RawText, 4000);
+    }
+
+    /// <summary>
+    /// Непустое исходное значение не должно исчезать из-за эвристик читаемости:
+    /// в худшем случае показываем его с удалёнными управляющими символами.
+    /// </summary>
+    private static string Sanitize(string value, int maxLength)
+    {
+        var normalized = TextSanitizer.NormalizeDisplay(value, maxLength);
+        if (!string.IsNullOrWhiteSpace(normalized) || string.IsNullOrWhiteSpace(value))
+        {
+            return normalized;
+        }
+
+        return TextSanitizer.CleanIdentifier(value, maxLength);
     }
 
     private static void EnrichDevice(UsbDeviceRecord device, IReadOnlyList<EvidenceRecord> evidence, ConnectedDeviceIndex connectedDevices, DateTimeOffset scanStartedUtc)

@@ -54,6 +54,36 @@ public class TextSanitizerTests
         Assert.False(TextSanitizer.IsReadableForDisplay("РayРal"));
     }
 
+    [Theory]
+    [InlineData(@"USB\VID_2717&PID_FF40\8dde262e")]
+    [InlineData(@"USBSTOR\Disk&Ven_General&Prod_UDisk&Rev_5.00\2412242109410569603146&0")]
+    [InlineData(@"SWD\WPDBUSENUM\_??_USBSTOR#Disk&Ven_General&Prod_UDisk&Rev_5.00#2412281911546114543745&0#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}")]
+    [InlineData(@"HKLM\SYSTEM\ControlSet001\Control\usbflags\2717FF400414")]
+    public void NormalizeDisplay_preserves_device_identifiers_byte_for_byte(string identifier)
+    {
+        Assert.Equal(identifier, TextSanitizer.NormalizeDisplay(identifier, 4000));
+    }
+
+    [Fact]
+    public void NormalizeDisplay_keeps_ampersand_in_plain_text()
+    {
+        Assert.Equal("General & UDisk", TextSanitizer.NormalizeDisplay("General & UDisk"));
+    }
+
+    [Fact]
+    public void CleanIdentifier_strips_only_control_characters()
+    {
+        var result = TextSanitizer.CleanIdentifier("USB\\VID_2717&PID_FF40\u0001\\8dde262e");
+        Assert.Equal(@"USB\VID_2717&PID_FF40\8dde262e", result);
+    }
+
+    [Fact]
+    public void LooksLikeDeviceIdentifier_ignores_ordinary_prose()
+    {
+        Assert.False(TextSanitizer.LooksLikeDeviceIdentifier("Подключение внешнего накопителя"));
+        Assert.True(TextSanitizer.LooksLikeDeviceIdentifier(@"Событие 1006: USB\VID_ABCD&PID_1234\2412"));
+    }
+
     [Fact]
     public void NormalizeConsoleOutput_decodes_cp866_bytes()
     {
