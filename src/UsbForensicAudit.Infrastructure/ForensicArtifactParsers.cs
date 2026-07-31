@@ -64,7 +64,9 @@ internal static partial class ForensicArtifactParsers
                 break;
             }
 
-            ExtractReadableStrings(bytes.AsSpan(offset + 2, size - 2), fragments);
+            var body = bytes.AsSpan(offset + 2, size - 2);
+            ExtractShellItemNames(body, fragments);
+            ExtractReadableStrings(body, fragments);
             offset += size;
         }
 
@@ -242,25 +244,7 @@ internal static partial class ForensicArtifactParsers
 
     private static void ExtractReadableStrings(ReadOnlySpan<byte> data, List<string> output)
     {
-        for (var i = 0; i + 5 < data.Length;)
-        {
-            if (data[i + 1] == 0 && IsPrintable(data[i]))
-            {
-                var start = i;
-                while (i + 1 < data.Length && data[i + 1] == 0 && (IsPrintable(data[i]) || data[i] == 0))
-                {
-                    i += 2;
-                }
-                if (i - start >= 6)
-                {
-                    output.Add(Encoding.Unicode.GetString(data[start..i]));
-                }
-            }
-            else
-            {
-                i++;
-            }
-        }
+        ExtractUtf16Strings(data, minimumChars: 3, output);
 
         for (var i = 0; i < data.Length;)
         {
@@ -279,6 +263,121 @@ internal static partial class ForensicArtifactParsers
                 output.Add(Encoding.Latin1.GetString(data[start..i]));
             }
         }
+    }
+
+    /// <summary>
+    /// Прежний поиск строк UTF-16 требовал, чтобы старший байт кода был нулевым,
+    /// поэтому находил только латиницу. Кириллические имена папок (U+0400..U+04FF)
+    /// пропускались целиком, а затем подбирались однобайтовым проходом уже
+    /// в виде мусора. Здесь проверяется сам символ, а не его старший байт.
+    /// </summary>
+    private static void ExtractUtf16Strings(ReadOnlySpan<byte> data, int minimumChars, List<string> output)
+    {
+        var index = 0;
+        while (index + 1 < data.Length)
+        {
+            if (!IsReadableUtf16Char(data, index))
+            {
+                index += 1;
+                continue;
+            }
+
+            var start = index;
+            while (index + 1 < data.Length && IsReadableUtf16Char(data, index))
+            {
+                index += 2;
+            }
+
+            var charCount = (index - start) / 2;
+            if (charCount >= minimumChars)
+            {
+                output.Add(Encoding.Unicode.GetString(data[start..index]));
+            }
+        }
+    }
+
+    private static bool IsReadableUtf16Char(ReadOnlySpan<byte> data, int index)
+    {
+        if (index + 1 >= data.Length)
+        {
+            return false;
+        }
+
+        var value = (char)(data[index] | (data[index + 1] << 8));
+        if (char.IsControl(value) || char.IsSurrogate(value) || value == '\uFFFD')
+        {
+            return false;
+        }
+
+        return char.IsLetterOrDigit(value)
+               || char.IsPunctuation(value)
+               || char.IsSymbol(value)
+               || value == ' ';
+    }
+
+    /// <summary>
+    /// Подписи блоков, в которых оболочка хранит настоящее имя элемента:
+    /// расширение с длинным именем файла и блоки устройств MTP.
+    /// </summary>
+    private static readonly uint[] NameBearingSignatures =
+    [
+        0xBEEF0004, // расширение с длинным именем файла или папки
+        0xBEEF0026, // расширение с метками времени
+        0x07192006, // папка устройства MTP
+        0x10312005  // том устройства MTP
+    ];
+
+    /// <summary>
+    /// Имена из элемента оболочки. Раньше бралась любая печатная строка, поэтому
+    /// у телефона, подключённого по MTP, терялись имена папок: они лежат внутри
+    /// блоков с подписью, а не в теле элемента.
+    /// </summary>
+    private static void ExtractShellItemNames(ReadOnlySpan<byte> body, List<string> output)
+    {
+        if (body.Length == 0)
+        {
+            return;
+        }
+
+        // Элемент тома: буква диска записана однобайтовой строкой сразу за типом.
+        if (body[0] == 0x2F && body.Length >= 4)
+        {
+            var end = body[1..].IndexOf((byte)0);
+            var drive = Encoding.Latin1.GetString(end < 0 ? body[1..] : body.Slice(1, end)).Trim();
+            if (drive.Length > 0)
+            {
+                output.Add(drive);
+            }
+        }
+
+        foreach (var signature in NameBearingSignatures)
+        {
+            var position = 0;
+            while (position + 4 <= body.Length)
+            {
+                var found = IndexOfUInt32(body, signature, position);
+                if (found < 0)
+                {
+                    break;
+                }
+
+                ExtractUtf16Strings(body[(found + 4)..], minimumChars: 1, output);
+                position = found + 4;
+            }
+        }
+    }
+
+    private static int IndexOfUInt32(ReadOnlySpan<byte> data, uint value, int start)
+    {
+        for (var i = Math.Max(0, start); i + 4 <= data.Length; i++)
+        {
+            if (BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(i, 4)) == value)
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private static string CleanFragment(string value) =>
