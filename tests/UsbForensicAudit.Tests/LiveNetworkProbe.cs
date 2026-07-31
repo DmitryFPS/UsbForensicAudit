@@ -15,7 +15,8 @@ public class LiveNetworkProbe
             new NetworkProfileCollector().Collect(warnings),
             new NetworkEventLogCollector().Collect(warnings),
             new NetworkShareArtifactCollector().Collect(warnings),
-            new BluetoothArtifactCollector().Collect(warnings)
+            new BluetoothArtifactCollector().Collect(warnings),
+            new BrowserHistoryCollector().Collect(warnings)
         };
 
         var merged = NetworkConnectionMerger.Merge(sets.SelectMany(x => x.Connections).ToList());

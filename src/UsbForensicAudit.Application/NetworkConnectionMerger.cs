@@ -225,6 +225,11 @@ public static class NetworkConnectionMerger
         var items = group.OrderByDescending(x => x.WhenUtc ?? DateTimeOffset.MinValue).ToList();
         var latest = items[0];
         latest.MentionCount = items.Sum(x => x.MentionCount ?? 1);
+
+        // Счётчики источников складываются: одну и ту же страницу открывали и в
+        // одном браузере, и в другом, и общее число заходов — их сумма.
+        var counted = items.Where(x => x.RepeatCount is > 0).Sum(x => x.RepeatCount!.Value);
+        latest.RepeatCount = counted > 0 ? counted : null;
         return latest;
     }
 
