@@ -62,4 +62,10 @@ public interface ILiveDeviceMerger
 public interface IPrivilegeChecker
 {
     bool IsAdministrator();
+
+    /// <summary>
+    /// Включает привилегии, нужные для чтения защищённых веток реестра, и
+    /// сообщает, что в итоге получилось.
+    /// </summary>
+    PrivilegeState AcquireAndDescribe() => new(IsAdministrator(), false, false, false);
 }

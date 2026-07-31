@@ -43,10 +43,27 @@ public sealed class OfflineHiveCollector : IEvidenceCollector
         {
             Directory.CreateDirectory(tempDirectory);
             var copy = Path.Combine(tempDirectory, Path.GetFileName(sourceHive));
-            File.Copy(sourceHive, copy, false);
+
+            // Куст активного пользователя открыт системой, поэтому обычное
+            // копирование на нём падает и профиль выпадает из анализа.
+            var outcome = LockedFileCopier.Copy(sourceHive, copy);
+            if (!outcome.Success)
+            {
+                warnings.Add($"Не удалось скопировать куст {sourceHive}: {outcome.Error}");
+                return;
+            }
+
+            if (!outcome.Method.Equals("File.Copy", StringComparison.Ordinal))
+            {
+                warnings.Add($"Куст {sourceHive} прочитан способом: {outcome.Method}.");
+            }
+
             foreach (var suffix in new[] { ".LOG1", ".LOG2" })
             {
-                if (File.Exists(sourceHive + suffix)) File.Copy(sourceHive + suffix, copy + suffix, false);
+                if (File.Exists(sourceHive + suffix))
+                {
+                    LockedFileCopier.Copy(sourceHive + suffix, copy + suffix);
+                }
             }
             var load = RunReg("load", $@"HKU\{mount}", copy);
             if (load.ExitCode != 0)

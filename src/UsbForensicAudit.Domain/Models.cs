@@ -239,6 +239,12 @@ public sealed class AuditResult
     public DateTimeOffset? OsInstalledAtUtc { get; set; }
     public bool IsAdministrator { get; set; }
 
+    /// <summary>
+    /// Права, с которыми выполнялось сканирование. По ним видно, можно ли считать
+    /// отсутствие устройства в отчёте доказательством.
+    /// </summary>
+    public PrivilegeState Privileges { get; set; } = new(false, false, false, false);
+
     [JsonIgnore]
     public string OsInstalledAtText => OsInstallInfo.FormatInstallDate(OsInstalledAtUtc);
 
