@@ -676,6 +676,12 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
             {
                 record.IdentityAliases.Add(identity.BackingDeviceInstanceId);
             }
+
+            var normalized = UsbRegistryForensicHelpers.BuildWpdInstanceId(identity);
+            if (normalized.Length > 0)
+            {
+                record.DeviceInstanceId = normalized;
+            }
         }
 
         records.Add(record);
