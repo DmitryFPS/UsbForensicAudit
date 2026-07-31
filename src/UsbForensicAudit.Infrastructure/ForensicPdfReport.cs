@@ -124,6 +124,7 @@ internal static class ForensicPdfReport
             StatBox(row, "USB-доказательств", ctx.Timeline.Count.ToString());
             StatBox(row, "Признаков очистки", ctx.CleanupFindings.Count.ToString());
             StatBox(row, "Подозрительных", ctx.SuspiciousCount.ToString());
+            StatBox(row, "Требуют внимания", ctx.AttentionCount.ToString());
             StatBox(row, "Высокий риск", ctx.HighRiskCount.ToString());
             StatBox(row, "Предупреждений", ctx.Result.SourceWarnings.Count.ToString());
             StatBox(row, "Точные даты",
@@ -171,9 +172,10 @@ internal static class ForensicPdfReport
         }
 
         SectionTitle(column, "2. Возможные инциденты");
+        column.Item().PaddingBottom(4).Text(T(ctx.CleanupVerdict()));
         if (ctx.SuspiciousFindings.Count == 0)
         {
-            column.Item().Text(T("Подозрительных признаков очистки или сокрытия следов не обнаружено."));
+            AppendAttentionTable(column, ctx);
             return;
         }
 
@@ -198,6 +200,42 @@ internal static class ForensicPdfReport
             f.InitiatorText,
             f.PossibleToolText,
             f.AreaText,
+            f.Finding,
+            f.Details
+        }));
+        AppendAttentionTable(column, ctx);
+    }
+
+    /// <summary>
+    /// Запуск утилиты работы с USB и наличие средства удаления следов не
+    /// доказывают очистку, поэтому в таблицу подозрительных записей не попадают.
+    /// Без отдельной таблицы раздел об инцидентах выглядел пустым.
+    /// </summary>
+    private static void AppendAttentionTable(ColumnDescriptor column, ForensicReportContext ctx)
+    {
+        if (ctx.AttentionFindings.Count == 0)
+        {
+            return;
+        }
+
+        SubTitle(column, "Требуют внимания");
+        AddDataTable(column,
+        [
+            ("Дата и время", 1.2f),
+            ("Тип действия", 0.9f),
+            ("Риск", 0.7f),
+            ("Инициатор", 1f),
+            ("Инструмент", 0.9f),
+            ("Что найдено", 1.4f),
+            ("Подробности", 2f)
+        ],
+        ctx.AttentionFindings.Select(f => new[]
+        {
+            f.TimestampText,
+            f.ActionKindText,
+            f.SeverityText,
+            f.InitiatorText,
+            f.PossibleToolText,
             f.Finding,
             f.Details
         }));

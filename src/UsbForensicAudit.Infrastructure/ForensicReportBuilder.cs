@@ -29,6 +29,11 @@ internal sealed class ForensicReportContext
         HighRiskFindings = SuspiciousFindings
             .Where(x => x.Severity.Equals("High", StringComparison.OrdinalIgnoreCase))
             .ToArray();
+        AttentionFindings = CleanupFindings
+            .Where(x => x.NeedsAttention)
+            .OrderByDescending(x => SeverityRank(x.Severity))
+            .ThenByDescending(x => x.TimestampUtc)
+            .ToArray();
         EvidenceBySource = Timeline
             .GroupBy(x => x.SourceText)
             .OrderByDescending(g => g.Count())
@@ -47,6 +52,13 @@ internal sealed class ForensicReportContext
     public IReadOnlyList<CleanupFinding> CleanupFindings { get; }
     public IReadOnlyList<CleanupFinding> SuspiciousFindings { get; }
     public IReadOnlyList<CleanupFinding> HighRiskFindings { get; }
+
+    /// <summary>
+    /// Находки, которые не являются доказательством очистки, но которые читатель
+    /// сводки обязан увидеть: запуск утилит работы с USB и наличие средств
+    /// удаления следов.
+    /// </summary>
+    public IReadOnlyList<CleanupFinding> AttentionFindings { get; }
     public IReadOnlyList<EvidenceRecord> Timeline { get; }
     public IReadOnlyList<UsbDeviceRecord> ReportableDevices { get; }
     public IReadOnlyList<UsbDeviceRecord> RealDevices { get; }
@@ -60,6 +72,42 @@ internal sealed class ForensicReportContext
 
     public int SuspiciousCount => SuspiciousFindings.Count;
     public int HighRiskCount => HighRiskFindings.Count;
+    public int AttentionCount => AttentionFindings.Count;
+
+    /// <summary>
+    /// Одна и та же оценка очистки для всех отчётов. Формулировка «ничего не
+    /// обнаружено» допустима, только когда не найдено вообще ничего: ни
+    /// подозрительных признаков, ни запусков утилит, ни средств удаления следов.
+    /// </summary>
+    public string CleanupVerdict()
+    {
+        if (SuspiciousCount > 0)
+        {
+            return $"Подозрительных признаков очистки: {SuspiciousCount}"
+                   + (HighRiskCount > 0 ? $", из них высокого риска: {HighRiskCount}." : ".")
+                   + (AttentionCount > 0
+                       ? $" Дополнительно требуют внимания: {AttentionCount}."
+                       : "");
+        }
+
+        if (AttentionCount == 0)
+        {
+            return "Признаков очистки или сокрытия следов не обнаружено. "
+                   + "Отсутствие артефактов само по себе не доказывает отсутствие активности.";
+        }
+
+        return $"Подозрительных признаков очистки не обнаружено, но есть находки, "
+               + $"требующие внимания ({AttentionCount}): "
+               + string.Join("; ", AttentionFindings.Take(5).Select(DescribeAttention))
+               + ". Запуск такой программы и её наличие на диске сами по себе не доказывают "
+               + "удаление следов, но и не позволяют считать, что следов никто не касался.";
+    }
+
+    private static string DescribeAttention(CleanupFinding finding) =>
+        finding.ActionKind.Equals("ToolPresence", StringComparison.OrdinalIgnoreCase)
+            ? $"на машине найдена программа {finding.PossibleToolText}, запуск не подтверждён"
+            : $"{finding.TimestampText} — запуск программы {finding.PossibleToolText} "
+              + $"({finding.InitiatorText})";
 
     public string ScanDurationText
     {
@@ -361,9 +409,11 @@ internal static class ForensicReportBuilder
         html.AppendLine($"<b>USB-доказательств:</b> {ctx.Timeline.Count}; ");
         html.AppendLine($"<b>релевантных признаков очистки:</b> {ctx.CleanupFindings.Count}; ");
         html.AppendLine($"<b>подозрительных:</b> {ctx.SuspiciousCount}; ");
+        html.AppendLine($"<b>требуют внимания:</b> {ctx.AttentionCount}; ");
         html.AppendLine($"<b>высокого риска:</b> {ctx.HighRiskCount}; ");
         html.AppendLine($"<b>предупреждений:</b> {result.SourceWarnings.Count}; ");
-        html.AppendLine($"<b>canonical devices с точной датой:</b> {result.Coverage.CanonicalDevicesWithExactDates}/{result.Coverage.CanonicalDeviceCount} ({result.Coverage.ExactDateCoveragePercent:0.##}%)");
+        html.AppendLine($"<b>canonical devices с точной датой:</b> {result.Coverage.CanonicalDevicesWithExactDates}/{result.Coverage.CanonicalDeviceCount} ({result.Coverage.ExactDateCoveragePercent:0.##}%)<br>");
+        html.AppendLine($"<span class=\"muted\">{E(ctx.CleanupVerdict())}</span>");
         html.AppendLine("</div>");
 
         html.AppendLine("<h3>Покрытие источников</h3><table><tr><th>Источник</th><th>Статус</th><th>Записей</th><th>Лимит</th><th>Ошибка/ограничение</th></tr>");
@@ -394,9 +444,10 @@ internal static class ForensicReportBuilder
     private static void AppendIncidentSection(StringBuilder html, ForensicReportContext ctx)
     {
         html.AppendLine("<h2 id=\"incidents\">2. Возможные инциденты</h2>");
+        html.AppendLine($"<p class=\"note\">{E(ctx.CleanupVerdict())}</p>");
         if (ctx.SuspiciousFindings.Count == 0)
         {
-            html.AppendLine("<p class=\"note\">Подозрительных признаков очистки или сокрытия следов не обнаружено.</p>");
+            AppendAttentionTable(html, ctx);
             return;
         }
 
@@ -410,6 +461,36 @@ internal static class ForensicReportBuilder
                 $"<td class=\"{E(finding.Severity.ToLowerInvariant())}\">{E(finding.AssessmentText)} / {E(finding.SeverityText)}</td>" +
                 $"<td>{E(finding.ConfidenceText)}</td><td>{E(finding.InitiatorText)}</td><td>{E(finding.PossibleToolText)}</td>" +
                 $"<td>{E(finding.AreaText)}</td><td>{E(finding.Finding)}</td><td>{E(finding.Details)}</td></tr>");
+        }
+        html.AppendLine("</table>");
+        AppendAttentionTable(html, ctx);
+    }
+
+    /// <summary>
+    /// Запуск утилиты работы с USB и наличие средства удаления следов не
+    /// доказывают очистку и потому не попадают в таблицу подозрительных записей.
+    /// Но раздел об инцидентах без них создаёт ложное впечатление, что искать
+    /// нечего.
+    /// </summary>
+    private static void AppendAttentionTable(StringBuilder html, ForensicReportContext ctx)
+    {
+        if (ctx.AttentionFindings.Count == 0)
+        {
+            return;
+        }
+
+        html.AppendLine("<h3>Требуют внимания</h3>");
+        html.AppendLine("<p>Запуск программ для работы с USB и наличие средств удаления следов. "
+                        + "Сами по себе они не доказывают очистку, но проверить обстоятельства нужно.</p>");
+        html.AppendLine("<table><tr><th>Дата и время</th><th>Тип действия</th><th>Риск</th><th>Инициатор</th>"
+                        + "<th>Инструмент</th><th>Что найдено</th><th>Подробности</th></tr>");
+        foreach (var finding in ctx.AttentionFindings)
+        {
+            html.AppendLine(
+                $"<tr><td>{E(finding.TimestampText)}</td><td>{E(finding.ActionKindText)}</td>" +
+                $"<td class=\"{E(finding.Severity.ToLowerInvariant())}\">{E(finding.SeverityText)}</td>" +
+                $"<td>{E(finding.InitiatorText)}</td><td>{E(finding.PossibleToolText)}</td>" +
+                $"<td>{E(finding.Finding)}</td><td>{E(finding.Details)}</td></tr>");
         }
         html.AppendLine("</table>");
     }
