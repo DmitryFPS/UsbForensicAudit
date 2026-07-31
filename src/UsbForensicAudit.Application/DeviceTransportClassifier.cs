@@ -430,6 +430,8 @@ public static class DeviceTransportClassifier
         {
             device.VisualCategory = "RealUsb";
         }
+
+        device.DeviceKind = DeviceKindResolver.Resolve(device);
     }
 
     private static string EvidenceText(UsbDeviceRecord device) => Join(
