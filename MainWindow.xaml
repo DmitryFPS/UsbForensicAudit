@@ -24,6 +24,7 @@
         <SolidColorBrush x:Key="Warn" Color="#FBBF24"/>
         <SolidColorBrush x:Key="Danger" Color="#FB7185"/>
         <local:CellExplanationToolTipConverter x:Key="CellExplanationToolTipConverter"/>
+        <local:DeviceCategoryBrushConverter x:Key="DeviceCategoryBrushConverter"/>
 
         <Style TargetType="ToolTip">
             <Setter Property="Background" Value="Transparent"/>
@@ -312,7 +313,7 @@
                             <TextBlock Text="Здесь список USB и Type-C устройств, которые Windows когда-либо видела на этом компьютере."
                                        Foreground="{StaticResource TextMain}"
                                        TextWrapping="Wrap"/>
-                            <TextBlock Text="Цвет строк: зелёный — реальное устройство; жёлтый — связанный диск/память; фиолетовый — остаточный след usbflags; серый — служебная запись Windows."
+                            <TextBlock Text="Цвет строк: зелёный — реальное устройство; жёлтый — связанный диск или память; фиолетовый — остаточный след usbflags; синевато-серый — служебная запись Windows; сливовый — след прошлого подключения без самого устройства; коричневый — запись, которую разобрать не удалось."
                                        Foreground="{StaticResource TextMuted}"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
@@ -353,22 +354,11 @@
                               MouseDoubleClick="DevicesGrid_MouseDoubleClick">
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
-                                <Setter Property="Background" Value="#0B1728"/>
-                                <Setter Property="Foreground" Value="#D9E8F5"/>
+                                <Setter Property="Background"
+                                        Value="{Binding VisualCategory, Converter={StaticResource DeviceCategoryBrushConverter}, ConverterParameter=Background}"/>
+                                <Setter Property="Foreground"
+                                        Value="{Binding VisualCategory, Converter={StaticResource DeviceCategoryBrushConverter}, ConverterParameter=Foreground}"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding VisualCategory}" Value="RealUsb">
-                                        <Setter Property="Background" Value="#0D3328"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding VisualCategory}" Value="RelatedStorage">
-                                        <Setter Property="Background" Value="#3B3213"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding VisualCategory}" Value="UsbFlagsTrace">
-                                        <Setter Property="Background" Value="#302A57"/>
-                                        <Setter Property="Foreground" Value="#EEEAFE"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding VisualCategory}" Value="SupportArtifact">
-                                        <Setter Property="Background" Value="#162033"/>
-                                    </DataTrigger>
                                     <Trigger Property="IsSelected" Value="True">
                                         <Setter Property="Background" Value="#175A78"/>
                                         <Setter Property="Foreground" Value="#E5F2FF"/>

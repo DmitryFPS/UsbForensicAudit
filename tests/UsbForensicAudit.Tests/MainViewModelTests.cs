@@ -9,9 +9,10 @@ public sealed class MainViewModelTests
     [InlineData("RealUsb", 0)]
     [InlineData("RelatedStorage", 1)]
     [InlineData("UsbFlagsTrace", 2)]
-    [InlineData("SupportArtifact", 3)]
-    [InlineData("Unknown", 4)]
-    [InlineData("что-то ещё", 4)]
+    [InlineData("HistoricalResidual", 3)]
+    [InlineData("SupportArtifact", 4)]
+    [InlineData("Unknown", 5)]
+    [InlineData("что-то ещё", 5)]
     public void CategoryRank_ranks_known_categories_ahead_of_unknown(string category, int expected)
     {
         Assert.Equal(expected, MainViewModel.CategoryRank(category));
