@@ -16,6 +16,7 @@ public sealed class AuditOrchestrator
     private readonly CleanupDetector _cleanupDetector;
     private readonly IAuditStorage _storage;
     private readonly IPrivilegeChecker _privilegeChecker;
+    private readonly IReferenceImageDetector _referenceImageDetector;
 
     public AuditOrchestrator(
         IUsbDeviceCollector deviceCollector,
@@ -26,8 +27,10 @@ public sealed class AuditOrchestrator
         TimelineEnricher timelineEnricher,
         CleanupDetector cleanupDetector,
         IAuditStorage storage,
-        IPrivilegeChecker privilegeChecker)
+        IPrivilegeChecker privilegeChecker,
+        IReferenceImageDetector? referenceImageDetector = null)
     {
+        _referenceImageDetector = referenceImageDetector ?? new NoReferenceImageDetector();
         _deviceCollector = deviceCollector;
         _evidenceCollectors = evidenceCollectors.ToList();
         _historicalArtifactCollector = historicalArtifactCollector;
@@ -144,6 +147,10 @@ public sealed class AuditOrchestrator
             progress?.Report("Проверка достоверности идентификаторов...");
             ApplyIdentityTrust(result);
 
+            progress?.Report("Поиск следов эталонного образа...");
+            result.ReferenceImage = _referenceImageDetector.Detect(result.Devices, result.SourceWarnings);
+            ApplyReferenceImageAttribution(result);
+
             progress?.Report("Расчет дат подключения/отключения и пояснений...");
             _timelineEnricher.Enrich(result);
             CalculateDateCoverage(result);
@@ -193,6 +200,44 @@ public sealed class AuditOrchestrator
                 Confidence = "High",
                 SourceFile = device.CanonicalDeviceId
             });
+        }
+    }
+
+    /// <summary>
+    /// Устройства, известные системе раньше подготовки образа, видел сборщик
+    /// образа. Приписывать их человеку за этой машиной нельзя, поэтому запись
+    /// помечается и её пояснение переписывается.
+    /// </summary>
+    internal static void ApplyReferenceImageAttribution(AuditResult result)
+    {
+        var trace = result.ReferenceImage;
+        if (!trace.PreparedAtUtc.HasValue)
+        {
+            return;
+        }
+
+        foreach (var device in result.Devices)
+        {
+            if (!trace.PredatesDeployment(device.FirstConnectedUtc)
+                && !trace.PredatesDeployment(device.RegistryLastWriteUtc))
+            {
+                continue;
+            }
+
+            device.InheritedFromReferenceImage = true;
+            device.VisualCategory = "HistoricalResidual";
+            device.UserMeaning =
+                "Запись досталась от эталонного образа: устройство было известно системе ещё до "
+                + $"подготовки образа ({DateDisplay.FormatMoscow(trace.PreparedAtUtc)}). "
+                + "Его видел сборщик образа, а не тот, кто работает за этой машиной.";
+        }
+
+        var inherited = result.Devices.Count(x => x.InheritedFromReferenceImage);
+        if (inherited > 0)
+        {
+            result.SourceWarnings.Add(
+                $"Записей, доставшихся от эталонного образа: {inherited}. "
+                + "Они исключены из выводов о работе пользователя за этой машиной.");
         }
     }
 
