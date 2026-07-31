@@ -405,7 +405,7 @@ internal sealed class NetworkProfileCollector : INetworkArtifactCollector
             }
 
             item.MatchedTo = match.Name;
-            foreach (var line in item.Describe(adapter?.Name ?? ""))
+            foreach (var line in item.Describe(adapter?.Name ?? "", withAdapter: false))
             {
                 if (!match.LocalAddresses.Contains(line))
                 {
@@ -560,10 +560,15 @@ internal sealed class NetworkProfileCollector : INetworkArtifactCollector
         /// <summary>К какой сети отнесли эти адреса; пусто — отнести не удалось.</summary>
         public string MatchedTo { get; set; } = "";
 
-        public List<string> Describe(string adapterName)
+        /// <summary>
+        /// Строки об адресах. Имя сетевого устройства нужно только там, где эти
+        /// адреса идут сами по себе: у строки сети оно уже стоит отдельным
+        /// полем, и в перечне адресов повторялось бы вторым разом.
+        /// </summary>
+        public List<string> Describe(string adapterName, bool withAdapter = true)
         {
             var lines = new List<string>();
-            Add(lines, adapterName.Length > 0 ? $"подключение: {adapterName}" : "");
+            Add(lines, withAdapter && adapterName.Length > 0 ? $"подключение: {adapterName}" : "");
             Add(lines, address.Length > 0 ? $"адрес этой машины: {address}" : "");
             Add(lines, gateway.Length > 0 ? $"шлюз: {gateway}" : "");
             Add(lines, GatewayMac.Length > 0 ? $"MAC шлюза: {GatewayMac}" : "");

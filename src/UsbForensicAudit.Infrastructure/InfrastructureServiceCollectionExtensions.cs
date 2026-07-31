@@ -33,6 +33,7 @@ public static class InfrastructureServiceCollectionExtensions
         // своя история сеансов и свои обращения, и в один список доказательств
         // они не укладываются.
         services.AddSingleton<INetworkArtifactCollector, NetworkProfileCollector>();
+        services.AddSingleton<INetworkArtifactCollector, NetworkEventLogCollector>();
 
         services.AddSingleton<IReportService, ReportService>();
         services.AddSingleton<WmiUsbMonitor>();
