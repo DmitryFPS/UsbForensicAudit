@@ -133,7 +133,7 @@ public static class DeviceTransportClassifier
             return ContainsAny(text, ThunderboltMarkers);
         }
 
-        return ContainsAny(text, "WPDBUSENUM", "MTP", "PTP", "REMOVABLE", "EXTERNAL")
+        return DeviceMarkerText.ContainsAnyMarker(text, "WPDBUSENUM", "MTP", "PTP", "REMOVABLE", "EXTERNAL")
                || ContainsUaspMarker(text)
                || ContainsAny(text, ThunderboltMarkers);
     }
@@ -292,7 +292,8 @@ public static class DeviceTransportClassifier
         {
             SetTransport(device, "UASP/SCSI", "Medium", "hardware/compatible ID contains UASP marker");
         }
-        else if (StartsWithAny(id, @"SWD\WPDBUSENUM\") || ContainsAny(text, "WPDBUSENUM", "MTP", "PTP"))
+        else if (StartsWithAny(id, @"SWD\WPDBUSENUM\")
+                 || DeviceMarkerText.ContainsAnyMarker(text, "WPDBUSENUM", "MTP", "PTP"))
         {
             SetTransport(device, "MTP/PTP/WPD", "High", "WPD/MTP/PTP PnP evidence");
         }

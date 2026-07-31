@@ -202,8 +202,8 @@ internal sealed class ForensicReportContext
                || value.Contains("WPDBUSENUM", StringComparison.OrdinalIgnoreCase)
                || value.Contains("SCSI", StringComparison.OrdinalIgnoreCase)
                || value.Contains("STORAGE", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("WPD", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("USB4", StringComparison.OrdinalIgnoreCase)
+               || DeviceMarkerText.ContainsWord(value, "WPD")
+               || DeviceMarkerText.ContainsWord(value, "USB4")
                || value.Contains("THUNDERBOLT", StringComparison.OrdinalIgnoreCase)
                || value.Contains("removable", StringComparison.OrdinalIgnoreCase);
     }

@@ -108,7 +108,7 @@ internal static partial class SetupApiLogParser
     }
 
     private static bool ContainsDeviceMarker(string value)
-        => DeviceMarkers.Any(marker => value.Contains(marker, StringComparison.OrdinalIgnoreCase));
+        => DeviceMarkerText.ContainsAnyMarker(value, DeviceMarkers);
 
     private static string ExtractDeviceHint(string text)
     {

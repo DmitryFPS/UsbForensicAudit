@@ -100,7 +100,7 @@ internal static partial class ForensicArtifactParsers
     internal static bool IsUsbOrVolumeMarker(string value) =>
         value.Contains("USB", StringComparison.OrdinalIgnoreCase)
         || value.Contains("WPDBUSENUM", StringComparison.OrdinalIgnoreCase)
-        || value.Contains("WPD", StringComparison.OrdinalIgnoreCase)
+        || DeviceMarkerText.ContainsWord(value, "WPD")
         || value.Contains("removable", StringComparison.OrdinalIgnoreCase)
         || VolumePathRegex().IsMatch(value);
 
