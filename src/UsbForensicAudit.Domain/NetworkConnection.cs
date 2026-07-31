@@ -581,10 +581,25 @@ public sealed class NetworkConnectionRecord
     [JsonIgnore]
     public string SourceText => UserDisplayText.Source(Source);
 
+    /// <summary>
+    /// Все источники связи одной строкой. Пустой клетки здесь быть не должно:
+    /// строка без источника читается как вывод без основания, и такой вывод
+    /// нельзя ни проверить, ни оспорить.
+    /// </summary>
     [JsonIgnore]
-    public string SourcesText => Sources.Count == 0
-        ? SourceText
-        : string.Join("; ", Sources.Select(UserDisplayText.Source).Distinct(StringComparer.OrdinalIgnoreCase));
+    public string SourcesText
+    {
+        get
+        {
+            var text = Sources.Count == 0
+                ? SourceText
+                : string.Join("; ", Sources.Select(UserDisplayText.Source)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase));
+
+            return text.Length > 0 ? text : "Источник записи не указан";
+        }
+    }
 
     /// <summary>
     /// Адреса, которые машина получала в этой сети. Пустая клетка здесь читается

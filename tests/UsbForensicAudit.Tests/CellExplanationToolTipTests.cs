@@ -75,6 +75,51 @@ public sealed class CellExplanationToolTipTests
             "Дата и время", "Тип действия", "Статус", "Инициатор", "Инструмент",
             "Уверенность", "Риск", "Где искали", "Что найдено", "Подробности"
         ]);
+
+        var connection = new NetworkConnectionRecord
+        {
+            Kind = NetworkConnectionKind.NetworkShare,
+            Name = "20.20.20.76",
+            Address = @"\\20.20.20.76\soft",
+            Direction = NetworkDirection.Outgoing,
+            FirstSeenUtc = DateTimeOffset.UtcNow.AddDays(-30),
+            FirstSeenProvenance = "самое раннее обращение по следам проводника",
+            LastSeenUtc = DateTimeOffset.UtcNow,
+            LastSeenProvenance = "самое позднее обращение по следам проводника",
+            Security = "Подпись SMB включена",
+            Adapter = "Сетевая карта",
+            Account = @"PC\Analyst",
+            LocalAddresses = ["адрес 20.20.20.14"],
+            Details = "Сервер, папки которого открывали с этой машины",
+            Source = "Журнал Windows — обращения к сетевым папкам",
+            Provenance = @"Microsoft-Windows-SmbClient/Connectivity, событие 30803"
+        };
+
+        AssertAllColumns(connection,
+        [
+            "Как связывались", "С чем именно", "Кто начал", "Что нашлось внутри",
+            "Первое подключение", "Последнее подключение", "Чем защищено",
+            "Через что шла связь", "Адреса этой машины", "Учётная запись",
+            "Простыми словами", "Откуда взято", "Ссылка на источник"
+        ]);
+    }
+
+    /// <summary>
+    /// У каждого вида связи своё пояснение: читатель должен понимать разницу
+    /// между сетевой папкой, туннелем VPN и посещённым сайтом, не зная терминов.
+    /// </summary>
+    [Fact]
+    public void Every_kind_of_network_connection_is_explained_in_plain_words()
+    {
+        foreach (var kind in NetworkConnectionKind.All)
+        {
+            var record = new NetworkConnectionRecord { Kind = kind, Name = "проверка" };
+
+            var explanation = CellExplanationText.Explain(record, "Как связывались");
+
+            Assert.False(string.IsNullOrWhiteSpace(explanation), $"Нет подсказки для вида «{kind}».");
+            Assert.Contains("Что это значит:", explanation, StringComparison.Ordinal);
+        }
     }
 
     [Theory]

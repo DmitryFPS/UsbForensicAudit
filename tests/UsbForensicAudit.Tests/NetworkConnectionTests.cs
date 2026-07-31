@@ -411,4 +411,51 @@ public class NetworkConnectionPaletteTests
 
         Assert.Equal(ranks.Length, ranks.Distinct().Count());
     }
+
+    /// <summary>
+    /// Сотни сайтов не должны прятать одну сетевую папку, куда ушли файлы,
+    /// поэтому сверху стоит то, чем данные выносят.
+    /// </summary>
+    [Fact]
+    public void Rows_of_the_tab_put_what_carries_data_out_on_top()
+    {
+        var connections = new List<NetworkConnectionRecord>
+        {
+            new() { Kind = NetworkConnectionKind.WebSite, Name = "example.org" },
+            new() { Kind = NetworkConnectionKind.Wired, Name = "Сеть" },
+            new() { Kind = NetworkConnectionKind.NetworkShare, Name = "20.20.20.76" },
+            new() { Kind = NetworkConnectionKind.WiFi, Name = "flash" }
+        };
+
+        var ordered = MainViewModel.OrderNetworkConnections(connections).ToList();
+
+        Assert.Equal("20.20.20.76", ordered[0].Name);
+        Assert.Equal("flash", ordered[1].Name);
+        Assert.Equal("example.org", ordered[^1].Name);
+    }
+
+    /// <summary>
+    /// Дата без указания источника в проверке ничего не стоит, поэтому в
+    /// перечне сведений она идёт вместе с ним.
+    /// </summary>
+    [Fact]
+    public void Facts_about_a_connection_name_the_source_of_every_date()
+    {
+        var record = new NetworkConnectionRecord
+        {
+            Kind = NetworkConnectionKind.WiFi,
+            Name = "flash 2",
+            FirstSeenUtc = new DateTimeOffset(2026, 7, 27, 10, 36, 2, TimeSpan.Zero),
+            FirstSeenProvenance = "DateCreated в списке сетей реестра",
+            LastSeenUtc = new DateTimeOffset(2026, 7, 31, 9, 23, 47, TimeSpan.Zero)
+        };
+
+        var rows = NetworkConnectionFacts.Rows(record).ToDictionary(x => x.Name, x => x.Value);
+
+        Assert.Contains("DateCreated в списке сетей реестра", rows["Первое подключение"]);
+        Assert.Contains("31.07.2026", rows["Последнее подключение"]);
+        Assert.Equal("Сеть Wi-Fi", rows["Как связывались"]);
+        Assert.Equal("Учётной записи в записях нет", rows["Учётная запись"]);
+        Assert.All(rows.Values, value => Assert.False(string.IsNullOrWhiteSpace(value)));
+    }
 }
