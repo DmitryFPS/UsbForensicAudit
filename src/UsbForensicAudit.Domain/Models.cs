@@ -12,6 +12,13 @@ public sealed class UsbDeviceRecord
     public string IdentityConfidence { get; set; } = "";
     public List<string> LinkedSourceIds { get; set; } = [];
     public List<string> IdentityProvenance { get; set; } = [];
+
+    /// <summary>
+    /// Дополнительные идентификаторы, под которыми это же физическое устройство
+    /// встречается в других источниках. Для узла WPD здесь лежит идентификатор
+    /// экземпляра USBSTOR, стоящего за ним.
+    /// </summary>
+    public List<string> IdentityAliases { get; set; } = [];
     public List<VolumeIdentity> Volumes { get; set; } = [];
     public string Source { get; set; } = "";
     public string VisualCategory { get; set; } = "Unknown";

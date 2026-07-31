@@ -532,6 +532,11 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                     })
                 };
 
+                if (!string.IsNullOrWhiteSpace(identity.BackingDeviceInstanceId))
+                {
+                    record.IdentityAliases.Add(identity.BackingDeviceInstanceId);
+                }
+
                 var vidPid = VidPidRegex.Match(deviceId);
                 if (vidPid.Success)
                 {
