@@ -18,6 +18,7 @@ public sealed class AuditOrchestrator
     private readonly IPrivilegeChecker _privilegeChecker;
     private readonly IReferenceImageDetector _referenceImageDetector;
     private readonly IFileSystemChangeCollector _fileSystemChangeCollector;
+    private readonly IReadOnlyList<INetworkArtifactCollector> _networkCollectors;
 
     public AuditOrchestrator(
         IUsbDeviceCollector deviceCollector,
@@ -30,10 +31,12 @@ public sealed class AuditOrchestrator
         IAuditStorage storage,
         IPrivilegeChecker privilegeChecker,
         IReferenceImageDetector? referenceImageDetector = null,
-        IFileSystemChangeCollector? fileSystemChangeCollector = null)
+        IFileSystemChangeCollector? fileSystemChangeCollector = null,
+        IEnumerable<INetworkArtifactCollector>? networkCollectors = null)
     {
         _referenceImageDetector = referenceImageDetector ?? new NoReferenceImageDetector();
         _fileSystemChangeCollector = fileSystemChangeCollector ?? new NoFileSystemChangeCollector();
+        _networkCollectors = networkCollectors?.ToList() ?? [];
         _deviceCollector = deviceCollector;
         _evidenceCollectors = evidenceCollectors.ToList();
         _historicalArtifactCollector = historicalArtifactCollector;
@@ -163,6 +166,9 @@ public sealed class AuditOrchestrator
             AnalyzeFileTransfers(result, progress, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
 
+            CollectNetworkConnections(result, progress, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
             progress?.Report("Поиск признаков очистки...");
             result.CleanupFindings.AddRange(_cleanupDetector.Analyze(result));
 
@@ -218,6 +224,63 @@ public sealed class AuditOrchestrator
             result.SourceWarnings.Add($"{_fileSystemChangeCollector.GetType().Name}: {exception.Message}");
             AddCoverage(result, _fileSystemChangeCollector.GetType().Name, 0, warningCount);
         }
+    }
+
+    /// <summary>
+    /// Собирает связи с внешним миром помимо USB: сети Wi-Fi и провод, туннели
+    /// VPN, пары по Bluetooth, серверы с сетевыми папками, узлы удалённого стола,
+    /// историю браузера.
+    ///
+    /// Шаг идёт после сборщиков доказательств отдельным списком, потому что у
+    /// каждой связи своя история сеансов и свои обращения. Записи разных
+    /// сборщиков описывают одни и те же сети, поэтому после сбора они сводятся
+    /// в одну связь.
+    /// </summary>
+    private void CollectNetworkConnections(
+        AuditResult result, IProgress<string>? progress, CancellationToken cancellationToken)
+    {
+        var collected = new List<NetworkConnectionRecord>();
+        foreach (var collector in _networkCollectors)
+        {
+            if (!collector.ShouldRun)
+            {
+                result.Coverage.Sources.Add(new SourceCoverage
+                {
+                    Source = collector.GetType().Name,
+                    Status = "NotRun"
+                });
+                continue;
+            }
+
+            progress?.Report(collector.ProgressMessage);
+            var warningCount = result.SourceWarnings.Count;
+            try
+            {
+                var set = collector.Collect(result.SourceWarnings);
+                collected.AddRange(set.Connections);
+                result.Evidence.AddRange(set.Evidence);
+                AddCoverage(result, collector.GetType().Name, set.Connections.Count, warningCount);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                result.SourceWarnings.Add($"{collector.GetType().Name}: {exception.Message}");
+                AddCoverage(result, collector.GetType().Name, 0, warningCount);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        if (collected.Count == 0)
+        {
+            return;
+        }
+
+        progress?.Report("Сведение сетевых связей из разных источников...");
+        result.NetworkConnections.AddRange(NetworkConnectionMerger.Merge(collected));
     }
 
     /// <summary>
