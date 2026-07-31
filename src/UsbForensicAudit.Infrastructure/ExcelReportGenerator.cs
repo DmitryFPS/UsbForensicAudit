@@ -12,6 +12,7 @@ internal static class ExcelReportGenerator
     private static readonly XLColor StorageColor = XLColor.FromHtml("#FFF1C9");
     private static readonly XLColor UsbFlagsColor = XLColor.FromHtml("#E9E3FA");
     private static readonly XLColor SupportColor = XLColor.FromHtml("#E8EEF5");
+    private static readonly XLColor ExternalPeripheralColor = XLColor.FromHtml("#D6ECFB");
     private static readonly XLColor DangerColor = XLColor.FromHtml("#FDE2E6");
     private static readonly XLColor AlternatingRowColor = XLColor.FromHtml("#F5F8FB");
     private static readonly XLColor WhiteColor = XLColor.White;
@@ -200,6 +201,7 @@ internal static class ExcelReportGenerator
         var rows = devices.ToArray();
         var columns = new[]
         {
+            Column<UsbDeviceRecord>("Приносили ли с собой", 30, x => x.ExternalityText),
             Column<UsbDeviceRecord>("Категория", 24, x => x.CategoryText),
             Column<UsbDeviceRecord>("Имя устройства", 36, x => x.DisplayName),
             Column<UsbDeviceRecord>("Описание записи", 46, x => x.UserMeaning),
@@ -227,11 +229,15 @@ internal static class ExcelReportGenerator
         var worksheet = AddDataSheet(workbook, sheetName, "История USB-устройств и связанных forensic-записей", rows, columns);
         for (var index = 0; index < rows.Length; index++)
         {
-            var color = rows[index].VisualCategory switch
+            // Цвет отвечает на тот же вопрос, что и во вкладке программы:
+            // приносили устройство с собой или оно всегда было внутри машины.
+            var color = rows[index].Externality switch
             {
-                "RealUsb" => RealUsbColor,
-                "RelatedStorage" => StorageColor,
-                "UsbFlagsTrace" => UsbFlagsColor,
+                DeviceExternality.ExternalMedia => RealUsbColor,
+                DeviceExternality.ExternalPeripheral => ExternalPeripheralColor,
+                DeviceExternality.PossiblyExternal => StorageColor,
+                DeviceExternality.VirtualDevice => UsbFlagsColor,
+                DeviceExternality.RegistryTrace => UsbFlagsColor,
                 _ => SupportColor
             };
             worksheet.Range(index + 5, 1, index + 5, columns.Length).Style.Fill.BackgroundColor = color;

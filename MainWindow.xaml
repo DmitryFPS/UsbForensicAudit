@@ -24,7 +24,7 @@
         <SolidColorBrush x:Key="Warn" Color="#FBBF24"/>
         <SolidColorBrush x:Key="Danger" Color="#FB7185"/>
         <local:CellExplanationToolTipConverter x:Key="CellExplanationToolTipConverter"/>
-        <local:DeviceCategoryBrushConverter x:Key="DeviceCategoryBrushConverter"/>
+        <local:DeviceExternalityBrushConverter x:Key="DeviceExternalityBrushConverter"/>
 
         <Style TargetType="ToolTip">
             <Setter Property="Background" Value="Transparent"/>
@@ -313,10 +313,35 @@
                             <TextBlock Text="Здесь список USB и Type-C устройств, которые Windows когда-либо видела на этом компьютере."
                                        Foreground="{StaticResource TextMain}"
                                        TextWrapping="Wrap"/>
-                            <TextBlock Text="Цвет строк: зелёный — реальное устройство; жёлтый — связанный диск или память; фиолетовый — остаточный след usbflags; синевато-серый — служебная запись Windows; сливовый — след прошлого подключения без самого устройства; коричневый — запись, которую разобрать не удалось."
-                                       Foreground="{StaticResource TextMuted}"
+                            <TextBlock Text="{Binding ExternalDeviceSummary}"
+                                       Foreground="#4ADE9B"
+                                       FontWeight="SemiBold"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
+                            <TextBlock Text="Цвет строки отвечает на вопрос «устройство принесли с собой или оно всегда было внутри машины»."
+                                       Foreground="{StaticResource TextMain}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0"/>
+                            <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0">
+                                <Run Text="Зелёный" Foreground="#4ADE9B" FontWeight="SemiBold"/>
+                                <Run Text="— внешний носитель или телефон: именно этим выносят данные."/>
+                                <LineBreak/>
+                                <Run Text="Синий" Foreground="#7DD3FC" FontWeight="SemiBold"/>
+                                <Run Text="— другое внешнее устройство: пара по Bluetooth, карта памяти, устройство по Type-C или USB4, принесённый разветвитель."/>
+                                <LineBreak/>
+                                <Run Text="Жёлтый" Foreground="#FACC15"/>
+                                <Run Text="— на шине USB, но отличить внешнее от распаянного внутри по следам нельзя."/>
+                                <LineBreak/>
+                                <Run Text="Приглушённый серо-синий" Foreground="#8FA3B7"/>
+                                <Run Text="— встроенное в машину и части самой шины: корневые концентраторы, контроллеры, интерфейсы составных устройств."/>
+                                <LineBreak/>
+                                <Run Text="Фиолетовый" Foreground="#C8C0F0"/>
+                                <Run Text="— виртуальное устройство, созданное программой."/>
+                                <Run Text="Сливовый" Foreground="#DCC4E6"/>
+                                <Run Text="— след в реестре, самого устройства нет."/>
+                                <Run Text="Коричневый" Foreground="#F5DCC8"/>
+                                <Run Text="— запись, которую разобрать не удалось."/>
+                            </TextBlock>
                             <TextBlock Text="«Когда отключали»: точная дата из журнала Windows, либо оценка по последней активности, либо «Подключено сейчас». VID и PID — технические коды, не названия производителя."
                                        Foreground="{StaticResource TextMuted}"
                                        TextWrapping="Wrap"
@@ -333,6 +358,8 @@
                                 <TextBlock Text="Фильтр transport/classification:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <ComboBox x:Name="DeviceFilterCombo" Width="250" SelectionChanged="DeviceFilterCombo_SelectionChanged">
                                     <ComboBoxItem Content="Все устройства" Tag="All" IsSelected="True"/>
+                                    <ComboBoxItem Content="Только внешние устройства" Tag="ExternalOnly"/>
+                                    <ComboBoxItem Content="Только носители и телефоны" Tag="ExternalMedia"/>
                                     <ComboBoxItem Content="Внешние" Tag="External"/>
                                     <ComboBoxItem Content="Встроенные" Tag="BuiltIn"/>
                                     <ComboBoxItem Content="Hub / infrastructure" Tag="Hub"/>
@@ -355,10 +382,13 @@
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
                                 <Setter Property="Background"
-                                        Value="{Binding VisualCategory, Converter={StaticResource DeviceCategoryBrushConverter}, ConverterParameter=Background}"/>
+                                        Value="{Binding Externality, Converter={StaticResource DeviceExternalityBrushConverter}, ConverterParameter=Background}"/>
                                 <Setter Property="Foreground"
-                                        Value="{Binding VisualCategory, Converter={StaticResource DeviceCategoryBrushConverter}, ConverterParameter=Foreground}"/>
+                                        Value="{Binding Externality, Converter={StaticResource DeviceExternalityBrushConverter}, ConverterParameter=Foreground}"/>
                                 <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsExternalDevice}" Value="True">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </DataTrigger>
                                     <Trigger Property="IsSelected" Value="True">
                                         <Setter Property="Background" Value="#175A78"/>
                                         <Setter Property="Foreground" Value="#E5F2FF"/>
@@ -367,6 +397,7 @@
                             </Style>
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
+                            <DataGridTextColumn Header="Внешнее устройство?" Binding="{Binding ExternalityText}" Width="200"/>
                             <DataGridTextColumn Header="Что это за запись" Binding="{Binding UserMeaning}" Width="250"/>
                             <DataGridTextColumn Header="Имя устройства" Binding="{Binding DisplayName}" Width="220"/>
                             <DataGridTextColumn Header="Тип" Binding="{Binding CategoryText}" Width="170"/>

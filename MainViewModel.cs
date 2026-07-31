@@ -36,6 +36,13 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isProcmonTracing;
 
+    /// <summary>
+    /// Сколько в таблице устройств, которые принесли с собой. Без этой строки
+    /// приходится считать цветные строки глазами.
+    /// </summary>
+    [ObservableProperty]
+    private string _externalDeviceSummary = "Сканирование ещё не выполнялось.";
+
     public AuditResult? LastResult { get; set; }
 
     public IReportService ReportService { get; }
@@ -69,11 +76,31 @@ public partial class MainViewModel : ObservableObject
         {
             CleanupFindings.Add(finding);
         }
+
+        ExternalDeviceSummary = DescribeExternalDevices(result.Devices);
     }
 
+    public static string DescribeExternalDevices(IEnumerable<UsbDeviceRecord> devices)
+    {
+        var list = devices as IReadOnlyCollection<UsbDeviceRecord> ?? devices.ToList();
+        var media = list.Count(x => x.Externality == DeviceExternality.ExternalMedia);
+        var peripheral = list.Count(x => x.Externality == DeviceExternality.ExternalPeripheral);
+        var possible = list.Count(x => x.Externality == DeviceExternality.PossiblyExternal);
+        return $"Принесённых устройств: {media + peripheral} "
+               + $"(носителей и телефонов — {media}, прочей внешней периферии — {peripheral}). "
+               + $"Ещё {possible} записей на шине USB, где отличить внешнее устройство от встроенного по следам нельзя. "
+               + $"Всего записей в таблице: {list.Count}.";
+    }
+
+    /// <summary>
+    /// Сверху то, что приносили с собой: носители и телефоны, затем прочая
+    /// внешняя периферия. Части шины и следы реестра уходят вниз — читателю
+    /// не приходится искать флешку среди корневых концентраторов.
+    /// </summary>
     public static IEnumerable<UsbDeviceRecord> OrderDevices(IEnumerable<UsbDeviceRecord> devices) =>
         devices
-            .OrderBy(x => CategoryRank(x.VisualCategory))
+            .OrderBy(x => DeviceExternality.Rank(x.Externality))
+            .ThenBy(x => CategoryRank(x.VisualCategory))
             .ThenBy(x => x.CanonicalDeviceId)
             .ThenByDescending(x => x.IsCanonicalPrimary)
             .ThenBy(x => x.DisplayName);

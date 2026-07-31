@@ -30,8 +30,14 @@ public sealed class MainViewModelTests
         Assert.Equal(expected, MainViewModel.SeverityRank(severity));
     }
 
+    /// <summary>
+    /// Главный ключ сортировки — принесли устройство с собой или нет; категория
+    /// записи разделяет строки уже внутри одной группы. Запись usbflags — след
+    /// в реестре, поэтому она стоит раньше записей, группу которых по пустым
+    /// полям определить нельзя.
+    /// </summary>
     [Fact]
-    public void OrderDevices_sorts_by_category_then_display_name()
+    public void OrderDevices_sorts_by_externality_then_category_then_display_name()
     {
         var input = new[]
         {
@@ -44,10 +50,10 @@ public sealed class MainViewModelTests
 
         var ordered = MainViewModel.OrderDevices(input).ToList();
 
-        Assert.Equal("Alpha", ordered[0].FriendlyName);
-        Assert.Equal("Zeta", ordered[1].FriendlyName);
-        Assert.Equal("B-storage", ordered[2].FriendlyName);
-        Assert.Equal("C-usbflags", ordered[3].FriendlyName);
+        Assert.Equal("C-usbflags", ordered[0].FriendlyName);
+        Assert.Equal("Alpha", ordered[1].FriendlyName);
+        Assert.Equal("Zeta", ordered[2].FriendlyName);
+        Assert.Equal("B-storage", ordered[3].FriendlyName);
         Assert.Equal("A-support", ordered[4].FriendlyName);
     }
 

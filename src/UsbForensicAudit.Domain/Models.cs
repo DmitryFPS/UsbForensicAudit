@@ -136,6 +136,19 @@ public sealed class UsbDeviceRecord
     [JsonIgnore]
     public string DeviceKindText => DeviceKindResolver.Describe(DeviceKind);
 
+    /// <summary>
+    /// Приносили ли устройство с собой. Отдельно от того, что это за устройство
+    /// и как оно подключалось: во вкладке по этому признаку красится строка.
+    /// </summary>
+    [JsonIgnore]
+    public string Externality => DeviceExternality.Resolve(this);
+
+    [JsonIgnore]
+    public string ExternalityText => DeviceExternality.Describe(Externality);
+
+    [JsonIgnore]
+    public bool IsExternalDevice => DeviceExternality.IsExternal(Externality);
+
     [JsonIgnore]
     public string IdentityTrustText => IdentityTrustFindings.Count == 0
         ? "Идентификаторы выглядят достоверно."
