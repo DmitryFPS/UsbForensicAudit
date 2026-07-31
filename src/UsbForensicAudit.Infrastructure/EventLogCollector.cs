@@ -71,10 +71,13 @@ public sealed class EventLogCollector : IEvidenceCollector
     /// по выключенному или переполненному каналу и пустой результат по исправному
     /// каналу означают разное, и в отчёте это должно быть видно.
     /// </summary>
-    internal static IReadOnlyList<EventChannelState> ReadChannelStates()
+    internal static IReadOnlyList<EventChannelState> ReadChannelStates() =>
+        ReadChannelStates(Definitions.Select(x => x.Channel));
+
+    internal static IReadOnlyList<EventChannelState> ReadChannelStates(IEnumerable<string> channels)
     {
         var states = new List<EventChannelState>();
-        foreach (var channel in Definitions.Select(x => x.Channel).Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var channel in channels.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             var state = new EventChannelState { Channel = channel };
             try
@@ -125,7 +128,7 @@ public sealed class EventLogCollector : IEvidenceCollector
         }
     }
 
-    private static EvidenceRecord ToEvidence(EventChannelState state) => new()
+    internal static EvidenceRecord ToEvidence(EventChannelState state) => new()
     {
         TimestampUtc = state.OldestRecordUtc ?? DateTimeOffset.UtcNow,
         Source = "Состояние журнала Windows",

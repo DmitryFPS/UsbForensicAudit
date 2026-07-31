@@ -131,11 +131,21 @@ public sealed class NetworkSession
 
     public string Provenance { get; set; } = "";
 
+    /// <summary>
+    /// Запись об одном событии, а не о сеансе: неудачная попытка соединиться,
+    /// обрыв, обращение к серверу. У такой записи конца нет и быть не может, и
+    /// «отключение не записано» в её клетке читалось бы как потеря данных, хотя
+    /// терять здесь нечего.
+    /// </summary>
+    public bool IsMoment { get; set; }
+
     [JsonIgnore]
     public string StartedText => DateDisplay.FormatMoscowOr(StartedUtc, "Начало не записано");
 
     [JsonIgnore]
-    public string EndedText => DateDisplay.FormatMoscowOr(EndedUtc, "Отключение не записано");
+    public string EndedText => IsMoment
+        ? "Отдельное событие, сеанс не открывался"
+        : DateDisplay.FormatMoscowOr(EndedUtc, "Отключение не записано");
 
     [JsonIgnore]
     public string OutcomeText => ReportText.ForDisplayOrClean(Outcome, 220);
@@ -155,6 +165,11 @@ public sealed class NetworkSession
     {
         get
         {
+            if (IsMoment)
+            {
+                return "не применимо";
+            }
+
             if (StartedUtc is null || EndedUtc is null || EndedUtc <= StartedUtc)
             {
                 return "";
@@ -284,6 +299,96 @@ public static class NetworkTarget
     /// <summary>Похоже ли значение на адрес сетевой папки вида «\\сервер\ресурс».</summary>
     public static bool IsUncPath(string? value) =>
         (value ?? "").TrimStart().StartsWith(@"\\", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Имя сервера из журнала SMB. Windows пишет его то с одной ведущей чертой
+    /// («\20.20.20.76»), то с ресурсом («\20.20.20.76\r0»), то вовсе подставляет
+    /// вместо сервера имя сетевого устройства («\Device\NetBT_Tcpip_{...}»).
+    /// Последнее сервером не является, и в отчёте такой строке места нет.
+    /// </summary>
+    public static bool TryReadServer(string? value, out string host, out string share)
+    {
+        host = "";
+        share = "";
+        var text = (value ?? "").Trim().TrimStart('\\');
+        if (text.Length == 0
+            || text.StartsWith("Device", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("NetBT", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var parts = text.Split('\\', 2, StringSplitOptions.TrimEntries);
+        if (!LooksLikeHost(parts[0]) || IsLoopback(parts[0]))
+        {
+            return false;
+        }
+
+        host = parts[0];
+        share = parts.Length > 1 ? parts[1] : "";
+        return true;
+    }
+
+    /// <summary>
+    /// Собственная машина — не тот, «к кому подключались». Обращение к себе
+    /// самой Windows пишет постоянно, и в списке связей это только шум.
+    /// </summary>
+    public static bool IsLoopback(string? host)
+    {
+        var text = (host ?? "").Trim().Trim('[', ']');
+        return text.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+               || text.Equals("127.0.0.1", StringComparison.Ordinal)
+               || text.Equals("::1", StringComparison.Ordinal)
+               || text.Equals(Environment.MachineName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Имя-заглушка вместо имени сети. Пока Windows определяет, куда попала
+    /// машина, сеть называется «Идентификация...», а если определить не удалось —
+    /// «Неопознанная сеть». Это состояние, а не сеть: строка с таким именем в
+    /// списке связей выглядела бы отдельной сетью, к которой подключались сотни
+    /// раз, хотя за этим именем каждый раз стоит другая сеть.
+    /// </summary>
+    public static bool IsPlaceholderName(string? name)
+    {
+        var text = (name ?? "").Trim().TrimEnd('.', '…', ' ');
+        return text.Equals("Идентификация", StringComparison.OrdinalIgnoreCase)
+               || text.Equals("Неопознанная сеть", StringComparison.OrdinalIgnoreCase)
+               || text.Equals("Identifying", StringComparison.OrdinalIgnoreCase)
+               || text.Equals("Unidentified network", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Похоже ли значение на адрес или имя узла, а не на служебную строку.</summary>
+    public static bool LooksLikeHost(string? value)
+    {
+        var text = (value ?? "").Trim();
+        if (text.Length is < 2 or > 255 || text.Contains(' ') || text.Contains('\\'))
+        {
+            return false;
+        }
+
+        if (System.Net.IPAddress.TryParse(text.Trim('[', ']'), out _))
+        {
+            return true;
+        }
+
+        return text.All(x => char.IsAsciiLetterOrDigit(x) || x is '.' or '-' or '_')
+               && text.Any(char.IsAsciiLetter);
+    }
+
+    /// <summary>
+    /// Служебные ресурсы SMB папками не являются: «IPC$» — канал управления,
+    /// «C$» и «ADMIN$» — административный доступ ко всему диску. Разница
+    /// существенная: «открывали IPC$» и «открывали папку с документами» —
+    /// разные утверждения.
+    /// </summary>
+    public static bool IsAdministrativeShare(string? share)
+    {
+        var text = (share ?? "").Trim().TrimEnd('\\');
+        return text.Equals("IPC$", StringComparison.OrdinalIgnoreCase)
+               || text.Equals("ADMIN$", StringComparison.OrdinalIgnoreCase)
+               || (text.Length == 2 && text[1] == '$' && char.IsAsciiLetter(text[0]));
+    }
 }
 
 /// <summary>
@@ -412,7 +517,9 @@ public sealed class NetworkConnectionRecord
     }
 
     [JsonIgnore]
-    public string AdapterText => ReportText.ForDisplay(Adapter, 220);
+    public string AdapterText => ReportText.ForDisplay(Adapter, 220) is { Length: > 0 } text
+        ? text
+        : "Через какое устройство шла связь, Windows не записала";
 
     [JsonIgnore]
     public string AccountText => string.IsNullOrWhiteSpace(ResolvedUserName)
@@ -433,8 +540,16 @@ public sealed class NetworkConnectionRecord
         ? SourceText
         : string.Join("; ", Sources.Select(UserDisplayText.Source).Distinct(StringComparer.OrdinalIgnoreCase));
 
+    /// <summary>
+    /// Адреса, которые машина получала в этой сети. Пустая клетка здесь читается
+    /// как «адресов не было», хотя означает лишь, что параметры этого
+    /// подключения к сети привязать не удалось: адрес хранится у сетевого
+    /// устройства, а не у самой сети.
+    /// </summary>
     [JsonIgnore]
-    public string LocalAddressesText => string.Join("; ", LocalAddresses);
+    public string LocalAddressesText => LocalAddresses.Count > 0
+        ? string.Join("; ", LocalAddresses)
+        : "Адреса этой машины в этой сети Windows не сохранила";
 
     [JsonIgnore]
     public int SessionCount => Sessions.Count;
