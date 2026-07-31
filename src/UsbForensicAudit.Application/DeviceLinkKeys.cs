@@ -153,10 +153,13 @@ public sealed class DeviceLinkKeys
             yield break;
         }
 
+        // Windows обычно записывает одно и то же имя и в FriendlyName, и в Product.
+        // Без отсева одно имя перечислялось в отчёте дважды.
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var candidate in new[] { device.FriendlyName, device.Product })
         {
             var value = candidate.Trim();
-            if (value.Length >= 4 && !IsGenericName(value))
+            if (value.Length >= 4 && !IsGenericName(value) && seen.Add(value))
             {
                 yield return value;
             }
