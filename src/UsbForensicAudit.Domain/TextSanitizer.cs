@@ -64,7 +64,12 @@ public static class TextSanitizer
             return "";
         }
 
-        if (LooksLikeDeviceIdentifier(value))
+        // Адрес страницы правится по тем же правилам, что и опознаватель
+        // устройства: он тоже читается не человеком, а машиной. Отбор знаков по
+        // белому списку выбрасывал из него вопросительный знак, и адрес
+        // «…/thank-you?dv=win» превращался в «…/thank-youdv=win» — по такому
+        // адресу не открыть страницу и не проверить вывод.
+        if (LooksLikeDeviceIdentifier(value) || LooksLikeWebAddress(value))
         {
             return CleanIdentifier(value, maxLength);
         }
@@ -122,6 +127,15 @@ public static class TextSanitizer
         }
 
         return false;
+    }
+
+    /// <summary>Адрес страницы или файла в сети.</summary>
+    public static bool LooksLikeWebAddress(string value)
+    {
+        var text = (value ?? "").TrimStart();
+        return text.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+               || text.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+               || text.StartsWith("ftp://", StringComparison.OrdinalIgnoreCase);
     }
 
     public static string NormalizeConsoleOutput(byte[] bytes)
@@ -297,6 +311,12 @@ public static class TextSanitizer
                || char.IsWhiteSpace(ch)
                || ch is '\\' or '/' or ':' or '_' or '-' or '.' or '(' or ')' or '[' or ']' or '{' or '}' or '@' or '#' or ';' or ','
                || ch is '&' or '+' or '%' or '=' or '\'' or '!' or '$' or '~'
+               // Вопросительный знак стоит и в вопросе, и в середине адреса
+               // страницы: «…/thank-you?dv=win» без него теряет строку запроса, а
+               // такой адрес уже не проверить. Признаком испорченной кодировки он
+               // остаётся, но признак этот проверяется отдельно — по доле таких
+               // знаков в строке, а не удалением каждого из них.
+               || ch is '?'
                // Тире и кавычки-ёлочки стоят в русских пояснениях, которые пишет сама
                // программа. Без них «Реестр Windows — список сетей» превращалось в
                // «Реестр Windows список сетей», а фраза теряла смысл на полуслове.

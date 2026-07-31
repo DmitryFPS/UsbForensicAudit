@@ -216,6 +216,14 @@ public sealed class NetworkVisit
     /// </summary>
     public int? MentionCount { get; set; }
 
+    /// <summary>
+    /// Сколько раз обращение состоялось по счётчику самого источника. Такой
+    /// счётчик есть не у всех: браузер считает заходы на страницу, а реестр не
+    /// считает ничего, и путать эти два числа нельзя. «Заходов — 35» и «след
+    /// найден в трёх местах» отвечают на разные вопросы.
+    /// </summary>
+    public int? RepeatCount { get; set; }
+
     public string Source { get; set; } = "";
 
     /// <summary>Что означает отметка времени именно у этого артефакта.</summary>
@@ -244,6 +252,15 @@ public sealed class NetworkVisit
     public string MentionCountText => MentionCount is null or <= 1
         ? "След один"
         : $"Следов: {MentionCount.Value}";
+
+    /// <summary>
+    /// Сколько раз обращались — одной клеткой. Счётчик источника точнее числа
+    /// следов и потому идёт первым; когда его нет, остаётся число следов.
+    /// </summary>
+    [JsonIgnore]
+    public string CountText => RepeatCount is > 1
+        ? $"Обращений по счёту источника: {RepeatCount.Value}"
+        : MentionCountText;
 
     [JsonIgnore]
     public string SourceText => UserDisplayText.Source(Source);

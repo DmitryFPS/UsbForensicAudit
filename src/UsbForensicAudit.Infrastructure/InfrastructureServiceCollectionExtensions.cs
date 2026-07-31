@@ -36,6 +36,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<INetworkArtifactCollector, NetworkEventLogCollector>();
         services.AddSingleton<INetworkArtifactCollector, NetworkShareArtifactCollector>();
         services.AddSingleton<INetworkArtifactCollector, BluetoothArtifactCollector>();
+        services.AddSingleton<INetworkArtifactCollector, BrowserHistoryCollector>();
 
         services.AddSingleton<IReportService, ReportService>();
         services.AddSingleton<WmiUsbMonitor>();
