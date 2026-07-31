@@ -36,6 +36,70 @@ public sealed class Stage6ForensicArtifactTests
         Assert.Contains(@"E:\Evidence", parsed.BestPath, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Элемент оболочки: размер, тип, тело, затем блок с подписью, за которым
+    /// оболочка хранит настоящее имя в UTF-16.
+    /// </summary>
+    private static byte[] ShellItemWithSignedName(byte itemType, uint signature, string name)
+    {
+        var encodedName = Encoding.Unicode.GetBytes(name + "\0");
+        var body = new byte[1 + 8 + 4 + encodedName.Length];
+        body[0] = itemType;
+        BinaryPrimitives.WriteUInt32LittleEndian(body.AsSpan(9, 4), signature);
+        encodedName.CopyTo(body, 13);
+
+        var item = new byte[2 + body.Length + 2];
+        BinaryPrimitives.WriteUInt16LittleEndian(item, checked((ushort)(body.Length + 2)));
+        body.CopyTo(item, 2);
+        return item;
+    }
+
+    [Fact]
+    public void Cyrillic_folder_name_survives_shell_item_parsing()
+    {
+        var item = ShellItemWithSignedName(0x31, 0xBEEF0004, "Флешка");
+
+        var parsed = ForensicArtifactParsers.ParsePidl(item);
+
+        Assert.Contains(parsed.PathFragments, x => x.Contains("Флешка", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Mtp_folder_name_is_read_from_its_signed_block()
+    {
+        var item = ShellItemWithSignedName(0x00, 0x07192006, "DCIM");
+
+        var parsed = ForensicArtifactParsers.ParsePidl(item);
+
+        Assert.Contains(parsed.PathFragments, x => x.Equals("DCIM", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Mtp_volume_name_is_read_from_its_signed_block()
+    {
+        var item = ShellItemWithSignedName(0x00, 0x10312005, "Внутренний общий накопитель");
+
+        var parsed = ForensicArtifactParsers.ParsePidl(item);
+
+        Assert.Contains(parsed.PathFragments, x => x.Contains("накопитель", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Drive_letter_item_is_read_from_volume_shell_item()
+    {
+        var body = new byte[] { 0x2F }
+            .Concat(Encoding.Latin1.GetBytes("E:\\\0"))
+            .Concat(new byte[16])
+            .ToArray();
+        var item = new byte[2 + body.Length];
+        BinaryPrimitives.WriteUInt16LittleEndian(item, checked((ushort)item.Length));
+        body.CopyTo(item, 2);
+
+        var parsed = ForensicArtifactParsers.ParsePidl(item);
+
+        Assert.Contains(parsed.PathFragments, x => x.StartsWith("E:", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void Shellbag_parser_filters_non_usb_node_and_keeps_usb_marker()
     {
