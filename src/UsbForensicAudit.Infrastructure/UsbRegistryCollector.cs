@@ -274,6 +274,9 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                         ConnectionDisplayKind = dates.FirstConnectedUtc.HasValue ? "PnpDevProperty" : "",
                         DisconnectDisplayKind = dates.LastDisconnectedUtc.HasValue ? "PnpDevProperty" : "",
                         DateConfidence = BuildPnpDateConfidence(dates),
+                        FirstConnectedProvenance = DateProvenance(deviceId, dates.FirstConnectedProvenance),
+                        LastSeenProvenance = DateProvenance(deviceId, dates.LastSeenProvenance),
+                        LastDisconnectedProvenance = DateProvenance(deviceId, dates.LastDisconnectedProvenance),
                         RawJson = JsonSerializer.Serialize(new
                         {
                             RegistryPath = $@"HKLM\{path}\{familyName}\{instanceName}",
@@ -456,6 +459,13 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
             return "Unknown";
         }
     }
+
+    /// <summary>
+    /// Происхождение даты всегда называет устройство, чьи свойства были прочитаны:
+    /// по нему видно, что дата не пришла от соседней записи.
+    /// </summary>
+    private static string DateProvenance(string deviceInstanceId, string propertySource) =>
+        string.IsNullOrWhiteSpace(propertySource) ? "" : $"{propertySource} @ {deviceInstanceId}";
 
     private static string BuildPnpDateConfidence(PnpDateSelection dates)
     {

@@ -55,6 +55,15 @@ public sealed class UsbDeviceRecord
     public DateTimeOffset? LastDisconnectedUtc { get; set; }
     public DateTimeOffset? RegistryLastWriteUtc { get; set; }
     public string DateConfidence { get; set; } = "";
+
+    /// <summary>
+    /// Откуда взята каждая дата. Пустое значение при заполненной дате означает
+    /// ошибку конвейера: дата без происхождения в отчёт попадать не должна.
+    /// </summary>
+    public string FirstConnectedProvenance { get; set; } = "";
+
+    public string LastSeenProvenance { get; set; } = "";
+    public string LastDisconnectedProvenance { get; set; } = "";
     public bool IsCurrentlyConnected { get; set; }
     public string ConnectionDisplayKind { get; set; } = "";
     public string DisconnectDisplayKind { get; set; } = "";
