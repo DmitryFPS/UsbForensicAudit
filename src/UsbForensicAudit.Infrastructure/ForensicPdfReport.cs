@@ -132,6 +132,7 @@ internal static class ForensicPdfReport
         });
 
         column.Item().PaddingTop(4).Text(T(ctx.Counts.Describe())).FontSize(8).FontColor(Colors.Grey.Darken2);
+        column.Item().PaddingTop(4).Text(T(ctx.ActivityVerdict())).FontSize(8).FontColor(Colors.Grey.Darken2);
 
         SubTitle(column, "Покрытие источников");
         AddDataTable(column,
@@ -405,7 +406,64 @@ internal static class ForensicPdfReport
                     e.SummaryText
                 }));
             }
+
+            AppendDeviceActivity(column, ctx.GetActivity(device));
         }
+    }
+
+    /// <summary>
+    /// Что делали на устройстве. В печатном отчёте список обрезан: полный
+    /// перечень остаётся в окне программы и в отчёте HTML, и об этом сказано,
+    /// чтобы обрезанный список не приняли за полный.
+    /// </summary>
+    private const int MaxActivityRowsInPdf = 150;
+
+    private static void AppendDeviceActivity(ColumnDescriptor column, DeviceActivityHistory history)
+    {
+        SubTitle(column, $"Что делали на устройстве ({history.Entries.Count})");
+        column.Item().Text(T(history.Verdict())).FontSize(8).FontColor(Colors.Grey.Darken2);
+
+        if (history.Entries.Count > 0)
+        {
+            if (history.Entries.Count > MaxActivityRowsInPdf)
+            {
+                column.Item().Text(T($"В печатный отчёт вошли последние {MaxActivityRowsInPdf} действий из "
+                                     + $"{history.Entries.Count}. Полный перечень — в отчёте HTML и в окне программы."))
+                    .FontSize(8).FontColor(Colors.Orange.Darken2);
+            }
+
+            AddDataTable(column,
+            [
+                ("Когда", 1.2f),
+                ("Что делали", 1.6f),
+                ("Папка или файл", 2.6f),
+                ("Кто", 1.1f),
+                ("Почему отнесено к устройству", 2f)
+            ],
+            history.Entries.Take(MaxActivityRowsInPdf).Select(x => new[]
+            {
+                x.TimestampText, x.KindText, x.PathText, x.UserText, x.LinkText
+            }));
+        }
+
+        SubTitle(column, "Признаки копирования");
+        column.Item().Text(T(history.CopyVerdict())).FontSize(8).FontColor(Colors.Grey.Darken2);
+        if (history.CopyIndications.Count == 0)
+        {
+            return;
+        }
+
+        AddDataTable(column,
+        [
+            ("Имя файла", 1.6f),
+            ("Путь на устройстве", 2.4f),
+            ("Путь на внутреннем диске", 2.4f),
+            ("Когда виден на диске", 1.2f)
+        ],
+        history.CopyIndications.Select(x => new[]
+        {
+            x.FileName, x.PathOnDevice, x.LocalPath, x.SeenLocallyText
+        }));
     }
 
     private static void AppendEvidenceSection(ColumnDescriptor column, ForensicReportContext ctx, bool pageBreakBefore)

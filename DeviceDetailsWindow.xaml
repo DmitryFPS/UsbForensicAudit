@@ -101,13 +101,21 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <Button Content="Закрыть"
-                    Grid.Row="2"
-                    HorizontalAlignment="Right"
-                    Margin="0,14,0,0"
-                    IsDefault="True"
-                    IsCancel="True"
-                    Click="CloseButton_Click"/>
+            <StackPanel Grid.Row="2"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="0,14,0,0">
+                <Button x:Name="ActivityButton"
+                        Content="История действий на устройстве"
+                        Background="#123B57"
+                        BorderBrush="#38BDF8"
+                        Margin="0,0,10,0"
+                        Click="ActivityButton_Click"/>
+                <Button Content="Закрыть"
+                        IsDefault="True"
+                        IsCancel="True"
+                        Click="CloseButton_Click"/>
+            </StackPanel>
         </Grid>
     </Border>
 </Window>
