@@ -98,6 +98,16 @@
 
                     <TextBlock Text="Серийный номер" Style="{StaticResource FieldLabel}"/>
                     <TextBox Text="{Binding SerialText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
+
+                    <StackPanel x:Name="CompositionPanel" Visibility="Collapsed">
+                        <TextBlock Text="Из чего состоит эта строка списка" Style="{StaticResource FieldLabel}"/>
+                        <TextBox x:Name="CompositionText"
+                                 Style="{StaticResource FieldValue}"
+                                 FontFamily="Cascadia Mono, Consolas"
+                                 FontSize="12"
+                                 MaxHeight="260"
+                                 VerticalScrollBarVisibility="Auto"/>
+                    </StackPanel>
                 </StackPanel>
             </ScrollViewer>
 

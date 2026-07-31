@@ -314,6 +314,10 @@
                             <TextBlock Text="Здесь список USB и Type-C устройств, которые Windows когда-либо видела на этом компьютере."
                                        Foreground="{StaticResource TextMain}"
                                        TextWrapping="Wrap"/>
+                            <TextBlock Text="Одно устройство Windows описывает несколькими записями: у телефона по Bluetooth это полтора десятка услуг, у веб-камеры — видеопоток и микрофон, у флешки — запись шины, накопителя и переносимого устройства. В списке стоит одно устройство одной строкой, остальные записи свёрнуты в него и видны по двойному щелчку. Ничего не потеряно — галочка ниже возвращает все записи."
+                                       Foreground="{StaticResource TextMuted}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0"/>
                             <TextBlock Text="{Binding ExternalDeviceSummary}"
                                        Foreground="#4ADE9B"
                                        FontWeight="SemiBold"
@@ -371,6 +375,14 @@
                                     <ComboBoxItem Content="MTP / PTP / WPD" Tag="MTP/PTP/WPD"/>
                                     <ComboBoxItem Content="USB4 / Thunderbolt" Tag="USB4/Thunderbolt"/>
                                 </ComboBox>
+                                <CheckBox x:Name="AllRecordsCheck"
+                                          Content="Показывать все записи реестра"
+                                          Foreground="{StaticResource TextMuted}"
+                                          VerticalAlignment="Center"
+                                          Margin="16,0,0,0"
+                                          ToolTip="Вернёт в список услуги сопряжённых устройств, грани составных устройств и части шины: концентраторы, контроллеры, служебные узлы."
+                                          Checked="AllRecordsCheck_Changed"
+                                          Unchecked="AllRecordsCheck_Changed"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>

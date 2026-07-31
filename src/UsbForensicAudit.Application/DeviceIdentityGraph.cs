@@ -27,6 +27,7 @@ public static class DeviceIdentityGraph
         JoinByStrongKey(devices, union, "serial", d => IsHardwareSerial(d.Serial) ? NormalizeSerial(d.Serial) : "");
         JoinByStrongKey(devices, union, "topology", d => NormalizeTopology(d.ParentIdPrefix, d.LocationPaths));
         JoinByStrongKey(devices, union, "composite-parent", CompositeParentKey);
+        JoinByStrongKey(devices, union, "composite-child", CompositeChildKey);
 
         var groups = Enumerable.Range(0, devices.Count)
             .GroupBy(union.Find)
@@ -71,6 +72,8 @@ public static class DeviceIdentityGraph
                 member.LinkedSourceIds = [.. linkedIds];
                 member.IdentityProvenance = [.. provenance];
             }
+
+            BorrowNameForGroup(primary, members);
         }
     }
 
@@ -212,11 +215,48 @@ public static class DeviceIdentityGraph
         return $"DEV-{Convert.ToHexString(hash.AsSpan(0, 10))}";
     }
 
+    /// <summary>
+    /// Список показывает устройство одной строкой, поэтому в главной записи
+    /// должно стоять имя вещи. Windows называет родительскую запись по классу —
+    /// «USB Composite Device», — а модель пишет у функции: у встроенной камеры
+    /// это «Integrated Camera». Имя берётся у соседней записи того же
+    /// устройства, и откуда оно взято, записано в происхождении.
+    /// </summary>
+    private static void BorrowNameForGroup(UsbDeviceRecord primary, IReadOnlyList<UsbDeviceRecord> members)
+    {
+        primary.GroupDisplayName = "";
+        if (members.Count < 2 || !DeviceNameQuality.IsClassName(primary.OwnDisplayName))
+        {
+            return;
+        }
+
+        var donor = members
+            .Where(x => !ReferenceEquals(x, primary) && !IsUsbFlags(x))
+            .Where(x => !DeviceNameQuality.IsClassName(x.OwnDisplayName))
+            .OrderBy(x => x.DeviceInstanceId, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+        if (donor is null)
+        {
+            return;
+        }
+
+        primary.GroupDisplayName = donor.OwnDisplayName;
+        primary.IdentityProvenance.Add(
+            $"Имя показано по записи функции того же устройства: {donor.DeviceInstanceId}");
+    }
+
+    /// <summary>
+    /// Главной в группе становится запись самого устройства. Услуга Bluetooth и
+    /// грань составного устройства проигрывают своему устройству: список
+    /// показывает главную запись, и «USB Input Device» вместо составного
+    /// устройства сбивает читателя с толку.
+    /// </summary>
     private static int PrimaryScore(UsbDeviceRecord device) =>
         (device.VisualCategory == "RealUsb" ? 100 : 0)
         + (device.Source.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase) ? 30 : 0)
         + (device.Source.Equals("Registry: USB", StringComparison.OrdinalIgnoreCase) ? 20 : 0)
         + (device.IsCurrentlyConnected ? 10 : 0)
+        + (DeviceComposition.IsPartOfAnotherDevice(device) ? -60 : 0)
         + (IsUsbFlags(device) ? -100 : 0);
 
     private static string NormalizeInstance(string value) =>
@@ -230,6 +270,43 @@ public static class DeviceIdentityGraph
         }
 
         return CompositeInterfaceRegex.Replace(NormalizeInstance(device.DeviceInstanceId), "");
+    }
+
+    /// <summary>
+    /// Грани составного устройства и само устройство сходятся по родительскому
+    /// префиксу. Windows выдаёт устройству префикс «6&amp;3ad2d465&amp;0» и из него
+    /// строит идентификаторы его граней: «…&amp;MI_00\6&amp;3ad2d465&amp;0&amp;0000».
+    ///
+    /// Без этого ключа встроенная камера ноутбука распадается на три записи:
+    /// «USB Composite Device», «Integrated Camera» и «APP Mode» — три строки
+    /// списка вместо одной камеры. По одному лишь пути они не сходятся: у
+    /// самого устройства в пути стоит его серийный номер, а у граней —
+    /// выданный Windows номер, и общего в них нет.
+    /// </summary>
+    private static string CompositeChildKey(UsbDeviceRecord device)
+    {
+        var id = device.DeviceInstanceId.Trim();
+        if (!id.StartsWith(@"USB\VID_", StringComparison.OrdinalIgnoreCase))
+        {
+            return "";
+        }
+
+        var separator = id.LastIndexOf('\\');
+        if (separator <= 4)
+        {
+            return "";
+        }
+
+        var product = CompositeInterfaceRegex.Replace(id[4..separator], "").ToUpperInvariant();
+        if (CompositeInterfaceRegex.IsMatch(id))
+        {
+            var instance = id[(separator + 1)..];
+            var cut = instance.LastIndexOf('&');
+            return cut > 0 ? $"{product}|{instance[..cut].ToUpperInvariant()}" : "";
+        }
+
+        var prefix = device.ParentIdPrefix.Trim();
+        return prefix.Length >= 5 ? $"{product}|{prefix.ToUpperInvariant()}" : "";
     }
 
     /// <summary>

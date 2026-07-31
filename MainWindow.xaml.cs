@@ -122,6 +122,7 @@ public partial class MainWindow : Window
     private void DeviceFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         _devicesView?.Refresh();
+        UpdateDeviceCount();
     }
 
     private void NetworkGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -183,6 +184,16 @@ public partial class MainWindow : Window
             return false;
         }
 
+        // Windows описывает одно устройство несколькими записями. По умолчанию
+        // список показывает устройства, а не строки реестра: услуги телефона,
+        // грани составных устройств и части шины свёрнуты в свои устройства и
+        // видны в окне сведений. Галочка возвращает их все — счёт строк должен
+        // сходиться с реестром, иначе отчёт нечем проверить.
+        if (AllRecordsCheck?.IsChecked != true && DeviceComposition.IsFoldedByDefault(device))
+        {
+            return false;
+        }
+
         var selected = (DeviceFilterCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
         return selected switch
         {
@@ -193,6 +204,29 @@ public partial class MainWindow : Window
                  || device.Transport.Equals(selected, StringComparison.OrdinalIgnoreCase)
                  || device.Connection.Equals(selected, StringComparison.OrdinalIgnoreCase)
         };
+    }
+
+    private void AllRecordsCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        _devicesView?.Refresh();
+        UpdateDeviceCount();
+    }
+
+    /// <summary>
+    /// Сколько строк показано из скольких записей. Без этого числа свёрнутый
+    /// список читается как весь список найденного.
+    /// </summary>
+    private void UpdateDeviceCount()
+    {
+        if (_devicesView is null)
+        {
+            return;
+        }
+
+        var shown = _devicesView.Cast<object>().Count();
+        DevicesCountText.Text = shown == _devices.Count
+            ? shown.ToString()
+            : $"{shown} из {_devices.Count}";
     }
 
     private async void ScanButton_Click(object sender, RoutedEventArgs e)
@@ -260,7 +294,8 @@ public partial class MainWindow : Window
     {
         _vm.PopulateFromResult(result);
 
-        DevicesCountText.Text = _devices.Count.ToString();
+        _devicesView.Refresh();
+        UpdateDeviceCount();
         EvidenceCountText.Text = _evidence.Count.ToString();
         UpdateNetworkCount();
         var suspiciousCount = result.CleanupFindings.Count(x => x.IsSuspicious);

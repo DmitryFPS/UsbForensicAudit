@@ -109,16 +109,25 @@ public partial class MainViewModel : ObservableObject
             .ThenByDescending(x => x.LastSeenUtc ?? DateTimeOffset.MinValue)
             .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Сводка над таблицей. Считаются устройства, а не строки реестра: иначе
+    /// один телефон с полутора десятками услуг Bluetooth выглядит как склад
+    /// принесённой техники. Число свёрнутых записей названо отдельно, чтобы
+    /// читатель видел, что они никуда не делись.
+    /// </summary>
     public static string DescribeExternalDevices(IEnumerable<UsbDeviceRecord> devices)
     {
         var list = devices as IReadOnlyCollection<UsbDeviceRecord> ?? devices.ToList();
-        var media = list.Count(x => x.Externality == DeviceExternality.ExternalMedia);
-        var peripheral = list.Count(x => x.Externality == DeviceExternality.ExternalPeripheral);
-        var possible = list.Count(x => x.Externality == DeviceExternality.PossiblyExternal);
+        var shown = list.Where(x => !DeviceComposition.IsFoldedByDefault(x)).ToList();
+        var media = shown.Count(x => x.Externality == DeviceExternality.ExternalMedia);
+        var peripheral = shown.Count(x => x.Externality == DeviceExternality.ExternalPeripheral);
+        var possible = shown.Count(x => x.Externality == DeviceExternality.PossiblyExternal);
+        var folded = list.Count - shown.Count;
         return $"Принесённых устройств: {media + peripheral} "
                + $"(носителей и телефонов — {media}, прочей внешней периферии — {peripheral}). "
                + $"Ещё {possible} записей на шине USB, где отличить внешнее устройство от встроенного по следам нельзя. "
-               + $"Всего записей в таблице: {list.Count}.";
+               + $"Строк в таблице: {shown.Count}. Свёрнуто в них записей реестра: {folded} — "
+               + "услуги сопряжённых устройств, грани составных устройств и части шины.";
     }
 
     /// <summary>
