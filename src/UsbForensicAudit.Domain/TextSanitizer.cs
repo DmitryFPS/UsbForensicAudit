@@ -297,6 +297,10 @@ public static class TextSanitizer
                || char.IsWhiteSpace(ch)
                || ch is '\\' or '/' or ':' or '_' or '-' or '.' or '(' or ')' or '[' or ']' or '{' or '}' or '@' or '#' or ';' or ','
                || ch is '&' or '+' or '%' or '=' or '\'' or '!' or '$' or '~'
+               // Тире и кавычки-ёлочки стоят в русских пояснениях, которые пишет сама
+               // программа. Без них «Реестр Windows — список сетей» превращалось в
+               // «Реестр Windows список сетей», а фраза теряла смысл на полуслове.
+               || ch is '—' or '–' or '«' or '»'
                || (ch >= '\u0400' && ch <= '\u04FF');
     }
 

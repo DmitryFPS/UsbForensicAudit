@@ -29,6 +29,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IEvidenceCollector, ExecutionArtifactCollector>();
         services.AddSingleton<IEvidenceCollector, ProcessAttributionCollector>();
 
+        // Сетевые связи собираются отдельным семейством сборщиков: у каждой связи
+        // своя история сеансов и свои обращения, и в один список доказательств
+        // они не укладываются.
+        services.AddSingleton<INetworkArtifactCollector, NetworkProfileCollector>();
+
         services.AddSingleton<IReportService, ReportService>();
         services.AddSingleton<WmiUsbMonitor>();
         services.AddSingleton<LiveUsbSnapshotService>();
