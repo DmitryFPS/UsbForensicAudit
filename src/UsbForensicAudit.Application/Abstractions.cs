@@ -79,6 +79,36 @@ public sealed class NoFileSystemChangeCollector : IFileSystemChangeCollector
 }
 
 /// <summary>
+/// Порт сборщика сетевых связей: сети Wi-Fi и провод, туннели VPN, пары по
+/// Bluetooth, серверы с сетевыми папками, узлы удалённого стола, история
+/// браузера. Каждый источник — отдельный сборщик; одна и та же сеть приходит из
+/// нескольких сборщиков и сводится в одну связь после сбора.
+/// </summary>
+public interface INetworkArtifactCollector
+{
+    string ProgressMessage { get; }
+
+    bool ShouldRun { get; }
+
+    NetworkArtifactSet Collect(List<string> warnings);
+}
+
+/// <summary>
+/// Найденные связи вместе с записями о полноте источника. Второе без первого
+/// обязательно: пустой список сетей без указания состояния журналов читается
+/// как «никуда не подключались», хотя журнал мог быть выключен.
+/// </summary>
+public sealed record NetworkArtifactSet(
+    IReadOnlyList<NetworkConnectionRecord> Connections,
+    IReadOnlyList<EvidenceRecord> Evidence)
+{
+    public static NetworkArtifactSet Empty { get; } = new([], []);
+
+    public static NetworkArtifactSet FromConnections(IReadOnlyList<NetworkConnectionRecord> connections) =>
+        new(connections, []);
+}
+
+/// <summary>
 /// Порт хранилища результатов аудита (SQLite + JSONL).
 /// </summary>
 public interface IAuditStorage
