@@ -141,6 +141,9 @@ public sealed class AuditOrchestrator
             result.Evidence.AddRange(_correlationService.BuildDeviceCorrelations(result));
             cancellationToken.ThrowIfCancellationRequested();
 
+            progress?.Report("Проверка достоверности идентификаторов...");
+            ApplyIdentityTrust(result);
+
             progress?.Report("Расчет дат подключения/отключения и пояснений...");
             _timelineEnricher.Enrich(result);
             CalculateDateCoverage(result);
@@ -157,6 +160,40 @@ public sealed class AuditOrchestrator
 
             return result;
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Серийный номер и VID/PID устройство сообщает о себе само, и подтвердить
+    /// их нечем. Там, где верить им нельзя, отчёт должен сказать это прямо,
+    /// иначе вывод «подключали именно эту флешку» ничем не обеспечен.
+    /// </summary>
+    internal static void ApplyIdentityTrust(AuditResult result)
+    {
+        foreach (var device in result.Devices)
+        {
+            device.IdentityTrustFindings.Clear();
+        }
+
+        foreach (var (device, finding) in DeviceIdentityTrust.AssessAll(result.Devices))
+        {
+            device.IdentityTrustFindings.Add(finding);
+        }
+
+        foreach (var device in result.Devices.Where(x => x.IdentityIsUntrustworthy))
+        {
+            result.Evidence.Add(new EvidenceRecord
+            {
+                SessionId = result.SessionId,
+                TimestampUtc = result.StartedAtUtc,
+                Source = "Проверка идентификаторов",
+                EvidenceCategory = "IdentityTrust",
+                DeviceHint = device.DeviceInstanceId,
+                Summary = device.IdentityTrustFindings.First(x => x.Severity == "High").Title,
+                UserExplanation = device.IdentityTrustText,
+                Confidence = "High",
+                SourceFile = device.CanonicalDeviceId
+            });
+        }
     }
 
     internal static void AddCoverage(AuditResult result, string source, int count, int warningCountBefore)
