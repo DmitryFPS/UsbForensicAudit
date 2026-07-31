@@ -101,6 +101,43 @@ public sealed class Stage6ForensicArtifactTests
     }
 
     [Fact]
+    public void Folder_on_a_non_system_drive_is_kept_as_a_candidate()
+    {
+        var payload = Encoding.Unicode.GetBytes(@"E:\Фото" + "\0");
+        var item = new byte[payload.Length + 4];
+        BinaryPrimitives.WriteUInt16LittleEndian(item, checked((ushort)(payload.Length + 2)));
+        payload.CopyTo(item, 2);
+
+        var node = ForensicArtifactParsers.ParseShellBagNode(item, "", 3, @"C:\");
+
+        Assert.True(node.IsUsbRelevant);
+        Assert.Contains("E:", node.RelevanceReason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Folder_on_the_system_drive_is_still_filtered_out()
+    {
+        var payload = Encoding.Unicode.GetBytes(@"C:\Windows\System32" + "\0");
+        var item = new byte[payload.Length + 4];
+        BinaryPrimitives.WriteUInt16LittleEndian(item, checked((ushort)(payload.Length + 2)));
+        payload.CopyTo(item, 2);
+
+        var node = ForensicArtifactParsers.ParseShellBagNode(item, "", 3, @"C:\");
+
+        Assert.False(node.IsUsbRelevant);
+    }
+
+    [Fact]
+    public void Mtp_folder_node_is_kept_even_without_usb_in_its_path()
+    {
+        var node = ForensicArtifactParsers.ParseShellBagNode(
+            ShellItemWithSignedName(0x00, 0x07192006, "DCIM"), "POCO M6 Pro", 4, @"C:\");
+
+        Assert.True(node.IsUsbRelevant);
+        Assert.Contains("MTP", node.RelevanceReason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Shellbag_parser_filters_non_usb_node_and_keeps_usb_marker()
     {
         static byte[] Item(string text)
