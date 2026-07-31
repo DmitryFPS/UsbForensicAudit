@@ -354,9 +354,7 @@ internal sealed class NetworkEventLogCollector : INetworkArtifactCollector
                         Name = host,
                         Direction = NetworkDirection.Outgoing,
                         Source = source,
-                        Details = "Сервер, к которому эта машина обращалась за сетевыми папками. Через "
-                                  + "такие папки файлы уходят с машины и приходят на неё, поэтому список "
-                                  + "открытых на сервере папок приведён ниже",
+                        Details = NetworkConnectionExplanations.ShareServer,
                         Provenance = channel
                     });
 
@@ -478,7 +476,7 @@ internal sealed class NetworkEventLogCollector : INetworkArtifactCollector
                     Name = host,
                     Direction = NetworkDirection.Outgoing,
                     Source = outgoing,
-                    Details = "Подключение удалённого стола с этой машины к другому компьютеру",
+                    Details = NetworkConnectionExplanations.RemoteDesktopOutgoing,
                     Provenance = RdpClientChannel
                 });
 
@@ -513,7 +511,7 @@ internal sealed class NetworkEventLogCollector : INetworkArtifactCollector
                     Name = host,
                     Direction = NetworkDirection.Incoming,
                     Source = incoming,
-                    Details = "Вход на эту машину по удалённому столу с указанного адреса",
+                    Details = NetworkConnectionExplanations.RemoteDesktopIncoming,
                     Provenance = RdpServerChannel
                 });
 
@@ -666,12 +664,12 @@ internal sealed class NetworkEventLogCollector : INetworkArtifactCollector
         {
             if (!Visits.TryGetValue(visit.Target, out var existing))
             {
-                visit.VisitCount = 1;
+                visit.MentionCount = 1;
                 Visits[visit.Target] = visit;
                 return;
             }
 
-            existing.VisitCount = (existing.VisitCount ?? 1) + 1;
+            existing.MentionCount = (existing.MentionCount ?? 1) + 1;
             if (visit.WhenUtc > existing.WhenUtc)
             {
                 existing.WhenUtc = visit.WhenUtc;

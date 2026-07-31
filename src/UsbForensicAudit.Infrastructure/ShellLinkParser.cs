@@ -9,6 +9,17 @@ public sealed class ShellLinkInfo
     public string LinkPath { get; init; } = "";
     public string LocalBasePath { get; init; } = "";
     public string CommonPathSuffix { get; init; } = "";
+
+    /// <summary>
+    /// Путь к сетевой папке, если файл открывали не с диска этой машины:
+    /// «\\20.23.5.4\ModulsFiles». Ярлык хранит его отдельной структурой, и без
+    /// неё у сетевого файла оставалось только его имя без всякого пути.
+    /// </summary>
+    public string NetworkPath { get; init; } = "";
+
+    /// <summary>Буква диска, которой была подключена сетевая папка, если была.</summary>
+    public string NetworkDeviceName { get; init; } = "";
+
     public string VolumeLabel { get; init; } = "";
     public string VolumeSerialNumber { get; init; } = "";
     public DateTimeOffset? CreationTimeUtc { get; init; }
@@ -16,7 +27,13 @@ public sealed class ShellLinkInfo
     public DateTimeOffset? WriteTimeUtc { get; init; }
     public IReadOnlyList<string> StringHints { get; init; } = [];
 
-    public string BestTarget => CombinePath(LocalBasePath, CommonPathSuffix);
+    /// <summary>
+    /// Путь к тому, на что указывает ярлык. Для файла на диске это база плюс
+    /// остаток пути, для файла на сервере — сетевая папка плюс тот же остаток.
+    /// </summary>
+    public string BestTarget => string.IsNullOrWhiteSpace(LocalBasePath) && NetworkPath.Length > 0
+        ? CombinePath(NetworkPath, CommonPathSuffix)
+        : CombinePath(LocalBasePath, CommonPathSuffix);
 
     private static string CombinePath(string left, string right)
     {
@@ -39,6 +56,7 @@ public sealed class ShellLinkInfo
 public static class ShellLinkParser
 {
     private const uint LinkInfoFlagVolumeIdAndLocalBasePath = 0x1;
+    private const uint LinkInfoFlagCommonNetworkRelativeLink = 0x2;
     private static readonly Encoding SystemAnsiEncoding = GetSystemAnsiEncoding();
 
     public static ShellLinkInfo? TryParse(string path)
@@ -82,10 +100,13 @@ public static class ShellLinkParser
             string commonPathSuffix = "";
             string volumeLabel = "";
             string volumeSerial = "";
+            string networkPath = "";
+            string networkDeviceName = "";
 
             if (hasLinkInfo && data.Length >= offset + 0x1C)
             {
-                ParseLinkInfo(data, offset, out localBasePath, out commonPathSuffix, out volumeLabel, out volumeSerial);
+                ParseLinkInfo(data, offset, out localBasePath, out commonPathSuffix, out volumeLabel,
+                    out volumeSerial, out networkPath, out networkDeviceName);
             }
 
             var hints = ExtractInterestingStrings(data, 20);
@@ -95,6 +116,8 @@ public static class ShellLinkParser
                 LinkPath = sourceName,
                 LocalBasePath = localBasePath,
                 CommonPathSuffix = commonPathSuffix,
+                NetworkPath = networkPath,
+                NetworkDeviceName = networkDeviceName,
                 VolumeLabel = volumeLabel,
                 VolumeSerialNumber = volumeSerial,
                 CreationTimeUtc = ReadFileTime(data, 0x1C),
@@ -132,12 +155,22 @@ public static class ShellLinkParser
         return results;
     }
 
-    private static void ParseLinkInfo(byte[] data, int offset, out string localBasePath, out string commonPathSuffix, out string volumeLabel, out string volumeSerial)
+    private static void ParseLinkInfo(
+        byte[] data,
+        int offset,
+        out string localBasePath,
+        out string commonPathSuffix,
+        out string volumeLabel,
+        out string volumeSerial,
+        out string networkPath,
+        out string networkDeviceName)
     {
         localBasePath = "";
         commonPathSuffix = "";
         volumeLabel = "";
         volumeSerial = "";
+        networkPath = "";
+        networkDeviceName = "";
 
         var linkInfoSize = ReadUInt32(data, offset);
         if (linkInfoSize < 0x1C || offset + linkInfoSize > data.Length)
@@ -154,8 +187,23 @@ public static class ShellLinkParser
         if ((linkInfoFlags & LinkInfoFlagVolumeIdAndLocalBasePath) != 0)
         {
             localBasePath = ReadNullTerminatedAnsi(data, offset + (int)localBasePathOffset, offset + (int)linkInfoSize);
-            commonPathSuffix = ReadNullTerminatedAnsi(data, offset + (int)commonPathSuffixOffset, offset + (int)linkInfoSize);
             ParseVolumeId(data, offset + (int)volumeIdOffset, offset + (int)linkInfoSize, out volumeLabel, out volumeSerial);
+        }
+
+        // Остаток пути записан у ярлыка независимо от того, лежал файл на диске
+        // или на сервере, а вот база пути в этих случаях лежит в разных местах.
+        commonPathSuffix = ReadNullTerminatedAnsi(
+            data, offset + (int)commonPathSuffixOffset, offset + (int)linkInfoSize);
+
+        if ((linkInfoFlags & LinkInfoFlagCommonNetworkRelativeLink) != 0)
+        {
+            var networkOffset = ReadUInt32(data, offset + 0x14);
+            ParseNetworkRelativeLink(
+                data,
+                offset + (int)networkOffset,
+                offset + (int)linkInfoSize,
+                out networkPath,
+                out networkDeviceName);
         }
 
         if (linkInfoHeaderSize >= 0x24)
@@ -174,6 +222,58 @@ public static class ShellLinkParser
             {
                 commonPathSuffix = unicodeSuffix;
             }
+        }
+    }
+
+    /// <summary>
+    /// Структура сетевой ссылки ярлыка: имя сетевой папки и буква диска, которой
+    /// она была подключена. Имя лежит дважды — в однобайтовой кодировке и в
+    /// двухбайтовой; вторая появляется только у ярлыков с именами вне латиницы,
+    /// и предпочтение отдаётся ей.
+    /// </summary>
+    private static void ParseNetworkRelativeLink(
+        byte[] data,
+        int offset,
+        int end,
+        out string networkPath,
+        out string deviceName)
+    {
+        networkPath = "";
+        deviceName = "";
+
+        if (offset <= 0 || offset + 0x14 > end || offset + 0x14 > data.Length)
+        {
+            return;
+        }
+
+        var size = ReadUInt32(data, offset);
+        if (size < 0x14 || offset + size > end)
+        {
+            return;
+        }
+
+        var limit = offset + (int)size;
+        var netNameOffset = ReadUInt32(data, offset + 0x08);
+        var deviceNameOffset = ReadUInt32(data, offset + 0x0C);
+
+        networkPath = ReadNullTerminatedAnsi(data, offset + (int)netNameOffset, limit);
+        deviceName = ReadNullTerminatedAnsi(data, offset + (int)deviceNameOffset, limit);
+
+        if (netNameOffset <= 0x14)
+        {
+            return;
+        }
+
+        var unicodeNetName = ReadNullTerminatedUnicode(data, offset + (int)ReadUInt32(data, offset + 0x14), limit);
+        if (!string.IsNullOrWhiteSpace(unicodeNetName))
+        {
+            networkPath = unicodeNetName;
+        }
+
+        var unicodeDeviceName = ReadNullTerminatedUnicode(data, offset + (int)ReadUInt32(data, offset + 0x18), limit);
+        if (!string.IsNullOrWhiteSpace(unicodeDeviceName))
+        {
+            deviceName = unicodeDeviceName;
         }
     }
 

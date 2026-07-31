@@ -208,8 +208,13 @@ public sealed class NetworkVisit
 
     public string ResolvedUserName { get; set; } = "";
 
-    /// <summary>Сколько раз обращение повторялось, если артефакт ведёт счётчик.</summary>
-    public int? VisitCount { get; set; }
+    /// <summary>
+    /// В скольких следах встретилось это обращение. Числом обращений это не
+    /// является: Windows не считает, сколько раз открывали папку. Но след,
+    /// найденный сразу в дереве папок, в ярлыке и в журнале, весит больше
+    /// одиночного упоминания.
+    /// </summary>
+    public int? MentionCount { get; set; }
 
     public string Source { get; set; } = "";
 
@@ -236,10 +241,34 @@ public sealed class NetworkVisit
         : ResolvedUserName;
 
     [JsonIgnore]
-    public string VisitCountText => VisitCount is null or <= 0 ? "" : VisitCount.Value.ToString();
+    public string MentionCountText => MentionCount is null or <= 1
+        ? "След один"
+        : $"Следов: {MentionCount.Value}";
 
     [JsonIgnore]
     public string SourceText => UserDisplayText.Source(Source);
+}
+
+/// <summary>
+/// Пояснения к связям одними и теми же словами для всех сборщиков. Один и тот же
+/// сервер находят и журнал обращений, и следы проводника; когда каждый описывал
+/// его своими словами, в пояснении к строке стояли две почти одинаковые фразы
+/// подряд.
+/// </summary>
+public static class NetworkConnectionExplanations
+{
+    public const string ShareServer =
+        "Сервер, папки которого открывали с этой машины. Через сетевые папки файлы уходят с машины "
+        + "и приходят на неё, поэтому ниже перечислено, к чему на нём обращались";
+
+    public const string RemoteDesktopOutgoing =
+        "Узел, к которому с этой машины подключались по удалённому столу";
+
+    public const string RemoteDesktopIncoming =
+        "Вход на эту машину по удалённому столу с указанного адреса";
+
+    public const string Host =
+        "Узел, к которому обращались с этой машины";
 }
 
 /// <summary>
