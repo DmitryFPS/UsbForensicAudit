@@ -311,6 +311,27 @@ internal static class UsbRegistryForensicHelpers
     }
 
     /// <summary>
+    /// Единая запись идентификатора узла WPD. Один и тот же узел Windows хранит в
+    /// двух видах: в Enum имя ключа отделено решётками и заканчивается GUID класса
+    /// интерфейса, а в каталоге Portable Devices — обратными слешами и без GUID.
+    /// Без приведения к одному виду одна флешка попадала в отчёт двумя строками.
+    /// </summary>
+    internal static string BuildWpdInstanceId(WpdIdentity identity)
+    {
+        var backing = string.IsNullOrWhiteSpace(identity.BackingDeviceInstanceId)
+            ? identity.DeviceInstanceId
+            : identity.BackingDeviceInstanceId;
+        if (string.IsNullOrWhiteSpace(backing))
+        {
+            return "";
+        }
+
+        return backing.StartsWith(@"SWD\WPDBUSENUM\", StringComparison.OrdinalIgnoreCase)
+            ? backing
+            : $@"SWD\WPDBUSENUM\_??_{backing}";
+    }
+
+    /// <summary>
     /// Для узла WPD вида SWD\WPDBUSENUM\_??_USBSTOR\... возвращает идентификатор
     /// физического устройства, по которому запись склеивается с данными из Enum.
     /// </summary>
