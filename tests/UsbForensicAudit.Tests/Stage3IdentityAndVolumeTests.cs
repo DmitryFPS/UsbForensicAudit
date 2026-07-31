@@ -37,6 +37,70 @@ public sealed class Stage3IdentityAndVolumeTests
     }
 
     [Fact]
+    public void Wpd_node_merges_with_its_backing_usbstor_record()
+    {
+        var storage = Device(
+            @"USBSTOR\Disk&Ven_General&Prod_UDisk&Rev_5.00\2412242109410569603146&0",
+            "2412242109410569603146");
+        var portable = Device(
+            @"SWD\WPDBUSENUM\_??_USBSTOR#Disk&Ven_General&Prod_UDisk&Rev_5.00#2412242109410569603146&0#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}",
+            "2412242109410569603146");
+        portable.IdentityAliases.Add(
+            @"USBSTOR\Disk&Ven_General&Prod_UDisk&Rev_5.00\2412242109410569603146&0");
+        var devices = new List<UsbDeviceRecord> { storage, portable };
+
+        DeviceIdentityGraph.Process(devices);
+
+        Assert.Equal(storage.CanonicalDeviceId, portable.CanonicalDeviceId);
+    }
+
+    [Fact]
+    public void Two_flash_drives_stay_separate_after_wpd_merge()
+    {
+        var devices = new List<UsbDeviceRecord>
+        {
+            Device(@"USBSTOR\Disk&Ven_General&Prod_UDisk&Rev_5.00\2412242109410569603146&0", "2412242109410569603146"),
+            Device(@"USBSTOR\Disk&Ven_General&Prod_UDisk&Rev_5.00\2412281911546114543745&0", "2412281911546114543745")
+        };
+
+        DeviceIdentityGraph.Process(devices);
+
+        Assert.NotEqual(devices[0].CanonicalDeviceId, devices[1].CanonicalDeviceId);
+    }
+
+    [Fact]
+    public void Placeholder_container_id_does_not_merge_unrelated_devices()
+    {
+        const string placeholder = "{00000000-0000-0000-FFFF-FFFFFFFFFFFF}";
+        var devices = new List<UsbDeviceRecord>
+        {
+            Device(@"USB\ROOT_HUB30\4&2dda3b82&0&0", "4&2dda3b82&0&0", placeholder),
+            Device(@"SCSI\Disk&Ven_NVMe&Prod_T-FORCE\5&74ee85&0&000000", "5&74ee85&0&000000", placeholder),
+            Device(@"PCI\VEN_8086&DEV_7EC2\3&11583659&0&6A", "3&11583659&0&6A", placeholder)
+        };
+
+        DeviceIdentityGraph.Process(devices);
+
+        Assert.Equal(3, devices.Select(x => x.CanonicalDeviceId).Distinct().Count());
+    }
+
+    [Fact]
+    public void Canonical_id_is_stable_across_runs()
+    {
+        static List<UsbDeviceRecord> Build() =>
+        [
+            Device(@"USBSTOR\Disk&Ven_General&Prod_UDisk&Rev_5.00\2412242109410569603146&0", "2412242109410569603146")
+        ];
+
+        var first = Build();
+        var second = Build();
+        DeviceIdentityGraph.Process(first);
+        DeviceIdentityGraph.Process(second);
+
+        Assert.Equal(first[0].CanonicalDeviceId, second[0].CanonicalDeviceId);
+    }
+
+    [Fact]
     public void Container_id_links_usb_and_uasp_records()
     {
         var container = "{8B202FD7-8D72-4124-A711-C3849D29F245}";

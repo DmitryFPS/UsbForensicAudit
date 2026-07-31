@@ -22,6 +22,7 @@ public static class DeviceIdentityGraph
 
         var union = new UnionFind(devices.Count);
         JoinByStrongKey(devices, union, "instance", d => NormalizeInstance(d.DeviceInstanceId));
+        JoinByAliases(devices, union);
         JoinByStrongKey(devices, union, "container", d => NormalizeContainer(d.ContainerId));
         JoinByStrongKey(devices, union, "serial", d => IsHardwareSerial(d.Serial) ? NormalizeSerial(d.Serial) : "");
         JoinByStrongKey(devices, union, "topology", d => NormalizeTopology(d.ParentIdPrefix, d.LocationPaths));
@@ -92,6 +93,45 @@ public static class DeviceIdentityGraph
         return normalized.EndsWith("&0", StringComparison.Ordinal) ? normalized[..^2] : normalized;
     }
 
+    /// <summary>
+    /// Узел WPD и запись из Enum описывают одно устройство: связываем их по
+    /// идентификатору экземпляра, объявленному записью как псевдоним.
+    /// </summary>
+    private static void JoinByAliases(IList<UsbDeviceRecord> devices, UnionFind union)
+    {
+        var byInstance = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < devices.Count; i++)
+        {
+            if (IsUsbFlags(devices[i]))
+            {
+                continue;
+            }
+
+            var key = NormalizeInstance(devices[i].DeviceInstanceId);
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                byInstance.TryAdd(key, i);
+            }
+        }
+
+        for (var i = 0; i < devices.Count; i++)
+        {
+            if (IsUsbFlags(devices[i]))
+            {
+                continue;
+            }
+
+            foreach (var alias in devices[i].IdentityAliases)
+            {
+                var key = NormalizeInstance(alias);
+                if (!string.IsNullOrWhiteSpace(key) && byInstance.TryGetValue(key, out var other) && other != i)
+                {
+                    union.Union(i, other);
+                }
+            }
+        }
+    }
+
     private static void JoinByStrongKey(
         IList<UsbDeviceRecord> devices,
         UnionFind union,
@@ -156,11 +196,18 @@ public static class DeviceIdentityGraph
 
     private static string BuildCanonicalId(IReadOnlyList<UsbDeviceRecord> members)
     {
-        var key = members.Select(x => NormalizeContainer(x.ContainerId)).FirstOrDefault(x => x.Length > 0)
-                  ?? members.Select(x => IsHardwareSerial(x.Serial) ? NormalizeSerial(x.Serial) : "").FirstOrDefault(x => x.Length > 0)
-                  ?? members.Select(x => NormalizeTopology(x.ParentIdPrefix, x.LocationPaths)).FirstOrDefault(x => x.Length > 0)
-                  ?? members.Select(x => NormalizeInstance(x.DeviceInstanceId)).FirstOrDefault(x => x.Length > 0)
-                  ?? Guid.NewGuid().ToString("N");
+        // Ключ выбирается детерминированно, иначе один и тот же носитель получает
+        // разные идентификаторы в разных прогонах и отчёты нельзя сопоставить.
+        var key = members.Select(x => IsHardwareSerial(x.Serial) ? $"SERIAL:{NormalizeSerial(x.Serial)}" : "")
+                      .Where(x => x.Length > 0).OrderBy(x => x, StringComparer.Ordinal).FirstOrDefault()
+                  ?? members.Select(x => NormalizeContainer(x.ContainerId))
+                      .Where(x => x.Length > 0).Select(x => $"CONTAINER:{x}")
+                      .OrderBy(x => x, StringComparer.Ordinal).FirstOrDefault()
+                  ?? members.Select(x => NormalizeTopology(x.ParentIdPrefix, x.LocationPaths))
+                      .Where(x => x.Length > 0).OrderBy(x => x, StringComparer.Ordinal).FirstOrDefault()
+                  ?? members.Select(x => NormalizeInstance(x.DeviceInstanceId))
+                      .Where(x => x.Length > 0).OrderBy(x => x, StringComparer.Ordinal).FirstOrDefault()
+                  ?? string.Join('|', members.Select(x => x.Source).OrderBy(x => x, StringComparer.Ordinal));
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
         return $"DEV-{Convert.ToHexString(hash.AsSpan(0, 10))}";
     }
@@ -185,8 +232,27 @@ public static class DeviceIdentityGraph
         return CompositeInterfaceRegex.Replace(NormalizeInstance(device.DeviceInstanceId), "");
     }
 
-    private static string NormalizeContainer(string value) =>
-        Guid.TryParse(value.Trim(), out var parsed) ? parsed.ToString("D").ToUpperInvariant() : "";
+    /// <summary>
+    /// Windows выдаёт {00000000-0000-0000-FFFF-FFFFFFFFFFFF} всем устройствам,
+    /// у которых контейнера нет. Склейка по этому значению объединяет в одно
+    /// устройство весь набор встроенного оборудования, поэтому оно не идентификатор.
+    /// </summary>
+    private static readonly HashSet<string> NonIdentifyingContainerIds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "00000000-0000-0000-0000-000000000000",
+        "00000000-0000-0000-FFFF-FFFFFFFFFFFF"
+    };
+
+    private static string NormalizeContainer(string value)
+    {
+        if (!Guid.TryParse(value.Trim(), out var parsed))
+        {
+            return "";
+        }
+
+        var normalized = parsed.ToString("D").ToUpperInvariant();
+        return NonIdentifyingContainerIds.Contains(normalized) ? "" : normalized;
+    }
 
     private static string NormalizeTopology(string parent, string locationPaths)
     {

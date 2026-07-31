@@ -539,6 +539,9 @@ public sealed partial class HistoricalArtifactCollector : IHistoricalArtifactCol
                         UserMeaning = "Историческая запись Portable Devices из offline SOFTWARE; не доказывает текущее подключение.",
                         DeviceType = "Portable/MTP",
                         Serial = parsed.Serial,
+                        IdentityAliases = string.IsNullOrWhiteSpace(parsed.BackingDeviceInstanceId)
+                            ? []
+                            : [parsed.BackingDeviceInstanceId],
                         FriendlyName = FirstNotEmpty(ReadString(key, "FriendlyName"), ReadString(key, "Name")),
                         Manufacturer = FirstNotEmpty(ReadString(key, "Manufacturer"), ReadString(key, "Mfg")),
                         Product = FirstNotEmpty(ReadString(key, "Description"), ReadString(key, "DeviceDesc"), ReadString(key, "Model")),
