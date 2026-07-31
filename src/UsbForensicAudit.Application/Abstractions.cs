@@ -35,6 +35,50 @@ public interface IHistoricalArtifactCollector
 }
 
 /// <summary>
+/// Порт чтения изменений файловой системы на внутренних дисках. Нужен только для
+/// одного вывода: Windows не журналирует копирование файлов, но журнал изменений
+/// NTFS хранит момент появления файла на диске.
+///
+/// Записи журнала в результат аудита не попадают: их сотни тысяч, и после поиска
+/// признаков переноса они не нужны. Сохраняется только глубина журнала и сами
+/// найденные признаки.
+/// </summary>
+public interface IFileSystemChangeCollector
+{
+    string ProgressMessage { get; }
+
+    bool ShouldRun { get; }
+
+    FileSystemChangeSet Collect(List<string> warnings, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Изменения файлов вместе со сведениями о том, за какой период их удалось
+/// прочитать. Второе без первого бессмысленно: пустой список изменений без
+/// указания глубины журнала читается как «ничего не происходило».
+/// </summary>
+public sealed record FileSystemChangeSet(
+    IReadOnlyList<FileChangeRecord> Changes,
+    IReadOnlyList<FileChangeJournalState> Journals)
+{
+    public static FileSystemChangeSet Empty { get; } = new([], []);
+}
+
+/// <summary>
+/// Заглушка для сборок без доступа к тому: проверка не выполняется, и отчёт
+/// честно сообщает об этом отсутствием сведений о журнале.
+/// </summary>
+public sealed class NoFileSystemChangeCollector : IFileSystemChangeCollector
+{
+    public string ProgressMessage => "Чтение журнала изменений не выполняется.";
+
+    public bool ShouldRun => false;
+
+    public FileSystemChangeSet Collect(List<string> warnings, CancellationToken cancellationToken = default) =>
+        FileSystemChangeSet.Empty;
+}
+
+/// <summary>
 /// Порт хранилища результатов аудита (SQLite + JSONL).
 /// </summary>
 public interface IAuditStorage

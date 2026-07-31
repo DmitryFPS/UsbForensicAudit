@@ -21,12 +21,13 @@ public static partial class DeviceActivityBuilder
     public const int MaxEntries = 2000;
 
     public static DeviceActivityHistory Build(UsbDeviceRecord device, AuditResult result) =>
-        Build(device, result.Devices, result.Evidence);
+        Build(device, result.Devices, result.Evidence, result.FileChangeJournals);
 
     public static DeviceActivityHistory Build(
         UsbDeviceRecord device,
         IReadOnlyCollection<UsbDeviceRecord> allDevices,
-        IReadOnlyCollection<EvidenceRecord> evidence)
+        IReadOnlyCollection<EvidenceRecord> evidence,
+        IReadOnlyCollection<FileChangeJournalState>? journals = null)
     {
         var keys = DeviceLinkKeys.Build(device, allDevices);
         var history = new DeviceActivityHistory
@@ -34,7 +35,11 @@ public static partial class DeviceActivityBuilder
             DeviceDisplayName = device.DisplayName,
             CanonicalDeviceId = device.CanonicalDeviceId,
             LinkKeys = keys.Describe(),
-            CanSearchFileActivity = keys.HasFileActivityKey
+            CanSearchFileActivity = keys.HasFileActivityKey,
+            JournalCoverage = (journals ?? [])
+                .Select(x => x.CoverageText)
+                .Where(x => x.Length > 0)
+                .ToList()
         };
 
         if (!keys.HasAnyKey)
@@ -81,8 +86,36 @@ public static partial class DeviceActivityBuilder
             .OrderByDescending(x => x.TimestampUtc)
             .Take(MaxEntries)
             .ToList();
-        history.CopyIndications = CopyIndicationFinder.Find(history.Entries, keys, evidence);
+        history.CopyIndications = MergeCopyIndications(device, history.Entries, keys, evidence);
         return history;
+    }
+
+    /// <summary>
+    /// Признаки переноса приходят из двух источников. Найденные по журналу
+    /// изменений NTFS определены при сканировании и хранятся в самой записи
+    /// устройства: журнал в результат не сохраняется, и заново их не построить.
+    /// Совпадения имён по артефактам считаются здесь и добавляются только для
+    /// файлов, о которых журнал ничего не сказал: иначе слабый признак вытеснил
+    /// бы из отчёта сильный.
+    /// </summary>
+    private static List<CopyIndication> MergeCopyIndications(
+        UsbDeviceRecord device,
+        IReadOnlyCollection<DeviceActivityEntry> entries,
+        DeviceLinkKeys keys,
+        IReadOnlyCollection<EvidenceRecord> evidence)
+    {
+        var merged = new List<CopyIndication>(device.CopyIndications);
+        var known = merged
+            .Select(x => x.FileName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        merged.AddRange(CopyIndicationFinder.Find(entries, keys, evidence)
+            .Where(x => !known.Contains(x.FileName)));
+
+        return merged
+            .OrderByDescending(x => ConfidenceRank(x.Confidence))
+            .ThenByDescending(x => x.SeenLocallyUtc)
+            .ToList();
     }
 
     /// <summary>

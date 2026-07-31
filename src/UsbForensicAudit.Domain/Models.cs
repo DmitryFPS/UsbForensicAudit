@@ -84,6 +84,13 @@ public sealed class UsbDeviceRecord
     public List<IdentityTrustFinding> IdentityTrustFindings { get; set; } = [];
 
     /// <summary>
+    /// Признаки переноса файлов между этим устройством и внутренним диском.
+    /// Ищутся при сканировании, пока журнал изменений NTFS ещё под рукой: сам
+    /// журнал в результат не сохраняется, а найденные совпадения — сохраняются.
+    /// </summary>
+    public List<CopyIndication> CopyIndications { get; set; } = [];
+
+    /// <summary>
     /// Запись досталась от эталонного образа: устройство видел сборщик образа,
     /// а не человек, работающий за этой машиной.
     /// </summary>
@@ -342,6 +349,14 @@ public sealed class AuditResult
     public List<CleanupFinding> CleanupFindings { get; set; } = [];
     public List<string> SourceWarnings { get; set; } = [];
     public ScanCoverageReport Coverage { get; set; } = new();
+
+    /// <summary>
+    /// За какой период прочитан журнал изменений NTFS на каждом внутреннем томе.
+    /// Сами записи журнала в результат не сохраняются: их десятки тысяч, и после
+    /// поиска признаков переноса они не нужны. А вот глубина журнала нужна: без
+    /// неё «признаков переноса нет» читается шире, чем позволяют данные.
+    /// </summary>
+    public List<FileChangeJournalState> FileChangeJournals { get; set; } = [];
 }
 
 public sealed class ScanCoverageReport

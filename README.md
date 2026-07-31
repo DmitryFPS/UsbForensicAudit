@@ -258,9 +258,13 @@ UsbForensicAudit/
 14. CorrelationService               → доп. Evidence (корреляции)
 15. TimelineEnricher                 → даты, пояснения, WMI «подключено сейчас»
 16. CalculateDateCoverage            → ScanCoverageReport.ExactDateCoveragePercent
-17. CleanupDetector                  → CleanupFindings
-18. AuditStorage.Save                → SQLite + JSONL (audit_sessions, hash-chain)
+17. FileChangeJournalCollector       → журнал изменений NTFS (появление файлов на диске)
+18. FileCopyAnalyzer                 → CopyIndications, FileChangeJournals (перенос файлов)
+19. CleanupDetector                  → CleanupFindings
+20. AuditStorage.Save                → SQLite + JSONL (audit_sessions, hash-chain)
 ```
+
+Шаг 17 читает журнал изменений NTFS (`FSCTL_READ_USN_JOURNAL`) и требует прав администратора. Сами записи журнала — сотни тысяч на том — в результат не сохраняются: шаг 18 сопоставляет их с работой на устройствах и оставляет только найденные признаки переноса плюс глубину журнала. Глубина обязательна к сохранению: журнал затирается по кругу, и без периода вывод «переносов не найдено» читается шире, чем позволяют данные.
 
 Порядок шагов 2–8 задаётся регистрацией `IEvidenceCollector` в `InfrastructureServiceCollectionExtensions` (порядок `AddSingleton` = порядок выполнения). Шаг 9 — отдельный порт `IHistoricalArtifactCollector`.
 
@@ -270,6 +274,7 @@ UsbForensicAudit/
 |---|---|
 | `IUsbDeviceCollector` | первый шаг — устройства из реестра |
 | `IEvidenceCollector` | один источник доказательств; `ShouldRun` для условных сборщиков |
+| `IFileSystemChangeCollector` | изменения файлов на внутренних дисках из журнала NTFS — основа вывода о переносе |
 | `IAuditStorage` | персистентность результатов |
 | `ILiveDeviceMerger` | слияние с live-устройствами |
 | `IConnectedDeviceProbe` | WMI-проба «подключено сейчас» для TimelineEnricher |

@@ -122,15 +122,13 @@ public partial class DeviceActivityWindow : Window
                             + $"\t{entry.LinkText}\t{entry.SourceText}");
         }
 
-        if (_history.CopyIndications.Count > 0)
+        text.AppendLine();
+        text.AppendLine(_history.CopyVerdict());
+        foreach (var indication in _history.CopyIndications)
         {
-            text.AppendLine();
-            text.AppendLine(_history.CopyVerdict());
-            foreach (var indication in _history.CopyIndications)
-            {
-                text.AppendLine($"{indication.FileName}\t{indication.PathOnDevice}"
-                                + $"\t{indication.LocalPath}\t{indication.SeenLocallyText}");
-            }
+            text.AppendLine($"{indication.FileName}\t{indication.DirectionText}\t{indication.ConfidenceText}"
+                            + $"\t{indication.GapText}\t{indication.PathOnDevice}\t{indication.SeenOnDeviceText}"
+                            + $"\t{indication.LocalPath}\t{indication.SeenLocallyText}\t{indication.Basis}");
         }
 
         try
