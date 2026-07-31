@@ -65,6 +65,14 @@ public static class DeviceExternality
             return BusInfrastructure;
         }
 
+        // Услуга сопряжённого устройства — не устройство. У одного телефона их
+        // полтора десятка, и каждая приходила во вкладку отдельной строкой
+        // «Внешнее устройство» с непонятным именем вида «@bth.inf,%microsoft%».
+        if (BluetoothEnumeratorId.IsServiceRecord(device.DeviceInstanceId))
+        {
+            return BusInfrastructure;
+        }
+
         if (IsBusOwnInfrastructure(device))
         {
             return BusInfrastructure;
@@ -127,6 +135,12 @@ public static class DeviceExternality
         var text = $"{device.DeviceInstanceId} {device.Service} {device.FriendlyName} {device.HardwareIds}";
         return text.Contains("ROOT_HUB", StringComparison.OrdinalIgnoreCase)
                || text.Contains("HOST CONTROLLER", StringComparison.OrdinalIgnoreCase)
+               || text.Contains("HOST ROUTER", StringComparison.OrdinalIgnoreCase)
+               // Контроллер Thunderbolt распаян на материнской плате: через него
+               // подключают внешние устройства, но сам он никуда не уносится.
+               // Драйвер nhi обслуживает только контроллер, а туннелированные
+               // через него устройства достаются своим драйверам.
+               || device.Service.Equals("nhi", StringComparison.OrdinalIgnoreCase)
                || device.Service.Contains("USBXHCI", StringComparison.OrdinalIgnoreCase)
                || device.Service.Contains("USBEHCI", StringComparison.OrdinalIgnoreCase)
                || device.Service.StartsWith("Usb4", StringComparison.OrdinalIgnoreCase)
@@ -139,7 +153,7 @@ public static class DeviceExternality
         ExternalPeripheral => "Внешнее устройство",
         PossiblyExternal => "Возможно внешнее — не подтверждено",
         BuiltInDevice => "Встроено в машину",
-        BusInfrastructure => "Часть шины, а не отдельное устройство",
+        BusInfrastructure => "Часть устройства или шины, а не отдельное устройство",
         VirtualDevice => "Виртуальное, создано программой",
         RegistryTrace => "След в реестре, самого устройства нет",
         _ => "Определить не удалось"

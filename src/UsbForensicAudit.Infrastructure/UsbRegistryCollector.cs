@@ -605,7 +605,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         {
             Source = source,
             VisualCategory = GetVisualCategory(source),
-            UserMeaning = GetUserMeaning(source),
+            UserMeaning = GetUserMeaning(source, deviceId),
             DeviceInstanceId = deviceId,
             DeviceType = GuessDeviceType(source, familyName),
             Serial = CleanSerial(instanceName),
@@ -687,6 +687,18 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         records.Add(record);
     }
 
+    /// <summary>
+    /// Из всей шины PCI собираются только записи, связанные с USB4/Thunderbolt.
+    /// Их две породы, и путать их нельзя: контроллер стоит внутри машины, а вот
+    /// то, что пришло через него туннелем, кто-то принёс и воткнул в разъём.
+    /// </summary>
+    private static string DescribePciCandidate(string service) =>
+        service.Equals("nhi", StringComparison.OrdinalIgnoreCase)
+            ? "Контроллер Thunderbolt/USB4 на материнской плате. Сам он никуда не подключается — "
+              + "через него к машине подключают внешние устройства по разъёму Type-C."
+            : "Запись шины PCI со следами подключения через туннель USB4/Thunderbolt: "
+              + "так к машине подключают внешний диск, док-станцию или видеокарту.";
+
     private static void CollectRelevantPci(string path, List<UsbDeviceRecord> records, List<string> warnings)
     {
         try
@@ -729,7 +741,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                     {
                         Source = "Registry: PCI USB4/Thunderbolt tunnel",
                         VisualCategory = "RelatedStorage",
-                        UserMeaning = "Релевантный PCI instance с явным USB4/Thunderbolt/external-tunnel evidence; весь PCI не собирается.",
+                        UserMeaning = DescribePciCandidate(service),
                         DeviceInstanceId = deviceId,
                         DeviceType = "USB4/Thunderbolt PCI",
                         Serial = CleanSerial(instanceName),
@@ -1229,8 +1241,29 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         return "SupportArtifact";
     }
 
-    private static string GetUserMeaning(string source)
+    /// <summary>
+    /// Что означает запись человеческими словами. Идентификатор нужен здесь
+    /// потому, что одна и та же шина хранит и устройства, и их услуги: на шине
+    /// Bluetooth «Dev_887598C2F5F2» — сопряжённый телефон, а
+    /// «{0000112f-…}» — всего лишь доступ к его книге контактов.
+    /// </summary>
+    private static string GetUserMeaning(string source, string deviceInstanceId)
     {
+        if (BluetoothEnumeratorId.TryReadServiceUuid(deviceInstanceId, out var serviceUuid))
+        {
+            return BluetoothServiceCatalog.TryDescribe(serviceUuid, out var service, out _)
+                ? $"Услуга сопряжённого устройства Bluetooth: {service}. Это возможность соединения, "
+                  + "а не отдельное устройство: у одного телефона таких записей полтора десятка."
+                : "Услуга сопряжённого устройства Bluetooth. Это возможность соединения, "
+                  + "а не отдельное устройство.";
+        }
+
+        if (BluetoothEnumeratorId.IsPairedDeviceRecord(deviceInstanceId))
+        {
+            return "Устройство, сопряжённое с машиной по Bluetooth: телефон, гарнитура, часы. "
+                   + "Что через это соединение было можно, показано во вкладке «Сетевые подключения».";
+        }
+
         if (source.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase))
         {
             return "Реальное USB Mass Storage устройство: флешка, внешний диск или кардридер.";
