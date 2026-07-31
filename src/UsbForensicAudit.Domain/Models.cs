@@ -95,6 +95,16 @@ public sealed class UsbDeviceRecord
     /// а не человек, работающий за этой машиной.
     /// </summary>
     public bool InheritedFromReferenceImage { get; set; }
+    /// <summary>
+    /// Имя, взятое у другой записи того же устройства. Windows называет
+    /// родительскую запись по классу — «USB Composite Device», — а модель
+    /// пишет у функции: «Integrated Camera». В списке устройство стоит одной
+    /// строкой, и в ней должно быть имя вещи, а не имя класса. Собственные
+    /// значения записи при этом не меняются: FriendlyName, Mfg и DeviceDesc
+    /// остаются такими, какими их хранит реестр.
+    /// </summary>
+    public string GroupDisplayName { get; set; } = "";
+
     public bool IsCurrentlyConnected { get; set; }
     public string ConnectionDisplayKind { get; set; } = "";
     public string DisconnectDisplayKind { get; set; } = "";
@@ -102,7 +112,14 @@ public sealed class UsbDeviceRecord
     public string RawJson { get; set; } = "";
 
     [JsonIgnore]
-    public string DisplayName => UserDisplayText.DeviceDisplayName(FriendlyName, Manufacturer, Product, DeviceInstanceId);
+    public string DisplayName => string.IsNullOrWhiteSpace(GroupDisplayName)
+        ? OwnDisplayName
+        : GroupDisplayName;
+
+    /// <summary>Имя из значений самой записи, без заимствования у соседей.</summary>
+    [JsonIgnore]
+    public string OwnDisplayName =>
+        UserDisplayText.DeviceDisplayName(FriendlyName, Manufacturer, Product, DeviceInstanceId);
 
     [JsonIgnore]
     public string FirstConnectedText => UserDisplayText.ConnectionText(ConnectionDisplayKind, FirstConnectedUtc);

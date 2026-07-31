@@ -198,7 +198,10 @@ public class DeviceExternalityTests
         var summary = MainViewModel.DescribeExternalDevices([media, hub]);
 
         Assert.Contains("Принесённых устройств: 1", summary);
-        Assert.Contains("Всего записей в таблице: 2", summary);
+        // Корневой концентратор — часть машины: в таблице его нет, но и потерян
+        // он не был, о чём сводка говорит прямо.
+        Assert.Contains("Строк в таблице: 1", summary);
+        Assert.Contains("Свёрнуто в них записей реестра: 1", summary);
     }
 
     private static UsbDeviceRecord Classified(UsbDeviceRecord device)
