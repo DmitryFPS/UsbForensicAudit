@@ -166,6 +166,27 @@ public sealed class UsbRegistryForensicHelpersTests
         Assert.Equal("8dde262e", identity.Serial);
     }
 
+    [Theory]
+    [InlineData("Device Parameters", true)]
+    [InlineData("Properties", true)]
+    [InlineData("LogConf", true)]
+    [InlineData("Control", true)]
+    [InlineData("2412242109410569603146&0", false)]
+    [InlineData("_??_USBSTOR#Disk&Ven_General&Prod_UDisk&Rev_5.00#2412242109410569603146&0#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}", false)]
+    public void Service_subkeys_of_a_device_are_not_devices(string name, bool expected)
+    {
+        Assert.Equal(expected, UsbRegistryCollector.IsServiceSubKey(name));
+    }
+
+    [Theory]
+    [InlineData(@"SYSTEM\ControlSet001\Enum\USBSTOR", "Registry: USBSTOR", "USBSTOR")]
+    [InlineData(@"SYSTEM\ControlSet001\Enum\USB", "Registry: USB", "USB")]
+    [InlineData(@"SYSTEM\ControlSet001\Enum\SWD\WPDBUSENUM", "Registry: WPD/MTP", @"SWD\WPDBUSENUM")]
+    public void Bus_name_comes_from_the_registry_path(string path, string source, string expected)
+    {
+        Assert.Equal(expected, UsbRegistryCollector.ExtractEnumPath(path, source));
+    }
+
     [Fact]
     public void IdentitiesCorrelate_matches_container_or_serial()
     {
