@@ -27,6 +27,7 @@ internal static class ExcelReportGenerator
 
         AddSummarySheet(workbook, context, isBrief: false);
         AddDevicesSheet(workbook, context.ReportableDevices, "USB устройства");
+        AddDeviceActivitySheet(workbook, context);
         AddEvidenceSheet(workbook, context.Timeline);
         AddCleanupSheet(workbook, context.CleanupFindings, brief: false);
         AddWarningsSheet(workbook, context.Result.SourceWarnings);
@@ -118,6 +119,8 @@ internal static class ExcelReportGenerator
                      ("Релевантных признаков очистки", context.CleanupFindings.Count.ToString()),
                      ("Подозрительных", context.SuspiciousCount.ToString()),
                      ("Требуют внимания", context.AttentionCount.ToString()),
+                     ("Устройств со следами работы с файлами",
+                         context.DevicesWithActivity().Count().ToString()),
                      ("Высокий риск", context.HighRiskCount.ToString()),
                      ("Предупреждений", result.SourceWarnings.Count.ToString()),
                      ("Canonical с точной датой",
@@ -242,6 +245,38 @@ internal static class ExcelReportGenerator
             };
             worksheet.Range(index + 5, 1, index + 5, columns.Length).Style.Fill.BackgroundColor = color;
         }
+    }
+
+    /// <summary>
+    /// Что делали на каждом устройстве, одним листом. Столбец с основанием
+    /// привязки обязателен: без него строка «открывали E:\Фото» не проверяется,
+    /// а буква диска за год могла достаться нескольким носителям.
+    /// </summary>
+    private static void AddDeviceActivitySheet(XLWorkbook workbook, ForensicReportContext context)
+    {
+        var rows = context.DevicesWithActivity()
+            .SelectMany(x => x.History.Entries.Select(entry => (Device: x.Device, Entry: entry)))
+            .OrderBy(x => x.Device.DisplayName, StringComparer.CurrentCulture)
+            .ThenByDescending(x => x.Entry.TimestampUtc)
+            .ToArray();
+
+        AddDataSheet(
+            workbook,
+            "Действия на устройствах",
+            "Какие папки открывали, какие файлы открывали и удаляли, что запускали — по каждому устройству. "
+            + "Столбец «Почему отнесено к устройству» показывает основание привязки.",
+            rows,
+            [
+                Column<(UsbDeviceRecord Device, DeviceActivityEntry Entry)>("Устройство", 34, x => x.Device.DisplayName),
+                Column<(UsbDeviceRecord Device, DeviceActivityEntry Entry)>("Когда", 24, x => x.Entry.TimestampText),
+                Column<(UsbDeviceRecord Device, DeviceActivityEntry Entry)>("Что делали", 34, x => x.Entry.KindText),
+                Column<(UsbDeviceRecord Device, DeviceActivityEntry Entry)>("Папка или файл", 60, x => x.Entry.PathText),
+                Column<(UsbDeviceRecord Device, DeviceActivityEntry Entry)>("Кто", 28, x => x.Entry.UserText),
+                Column<(UsbDeviceRecord Device, DeviceActivityEntry Entry)>("Почему отнесено к устройству", 46, x => x.Entry.LinkText),
+                Column<(UsbDeviceRecord Device, DeviceActivityEntry Entry)>("Что означает время", 52, x => x.Entry.TimeMeaning),
+                Column<(UsbDeviceRecord Device, DeviceActivityEntry Entry)>("Откуда взято", 32, x => x.Entry.SourceText),
+                Column<(UsbDeviceRecord Device, DeviceActivityEntry Entry)>("Ссылка на источник", 64, x => x.Entry.Provenance)
+            ]);
     }
 
     private static void AddEvidenceSheet(XLWorkbook workbook, IEnumerable<EvidenceRecord> evidence)

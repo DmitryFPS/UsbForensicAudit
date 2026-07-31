@@ -1,0 +1,242 @@
+using System.Text.Json.Serialization;
+
+namespace UsbForensicAudit;
+
+/// <summary>
+/// Одно действие, совершённое на конкретном внешнем устройстве: открыли папку,
+/// открыли файл, удалили файл, запустили программу. Кроме самого действия
+/// запись всегда несёт основание, по которому она отнесена именно к этому
+/// устройству, — без него читатель не может проверить вывод.
+/// </summary>
+public sealed class DeviceActivityEntry
+{
+    public DateTimeOffset TimestampUtc { get; set; }
+
+    public string Kind { get; set; } = DeviceActivityKind.Unknown;
+
+    /// <summary>Папка или файл, к которому обращались.</summary>
+    public string Path { get; set; } = "";
+
+    public string UserSid { get; set; } = "";
+
+    public string ResolvedUserName { get; set; } = "";
+
+    /// <summary>Артефакт Windows, из которого взято действие.</summary>
+    public string Source { get; set; } = "";
+
+    /// <summary>
+    /// Почему запись отнесена к этому устройству: серийный номер тома, GUID
+    /// тома, идентификатор устройства, имя в проводнике или буква диска.
+    /// </summary>
+    public string LinkBasis { get; set; } = "";
+
+    public string LinkConfidence { get; set; } = "Low";
+
+    /// <summary>Что означает отметка времени у этого артефакта.</summary>
+    public string TimeMeaning { get; set; } = "";
+
+    public string Provenance { get; set; } = "";
+
+    [JsonIgnore]
+    public string TimestampText => DateDisplay.FormatMoscow(TimestampUtc);
+
+    [JsonIgnore]
+    public string KindText => DeviceActivityKind.Describe(Kind);
+
+    [JsonIgnore]
+    public string PathText => ReportText.ForDisplay(Path, 500);
+
+    [JsonIgnore]
+    public string UserText => string.IsNullOrWhiteSpace(ResolvedUserName)
+        ? (string.IsNullOrWhiteSpace(UserSid) ? "Пользователь не определён" : UserSid)
+        : ResolvedUserName;
+
+    [JsonIgnore]
+    public string LinkText => $"{LinkBasis} ({DeviceActivityHistory.DescribeConfidence(LinkConfidence)})";
+
+    [JsonIgnore]
+    public string SourceText => UserDisplayText.Source(Source);
+}
+
+/// <summary>
+/// Виды действий, которые Windows сохраняет в своих артефактах. Разделены по
+/// тому, что именно произошло, а не по тому, из какого файла реестра это взято:
+/// читателя интересует «открыли папку», а не «BagMRU».
+/// </summary>
+public static class DeviceActivityKind
+{
+    public const string FolderBrowse = "FolderBrowse";
+    public const string FolderTyped = "FolderTyped";
+    public const string FileOpen = "FileOpen";
+    public const string FileDialog = "FileDialog";
+    public const string FileDelete = "FileDelete";
+    public const string ProgramRun = "ProgramRun";
+    public const string Search = "Search";
+    public const string Mount = "Mount";
+    public const string Connection = "Connection";
+    public const string Unknown = "Unknown";
+
+    public static string Describe(string? kind) => kind switch
+    {
+        FolderBrowse => "Открывали папку в проводнике",
+        FolderTyped => "Путь вводили вручную в адресной строке",
+        FileOpen => "Открывали файл",
+        FileDialog => "Выбирали файл в окне открытия или сохранения",
+        FileDelete => "Удаляли файл в корзину",
+        ProgramRun => "Запускали программу",
+        Search => "Искали по содержимому",
+        Mount => "Проводник запомнил подключение тома",
+        Connection => "Подключение или отключение устройства",
+        _ => "Действие определить не удалось"
+    };
+
+    /// <summary>
+    /// Порядок разделов в отчёте: сначала то, что говорит о работе с файлами.
+    /// </summary>
+    public static int Rank(string? kind) => kind switch
+    {
+        FolderBrowse => 0,
+        FolderTyped => 1,
+        FileOpen => 2,
+        FileDialog => 3,
+        FileDelete => 4,
+        ProgramRun => 5,
+        Search => 6,
+        Mount => 7,
+        Connection => 8,
+        _ => 9
+    };
+}
+
+/// <summary>
+/// Признак того, что файл с устройства мог быть скопирован на эту машину.
+/// Windows не ведёт журнал копирования: одинаковое имя файла на устройстве и на
+/// внутреннем диске — это повод проверить, а не доказательство.
+/// </summary>
+public sealed class CopyIndication
+{
+    public string FileName { get; set; } = "";
+    public string PathOnDevice { get; set; } = "";
+    public string LocalPath { get; set; } = "";
+    public DateTimeOffset? SeenOnDeviceUtc { get; set; }
+    public DateTimeOffset? SeenLocallyUtc { get; set; }
+    public string Source { get; set; } = "";
+
+    [JsonIgnore]
+    public string SeenOnDeviceText => DateDisplay.FormatMoscowOr(SeenOnDeviceUtc, "Время неизвестно");
+
+    [JsonIgnore]
+    public string SeenLocallyText => DateDisplay.FormatMoscowOr(SeenLocallyUtc, "Время неизвестно");
+}
+
+/// <summary>
+/// Всё, что удалось восстановить о работе на одном устройстве.
+/// </summary>
+public sealed class DeviceActivityHistory
+{
+    public string DeviceDisplayName { get; set; } = "";
+    public string CanonicalDeviceId { get; set; } = "";
+
+    public List<DeviceActivityEntry> Entries { get; set; } = [];
+
+    public List<CopyIndication> CopyIndications { get; set; } = [];
+
+    /// <summary>
+    /// По каким признакам вообще можно было искать следы этого устройства.
+    /// Если признаков нет, пустая история не означает, что ничего не делали.
+    /// </summary>
+    public List<string> LinkKeys { get; set; } = [];
+
+    /// <summary>
+    /// Есть ли у устройства признак, по которому вообще можно найти работу с
+    /// файлами: буква диска, серийный номер тома, GUID тома или видимое имя.
+    /// </summary>
+    public bool CanSearchFileActivity { get; set; }
+
+    [JsonIgnore]
+    public int FolderCount => Entries
+        .Where(x => x.Kind is DeviceActivityKind.FolderBrowse or DeviceActivityKind.FolderTyped)
+        .Select(x => x.Path)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Count();
+
+    [JsonIgnore]
+    public int FileCount => Entries
+        .Where(x => x.Kind is DeviceActivityKind.FileOpen or DeviceActivityKind.FileDialog or DeviceActivityKind.FileDelete)
+        .Select(x => x.Path)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Count();
+
+    [JsonIgnore]
+    public int ProgramCount => Entries
+        .Where(x => x.Kind == DeviceActivityKind.ProgramRun)
+        .Select(x => x.Path)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Count();
+
+    [JsonIgnore]
+    public bool IsEmpty => Entries.Count == 0;
+
+    /// <summary>
+    /// Короткий вывод для шапки окна и отчёта. Отдельно оговаривает случай, когда
+    /// искать было не по чему: пустая история и отсутствие признаков поиска —
+    /// разные вещи, и путать их нельзя.
+    /// </summary>
+    public string Verdict()
+    {
+        if (LinkKeys.Count == 0 || !CanSearchFileActivity)
+        {
+            return "У этого устройства нет ни буквы диска, ни серийного номера тома, ни GUID тома, "
+                   + "ни видимого имени в проводнике. Проводник записывает путь вида «E:\\Папка», а не "
+                   + "идентификатор устройства, поэтому следы работы с файлами по такому устройству "
+                   + "найти нечем. Пустая история здесь означает невозможность поиска, а не отсутствие "
+                   + "действий."
+                   + (IsEmpty ? "" : $" Найдено {Entries.Count} записей по идентификатору устройства.");
+        }
+
+        if (IsEmpty)
+        {
+            return $"Следов работы с файлами не найдено. Искали по признакам: {string.Join("; ", LinkKeys)}. "
+                   + "Это значит, что артефакты проводника не сохранили обращений к этому устройству "
+                   + "либо были очищены.";
+        }
+
+        var parts = new List<string>();
+        if (FolderCount > 0)
+        {
+            parts.Add($"папок открывали — {FolderCount}");
+        }
+
+        if (FileCount > 0)
+        {
+            parts.Add($"файлов затронуто — {FileCount}");
+        }
+
+        if (ProgramCount > 0)
+        {
+            parts.Add($"программ запускали — {ProgramCount}");
+        }
+
+        var summary = parts.Count > 0 ? string.Join(", ", parts) : $"записей — {Entries.Count}";
+        return $"Найдено {Entries.Count} действий: {summary}. Искали по признакам: {string.Join("; ", LinkKeys)}.";
+    }
+
+    /// <summary>
+    /// Windows не журналирует копирование файлов. Об этом надо сказать прямо,
+    /// иначе пустой раздел прочитают как «ничего не копировали».
+    /// </summary>
+    public string CopyVerdict() =>
+        CopyIndications.Count == 0
+            ? "Признаков копирования не найдено. Windows не ведёт журнал копирования файлов: "
+              + "само по себе отсутствие признаков не доказывает, что с устройства ничего не переносили."
+            : $"Найдено совпадений имён файлов между устройством и внутренним диском: {CopyIndications.Count}. "
+              + "Это повод проверить, а не доказательство копирования: Windows журнал копирования не ведёт, "
+              + "а совпасть может и имя постороннего файла.";
+
+    public static string DescribeConfidence(string? confidence) => confidence switch
+    {
+        "High" => "надёжно",
+        "Medium" => "с оговорками",
+        _ => "предположительно"
+    };
+}

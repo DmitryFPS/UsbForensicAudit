@@ -123,6 +123,58 @@ internal sealed class ForensicReportContext
     public static ForensicReportContext Create(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null) =>
         new(result, externalUtilitySnapshot);
 
+    private readonly Dictionary<string, DeviceActivityHistory> _activityCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Что делали на устройстве: какие папки открывали, какие файлы открывали и
+    /// удаляли, что запускали. Разбор одного устройства проходит по всему списку
+    /// улик, поэтому результат запоминается: досье и сводные листы просят одно и
+    /// то же по нескольку раз.
+    /// </summary>
+    public DeviceActivityHistory GetActivity(UsbDeviceRecord device)
+    {
+        var key = device.DeviceInstanceId.Length > 0 ? device.DeviceInstanceId : device.CanonicalDeviceId;
+        if (_activityCache.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        var history = DeviceActivityBuilder.Build(device, Result);
+        _activityCache[key] = history;
+        return history;
+    }
+
+    /// <summary>
+    /// Устройства, по которым вообще есть что рассказать о работе с файлами.
+    /// </summary>
+    public IEnumerable<(UsbDeviceRecord Device, DeviceActivityHistory History)> DevicesWithActivity() =>
+        ReportableDevices
+            .Select(device => (Device: device, History: GetActivity(device)))
+            .Where(x => !x.History.IsEmpty);
+
+    /// <summary>
+    /// Одна фраза о работе с файлами для всех отчётов. Отдельно называет число
+    /// устройств, по которым искать было не по чему: без этого нулевой результат
+    /// прочитают как «на устройствах ничего не делали».
+    /// </summary>
+    public string ActivityVerdict()
+    {
+        var withActivity = DevicesWithActivity().ToArray();
+        var searchable = ReportableDevices.Count(x => GetActivity(x).CanSearchFileActivity);
+        var actions = withActivity.Sum(x => x.History.Entries.Count);
+        var unsearchable = ReportableDevices.Count - searchable;
+        var tail = unsearchable > 0
+            ? $" Ещё у {unsearchable} записей нет буквы диска, серийного номера тома или видимого имени, "
+              + "поэтому следы работы с файлами по ним искать нечем."
+            : "";
+
+        return withActivity.Length == 0
+            ? $"Следов работы с файлами не найдено ни по одному из {searchable} устройств, "
+              + "по которым поиск был возможен." + tail
+            : $"Восстановлена работа с файлами по {withActivity.Length} устройствам из {searchable}, "
+              + $"по которым поиск был возможен: всего {actions} действий." + tail;
+    }
+
     public static IEnumerable<EvidenceRecord> GetRelatedEvidence(ForensicReportContext context, UsbDeviceRecord device)
     {
         var tokens = BuildSearchTokens(device).ToArray();
@@ -413,7 +465,8 @@ internal static class ForensicReportBuilder
         html.AppendLine($"<b>высокого риска:</b> {ctx.HighRiskCount}; ");
         html.AppendLine($"<b>предупреждений:</b> {result.SourceWarnings.Count}; ");
         html.AppendLine($"<b>canonical devices с точной датой:</b> {result.Coverage.CanonicalDevicesWithExactDates}/{result.Coverage.CanonicalDeviceCount} ({result.Coverage.ExactDateCoveragePercent:0.##}%)<br>");
-        html.AppendLine($"<span class=\"muted\">{E(ctx.CleanupVerdict())}</span>");
+        html.AppendLine($"<span class=\"muted\">{E(ctx.CleanupVerdict())}</span><br>");
+        html.AppendLine($"<span class=\"muted\">{E(ctx.ActivityVerdict())}</span>");
         html.AppendLine("</div>");
 
         html.AppendLine("<h3>Покрытие источников</h3><table><tr><th>Источник</th><th>Статус</th><th>Записей</th><th>Лимит</th><th>Ошибка/ограничение</th></tr>");
@@ -606,8 +659,54 @@ internal static class ForensicReportBuilder
                 html.AppendLine("</table>");
             }
 
+            AppendDeviceActivity(html, ctx.GetActivity(device));
             html.AppendLine("</section>");
         }
+    }
+
+    /// <summary>
+    /// Что делали на устройстве. Отдельно от «связанных доказательств»: там
+    /// перечислено всё, что упоминает устройство, а здесь — только действия
+    /// человека, и у каждого видно основание привязки к этому устройству.
+    /// </summary>
+    private static void AppendDeviceActivity(StringBuilder html, DeviceActivityHistory history)
+    {
+        html.AppendLine($"<h4>Что делали на устройстве ({history.Entries.Count})</h4>");
+        html.AppendLine($"<p class=\"muted\">{E(history.Verdict())}</p>");
+        if (history.Entries.Count > 0)
+        {
+            html.AppendLine("<table><tr><th>Когда</th><th>Что делали</th><th>Папка или файл</th><th>Кто</th>"
+                            + "<th>Почему отнесено к этому устройству</th><th>Что означает время</th>"
+                            + "<th>Откуда взято</th></tr>");
+            foreach (var entry in history.Entries)
+            {
+                html.AppendLine(
+                    $"<tr><td>{E(entry.TimestampText)}</td><td>{E(entry.KindText)}</td><td>{E(entry.PathText)}</td>" +
+                    $"<td>{E(entry.UserText)}</td><td>{E(entry.LinkText)}</td><td>{E(entry.TimeMeaning)}</td>" +
+                    $"<td>{E(entry.SourceText)}</td></tr>");
+            }
+
+            html.AppendLine("</table>");
+        }
+
+        html.AppendLine("<h4>Признаки копирования</h4>");
+        html.AppendLine($"<p class=\"muted\">{E(history.CopyVerdict())}</p>");
+        if (history.CopyIndications.Count == 0)
+        {
+            return;
+        }
+
+        html.AppendLine("<table><tr><th>Имя файла</th><th>Путь на устройстве</th><th>Когда виден на устройстве</th>"
+                        + "<th>Путь на внутреннем диске</th><th>Когда виден на диске</th><th>Откуда взято</th></tr>");
+        foreach (var indication in history.CopyIndications)
+        {
+            html.AppendLine(
+                $"<tr><td>{E(indication.FileName)}</td><td>{E(indication.PathOnDevice)}</td>" +
+                $"<td>{E(indication.SeenOnDeviceText)}</td><td>{E(indication.LocalPath)}</td>" +
+                $"<td>{E(indication.SeenLocallyText)}</td><td>{E(indication.Source)}</td></tr>");
+        }
+
+        html.AppendLine("</table>");
     }
 
     private static void AppendTimelineSection(StringBuilder html, ForensicReportContext ctx)

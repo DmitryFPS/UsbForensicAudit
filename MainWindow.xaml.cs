@@ -106,7 +106,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var detailsWindow = new DeviceDetailsWindow(device)
+        var detailsWindow = new DeviceDetailsWindow(device, _vm.LastResult)
         {
             Owner = this
         };
