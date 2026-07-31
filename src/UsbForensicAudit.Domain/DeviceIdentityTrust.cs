@@ -48,6 +48,16 @@ public static class DeviceIdentityTrust
                 + "и совпадение серийных номеров у двух устройств ничего не доказывает.",
                 "Medium"));
         }
+        else if (IsPlaceholderSerial(serial))
+        {
+            findings.Add(new IdentityTrustFinding(
+                "Серийный номер выглядит как значение по умолчанию",
+                $"Серийный номер «{serial}» — шаблонная последовательность, которую контроллеры "
+                + "отдают, когда собственный номер в прошивку не записан. Такие номера встречаются "
+                + "у множества не связанных между собой изделий, поэтому по нему нельзя ни опознать "
+                + "устройство, ни утверждать, что два следа оставлены одним и тем же носителем.",
+                "High"));
+        }
 
         var vidPid = $"{device.Vid}:{device.Pid}";
         if (DefaultVidPid.Contains(vidPid))
@@ -145,6 +155,69 @@ public static class DeviceIdentityTrust
 
         var value = serial.Trim();
         return value.Length > 1 && value[1] == '&';
+    }
+
+    /// <summary>
+    /// Известные шаблонные номера и монотонные последовательности вроде
+    /// 0123456789ABCDEF или 12345678. Контроллер отдаёт их, когда собственный
+    /// номер в прошивку не записан, — то есть номер принадлежит не изделию, а
+    /// эталонной прошивке, и на нём нельзя строить вывод об одном и том же
+    /// носителе.
+    /// </summary>
+    public static bool IsPlaceholderSerial(string? serial)
+    {
+        if (string.IsNullOrWhiteSpace(serial))
+        {
+            return false;
+        }
+
+        var value = serial.Trim().Split('&')[0];
+        if (value.Length < 6)
+        {
+            return false;
+        }
+
+        if (KnownPlaceholderSerials.Contains(value))
+        {
+            return true;
+        }
+
+        return IsMonotonicSequence(value);
+    }
+
+    private static readonly HashSet<string> KnownPlaceholderSerials = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "0123456789ABCDEF", "0123456789", "123456789", "12345678", "1234567890",
+        "000000000000", "111111111111", "0123456789AB", "DEADBEEF", "ABCDEF",
+        "SERIALNUMBER", "0000000000000000", "NONE", "DEFAULT", "0123456789ABCDE"
+    };
+
+    /// <summary>
+    /// Номер, знаки которого идут строго подряд по коду в одну сторону: 12345678,
+    /// ABCDEFGH, 98765432. Настоящий серийный номер так не выглядит.
+    /// </summary>
+    private static bool IsMonotonicSequence(string value)
+    {
+        if (!value.All(char.IsAsciiLetterOrDigit))
+        {
+            return false;
+        }
+
+        var step = value[1] - value[0];
+        if (step is not (1 or -1))
+        {
+            return false;
+        }
+
+        for (var index = 2; index < value.Length; index++)
+        {
+            if (value[index] - value[index - 1] != step)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public static bool IsRepeatedCharacterSerial(string? serial)
