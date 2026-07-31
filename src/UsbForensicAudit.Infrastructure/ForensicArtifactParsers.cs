@@ -5,8 +5,13 @@ using System.Text.RegularExpressions;
 
 namespace UsbForensicAudit;
 
-internal sealed record PidlArtifact(IReadOnlyList<string> PathFragments, string BestPath, string VolumeGuid);
-internal sealed record ShellBagArtifact(string Path, int? Slot, bool IsUsbRelevant);
+internal sealed record PidlArtifact(
+    IReadOnlyList<string> PathFragments,
+    string BestPath,
+    string VolumeGuid,
+    bool HasPortableDeviceItem = false);
+
+internal sealed record ShellBagArtifact(string Path, int? Slot, bool IsUsbRelevant, string RelevanceReason = "");
 internal sealed record JumpListEntry(string AppId, string StreamName, ShellLinkInfo Link, DateTimeOffset? EntryTimestampUtc);
 internal sealed record ShimcacheEntry(string Path, DateTimeOffset? LastModifiedUtc, bool ExecutionProven);
 internal sealed record ShimcacheParseResult(bool Supported, string Layout, IReadOnlyList<ShimcacheEntry> Entries, string Warning);
@@ -51,6 +56,7 @@ internal static partial class ForensicArtifactParsers
         }
 
         var fragments = new List<string>();
+        var hasPortableDeviceItem = false;
         var offset = 0;
         for (var count = 0; count < MaxPidlItems && offset + 2 <= bytes.Length; count++)
         {
@@ -65,7 +71,7 @@ internal static partial class ForensicArtifactParsers
             }
 
             var body = bytes.AsSpan(offset + 2, size - 2);
-            ExtractShellItemNames(body, fragments);
+            hasPortableDeviceItem |= ExtractShellItemNames(body, fragments);
             ExtractReadableStrings(body, fragments);
             offset += size;
         }
@@ -86,17 +92,68 @@ internal static partial class ForensicArtifactParsers
             .Where(x => DrivePathRegex().IsMatch(x) || VolumePathRegex().IsMatch(x) || x.Contains('\\'))
             .OrderByDescending(x => x.Length)
             .FirstOrDefault() ?? string.Join("\\", unique.Where(x => !GuidOnlyRegex().IsMatch(x)).Take(12));
-        return new PidlArtifact(unique, bestPath, volume);
+        return new PidlArtifact(unique, bestPath, volume, hasPortableDeviceItem);
     }
 
-    internal static ShellBagArtifact ParseShellBagNode(byte[]? value, string parentPath, int? slot)
+    internal static ShellBagArtifact ParseShellBagNode(
+        byte[]? value, string parentPath, int? slot, string? systemDrive = null)
     {
         var pidl = ParsePidl(value);
         var fragment = pidl.BestPath;
         var path = string.IsNullOrWhiteSpace(parentPath)
             ? fragment
             : string.IsNullOrWhiteSpace(fragment) ? parentPath : $"{parentPath.TrimEnd('\\')}\\{fragment.TrimStart('\\')}";
-        return new ShellBagArtifact(path, slot, IsUsbOrVolumeMarker(path + " " + pidl.VolumeGuid));
+
+        var reason = RelevanceReason(path, pidl, systemDrive);
+        return new ShellBagArtifact(path, slot, reason.Length > 0, reason);
+    }
+
+    /// <summary>
+    /// Прежний отбор оставлял узел, только если в тексте пути было слово USB, WPD,
+    /// removable или GUID тома. Папка на флешке выглядит как обычный путь E:\Фото,
+    /// а папка на телефоне — как имя устройства, и обе отбрасывались: в отчёте не
+    /// было видно, куда пользователь заходил на съёмном носителе.
+    /// </summary>
+    private static string RelevanceReason(string path, PidlArtifact pidl, string? systemDrive)
+    {
+        var text = $"{path} {pidl.VolumeGuid}";
+        if (IsUsbOrVolumeMarker(text))
+        {
+            return "Явный признак USB, WPD или тома в пути.";
+        }
+
+        if (pidl.HasPortableDeviceItem)
+        {
+            return "Элемент оболочки переносного устройства (MTP).";
+        }
+
+        var drive = NonSystemDriveLetter(path, systemDrive);
+        return drive.Length > 0
+            ? $"Путь на диске {drive}, отличном от системного."
+            : "";
+    }
+
+    /// <summary>
+    /// Буква диска, если путь начинается не с системного диска. Съёмный носитель
+    /// всегда получает такую букву; второй внутренний диск тоже, поэтому запись
+    /// остаётся косвенной и подтверждается сопоставлением томов.
+    /// </summary>
+    private static string NonSystemDriveLetter(string path, string? systemDrive)
+    {
+        var match = DriveLetterPrefixRegex().Match(path.TrimStart('\\', ' '));
+        if (!match.Success)
+        {
+            return "";
+        }
+
+        var letter = match.Groups["drive"].Value.ToUpperInvariant();
+        var system = (systemDrive ?? "").TrimEnd('\\', ':').ToUpperInvariant();
+        if (system.Length == 0)
+        {
+            system = "C";
+        }
+
+        return letter.Equals(system, StringComparison.Ordinal) ? "" : $"{letter}:";
     }
 
     internal static bool IsUsbOrVolumeMarker(string value) =>
@@ -332,11 +389,12 @@ internal static partial class ForensicArtifactParsers
     /// у телефона, подключённого по MTP, терялись имена папок: они лежат внутри
     /// блоков с подписью, а не в теле элемента.
     /// </summary>
-    private static void ExtractShellItemNames(ReadOnlySpan<byte> body, List<string> output)
+    private static bool ExtractShellItemNames(ReadOnlySpan<byte> body, List<string> output)
     {
+        var portableDevice = false;
         if (body.Length == 0)
         {
-            return;
+            return false;
         }
 
         // Элемент тома: буква диска записана однобайтовой строкой сразу за типом.
@@ -362,9 +420,12 @@ internal static partial class ForensicArtifactParsers
                 }
 
                 ExtractUtf16Strings(body[(found + 4)..], minimumChars: 1, output);
+                portableDevice |= signature is 0x07192006 or 0x10312005;
                 position = found + 4;
             }
         }
+
+        return portableDevice;
     }
 
     private static int IndexOfUInt32(ReadOnlySpan<byte> data, uint value, int start)
@@ -448,6 +509,8 @@ internal static partial class ForensicArtifactParsers
     private static partial Regex DrivePathRegex();
     [GeneratedRegex(@"^\{[0-9a-f-]{36}\}$", RegexOptions.IgnoreCase)]
     private static partial Regex GuidOnlyRegex();
+    [GeneratedRegex(@"^(?<drive>[A-Z]):[\\/]", RegexOptions.IgnoreCase)]
+    private static partial Regex DriveLetterPrefixRegex();
 
     private static class CompoundFile
     {

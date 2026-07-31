@@ -277,6 +277,12 @@ public sealed class UserArtifactCollector : IEvidenceCollector
         }
     }
 
+    /// <summary>
+    /// Путь на диске, отличном от системного, — кандидат в съёмный носитель.
+    /// </summary>
+    private static string SystemDriveLetter =>
+        Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows)) ?? "C:\\";
+
     internal static void CollectShellBags(
         RegistryKey users, string sidClasses, UserProfileIdentity profile, string sourcePrefix,
         List<EvidenceRecord> evidence)
@@ -296,11 +302,12 @@ public sealed class UserArtifactCollector : IEvidenceCollector
         var slot = TryInt(key.GetValue("NodeSlot"));
         foreach (var name in key.GetValueNames().Where(x => int.TryParse(x, out _)))
         {
-            var parsed = ForensicArtifactParsers.ParseShellBagNode(key.GetValue(name) as byte[], parentPath, slot);
+            var parsed = ForensicArtifactParsers.ParseShellBagNode(
+                key.GetValue(name) as byte[], parentPath, slot, SystemDriveLetter);
             if (!parsed.IsUsbRelevant) continue;
             AddDeduplicated(evidence, NewRegistryEvidence(
                 $"{sourcePrefix} Shellbags", profile, $"{registryPath}\\{name}", parsed.Path,
-                $"Structured BagMRU node; slot={parsed.Slot?.ToString() ?? "unknown"}. Filtered by USB/volume/WPD marker; not a connection event.",
+                $"Structured BagMRU node; slot={parsed.Slot?.ToString() ?? "unknown"}. {parsed.RelevanceReason} Показывает просмотр папки, а не подключение устройства.",
                 RegistryKeyTimestamps.GetLastWriteUtc(key), "Indirect", "Medium"));
             count++;
         }
@@ -308,7 +315,8 @@ public sealed class UserArtifactCollector : IEvidenceCollector
         {
             using var child = key.OpenSubKey(childName);
             if (child is null) continue;
-            var childNode = ForensicArtifactParsers.ParseShellBagNode(key.GetValue(childName) as byte[], parentPath, slot);
+            var childNode = ForensicArtifactParsers.ParseShellBagNode(
+                key.GetValue(childName) as byte[], parentPath, slot, SystemDriveLetter);
             WalkShellBags(child, $"{registryPath}\\{childName}",
                 string.IsNullOrWhiteSpace(childNode.Path) ? parentPath : childNode.Path,
                 profile, sourcePrefix, evidence, ref count, depth + 1);
