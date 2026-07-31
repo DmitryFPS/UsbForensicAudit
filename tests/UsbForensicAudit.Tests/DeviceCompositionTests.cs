@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using UsbForensicAudit;
 using Xunit;
 
@@ -61,6 +62,30 @@ public class DeviceCompositionTests
             var owner = shown.Single(x => x.CanonicalDeviceId == part.CanonicalDeviceId);
             Assert.Contains(part, DeviceComposition.PartsOf(owner, devices));
         }
+    }
+
+    /// <summary>
+    /// Досье пишется на устройство, а не на запись реестра. Записи о частях
+    /// устройства при этом не пропадают: они перечислены внутри его досье и
+    /// целиком стоят в таблице отчёта.
+    /// </summary>
+    [Fact]
+    public void Report_writes_one_dossier_per_device_and_lists_its_records()
+    {
+        var result = new AuditResult();
+        foreach (var device in CompositeCamera())
+        {
+            result.Devices.Add(device);
+        }
+
+        DeviceIdentityGraph.Process(result.Devices);
+        var html = ForensicReportBuilder.BuildHtml(result);
+
+        Assert.Single(Regex.Matches(html, "<section class=\"card\">"));
+        Assert.Contains("<h3>Integrated Camera</h3>", html);
+        Assert.Contains("Записи Windows об этом устройстве (2)", html);
+        Assert.Contains("APP Mode", html);
+        Assert.Contains("свёрнута в своё устройство", html);
     }
 
     [Fact]

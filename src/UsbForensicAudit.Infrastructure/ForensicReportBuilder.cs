@@ -10,6 +10,9 @@ internal sealed class ForensicReportContext
         Result = result;
         ExternalUtilitySnapshot = externalUtilitySnapshot;
         ReportableDevices = BuildUsbScopeDevices(result.Devices);
+        ListedDevices = ReportableDevices
+            .Where(x => !DeviceComposition.IsFoldedByDefault(x))
+            .ToArray();
         RealDevices = ReportableDevices
             .Where(x => x.VisualCategory.Equals("RealUsb", StringComparison.OrdinalIgnoreCase))
             .ToArray();
@@ -67,6 +70,15 @@ internal sealed class ForensicReportContext
     public IReadOnlyList<CleanupFinding> AttentionFindings { get; }
     public IReadOnlyList<EvidenceRecord> Timeline { get; }
     public IReadOnlyList<UsbDeviceRecord> ReportableDevices { get; }
+
+    /// <summary>
+    /// Устройства так, как их видит читатель во вкладке: одна вещь — одна
+    /// строка. Записи, которые Windows завела на части того же устройства,
+    /// перечислены внутри его досье. Полная таблица отчёта по-прежнему содержит
+    /// все записи: досье пишется о вещах, таблица доказывает полноту разбора.
+    /// </summary>
+    public IReadOnlyList<UsbDeviceRecord> ListedDevices { get; }
+
     public IReadOnlyList<UsbDeviceRecord> RealDevices { get; }
     public IReadOnlyList<(string Source, int Count)> EvidenceBySource { get; }
     public IReadOnlyList<(string Category, int Count)> DevicesByCategory { get; }
@@ -163,7 +175,7 @@ internal sealed class ForensicReportContext
     /// Устройства, по которым вообще есть что рассказать о работе с файлами.
     /// </summary>
     public IEnumerable<(UsbDeviceRecord Device, DeviceActivityHistory History)> DevicesWithActivity() =>
-        ReportableDevices
+        ListedDevices
             .Select(device => (Device: device, History: GetActivity(device)))
             .Where(x => !x.History.IsEmpty);
 
@@ -175,11 +187,11 @@ internal sealed class ForensicReportContext
     public string ActivityVerdict()
     {
         var withActivity = DevicesWithActivity().ToArray();
-        var searchable = ReportableDevices.Count(x => GetActivity(x).CanSearchFileActivity);
+        var searchable = ListedDevices.Count(x => GetActivity(x).CanSearchFileActivity);
         var actions = withActivity.Sum(x => x.History.Entries.Count);
-        var unsearchable = ReportableDevices.Count - searchable;
+        var unsearchable = ListedDevices.Count - searchable;
         var tail = unsearchable > 0
-            ? $" Ещё у {unsearchable} записей нет буквы диска, серийного номера тома или видимого имени, "
+            ? $" Ещё у {unsearchable} устройств нет буквы диска, серийного номера тома или видимого имени, "
               + "поэтому следы работы с файлами по ним искать нечем."
             : "";
 
@@ -629,14 +641,20 @@ internal static class ForensicReportBuilder
     {
         html.AppendLine("<h2 id=\"devices\">4. USB-устройства</h2>");
         html.AppendLine("<p class=\"muted\">В отчёт включены реальные USB/Type-C устройства, подтверждённые связанные USB-диски и остаточные следы usbflags. Внутренние SATA/NVMe-диски и ОЗУ не относятся к USB и исключены.</p>");
-        html.AppendLine("<table><tr><th>Canonical device</th><th>Приносили ли с собой</th><th>Тип</th><th>Что это</th><th>Как подключалось</th><th>Внешнее или встроенное</th><th>На чём основан вывод</th><th>Назначение</th><th>Откуда</th><th>Имя</th><th>Производитель</th><th>Модель</th><th>VID/PID</th><th>Серийный номер</th><th>Когда подключали</th><th>Последняя активность</th><th>Когда отключали</th><th>Пояснение по датам</th><th>Расположение</th><th>Буквы дисков</th><th>Системный ID</th></tr>");
+        html.AppendLine("<p class=\"muted\">Таблица перечисляет все записи реестра, а колонка «Место в списке устройств» показывает, "
+                        + "какие из них Windows завела на части одного и того же устройства. Такие записи свёрнуты в своё устройство "
+                        + "и в списке программы отдельной строкой не стоят.</p>");
+        html.AppendLine("<table><tr><th>Canonical device</th><th>Место в списке устройств</th><th>Приносили ли с собой</th><th>Тип</th><th>Что это</th><th>Как подключалось</th><th>Внешнее или встроенное</th><th>На чём основан вывод</th><th>Технические коды</th><th>Назначение</th><th>Откуда</th><th>Имя</th><th>Производитель</th><th>Модель</th><th>VID/PID</th><th>Серийный номер</th><th>Когда подключали</th><th>Последняя активность</th><th>Когда отключали</th><th>Пояснение по датам</th><th>Расположение</th><th>Буквы дисков</th><th>Системный ID</th></tr>");
         foreach (var device in ctx.ReportableDevices)
         {
+            var place = DeviceComposition.IsFoldedByDefault(device) ? "свёрнута в своё устройство" : "отдельная строка";
             html.AppendLine(
                 $"<tr><td>{E(device.CanonicalDeviceId)}{(device.IsCanonicalPrimary ? " (primary)" : "")}</td>" +
+                $"<td>{E(place)}</td>" +
                 $"<td>{E(device.ExternalityText)}</td><td>{E(device.CategoryText)}</td>" +
                 $"<td>{E(device.DeviceKindText)}</td><td>{E(device.TransportDisplayText)}</td><td>{E(device.OriginDisplayText)}</td>" +
-                $"<td>{E(device.ClassificationEvidenceText)}</td><td>{E(device.UserMeaning)}</td><td>{E(device.SourceText)}</td>" +
+                $"<td>{E(device.ClassificationEvidenceText)}</td><td>{E(device.ClassificationCodesText)}</td>" +
+                $"<td>{E(device.UserMeaning)}</td><td>{E(device.SourceText)}</td>" +
                 $"<td>{E(device.DisplayName)}</td><td>{E(device.ManufacturerText)}</td><td>{E(device.ModelText)}</td>" +
                 $"<td>{E(device.VidPidText)}</td><td>{E(device.SerialText)}</td><td>{E(device.FirstConnectedText)}</td>" +
                 $"<td>{E(device.LastSeenText)}</td><td>{E(device.LastDisconnectedText)}</td><td>{E(device.DateConfidenceText)}</td>" +
@@ -645,12 +663,38 @@ internal static class ForensicReportBuilder
         html.AppendLine("</table>");
     }
 
+    /// <summary>
+    /// Чем устройство оказалось в реестре. У сопряжённого телефона это перечень
+    /// его услуг, и он важен сам по себе: по нему видно, что через соединение
+    /// было можно — передавать файлы, читать контакты, выходить в сеть.
+    /// </summary>
+    private static void AppendCompositionBlock(StringBuilder html, ForensicReportContext ctx, UsbDeviceRecord device)
+    {
+        var parts = DeviceComposition.PartsOf(device, ctx.ReportableDevices);
+        if (parts.Count == 0)
+        {
+            return;
+        }
+
+        html.AppendLine($"<h4>Записи Windows об этом устройстве ({parts.Count})</h4>");
+        html.AppendLine("<table><tr><th>Имя</th><th>Что это за запись</th><th>Системный ID</th></tr>");
+        foreach (var part in parts)
+        {
+            var meaning = string.IsNullOrWhiteSpace(part.UserMeaning) ? part.CategoryText : part.UserMeaning;
+            html.AppendLine($"<tr><td>{E(part.OwnDisplayName)}</td><td>{E(meaning)}</td>"
+                            + $"<td>{E(part.DeviceInstanceId)}</td></tr>");
+        }
+        html.AppendLine("</table>");
+    }
+
     private static void AppendDossiersSection(StringBuilder html, ForensicReportContext ctx)
     {
         html.AppendLine("<h2 id=\"dossiers\">5. Досье устройств</h2>");
-        html.AppendLine("<p>Для каждого устройства — полные идентификаторы и связанные доказательства из всех источников.</p>");
+        html.AppendLine("<p>Для каждого устройства — полные идентификаторы и связанные доказательства из всех источников. "
+                        + "Досье пишется на устройство, а не на запись реестра: записи, заведённые Windows на части "
+                        + "того же устройства, перечислены внутри его досье, а полностью все записи стоят в таблице выше.</p>");
 
-        foreach (var device in ctx.ReportableDevices)
+        foreach (var device in ctx.ListedDevices)
         {
             var related = ForensicReportContext.GetRelatedEvidence(ctx, device).ToArray();
             var correlations = ForensicReportContext.GetCorrelationEvidence(ctx, device).ToArray();
@@ -686,6 +730,8 @@ internal static class ForensicReportBuilder
             html.AppendLine($"<b>Подключено сейчас:</b> {(device.IsCurrentlyConnected ? "да" : "нет")}<br>");
             html.AppendLine($"<b>Системный ID:</b> {E(device.DeviceInstanceId)}");
             html.AppendLine("</p>");
+
+            AppendCompositionBlock(html, ctx, device);
 
             if (correlations.Length > 0)
             {

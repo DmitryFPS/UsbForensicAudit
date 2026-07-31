@@ -230,6 +230,11 @@ internal static class ExcelReportGenerator
             Column<UsbDeviceRecord>("Буквы/тома", 36, x => string.Join("; ", new[] { x.DriveLetters, x.VolumeHints }.Where(v => v.Length > 0))),
             Column<UsbDeviceRecord>("Системный ID / путь", 54, x => x.DeviceInstanceId),
             Column<UsbDeviceRecord>("Canonical device", 30, x => x.CanonicalDeviceId + (x.IsCanonicalPrimary ? " (primary)" : "")),
+            // Лист содержит все записи реестра, а список в программе — устройства.
+            // Без этой колонки числа в отчёте и на экране не сходятся.
+            Column<UsbDeviceRecord>("Место в списке устройств", 34, x => DeviceComposition.IsFoldedByDefault(x)
+                ? "свёрнута в своё устройство"
+                : "отдельная строка"),
             Column<UsbDeviceRecord>("Связанные source IDs", 60, x => string.Join("; ", x.LinkedSourceIds)),
             Column<UsbDeviceRecord>("Transport", 28, x => x.Transport),
             Column<UsbDeviceRecord>("Connection", 28, x => x.Connection),

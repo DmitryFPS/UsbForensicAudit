@@ -339,14 +339,14 @@ internal static class ForensicPdfReport
 
         SectionTitle(column, "5. Досье устройств");
 
-        for (var index = 0; index < ctx.ReportableDevices.Count; index++)
+        for (var index = 0; index < ctx.ListedDevices.Count; index++)
         {
             if (index > 0)
             {
                 column.Item().PageBreak();
             }
 
-            var device = ctx.ReportableDevices[index];
+            var device = ctx.ListedDevices[index];
             column.Item().Background(Colors.Blue.Lighten5).Padding(8).Column(block =>
             {
                 block.Item().Text(T(device.DisplayName)).SemiBold().FontSize(11);
@@ -372,6 +372,23 @@ internal static class ForensicPdfReport
                 ("Подключено сейчас", device.IsCurrentlyConnected ? "да" : "нет"),
                 ("Системный ID", device.DeviceInstanceId)
             ]);
+
+            // Записи, свёрнутые в это устройство. У сопряжённого телефона это
+            // перечень его услуг: по нему видно, что через соединение было
+            // можно — передавать файлы, читать контакты, выходить в сеть.
+            var parts = DeviceComposition.PartsOf(device, ctx.ReportableDevices);
+            if (parts.Count > 0)
+            {
+                SubTitle(column, $"Записи Windows об этом устройстве ({parts.Count})");
+                AddDataTable(column,
+                    [("Имя", 1.4f), ("Что это за запись", 3.1f), ("Системный ID", 2.5f)],
+                    parts.Select(part => new[]
+                    {
+                        part.OwnDisplayName,
+                        string.IsNullOrWhiteSpace(part.UserMeaning) ? part.CategoryText : part.UserMeaning,
+                        part.DeviceInstanceId
+                    }));
+            }
 
             var correlations = ForensicReportContext.GetCorrelationEvidence(ctx, device).ToArray();
             if (correlations.Length > 0)
