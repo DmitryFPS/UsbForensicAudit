@@ -91,6 +91,8 @@ internal static class ExecutiveBriefPdfReport
             ("USB-доказательств", ctx.Timeline.Count.ToString()),
             ("Подозрительных", ctx.SuspiciousCount.ToString()),
             ("Требуют внимания", ctx.AttentionCount.ToString()),
+            ("Сетевых связей", ctx.NetworkSummary.Connections.ToString()),
+            ("Связей с выходом наружу", ctx.NetworkSummary.OutsideReach.ToString()),
             ("Высокий риск", ctx.HighRiskCount.ToString()),
             ("Предупреждений", result.SourceWarnings.Count.ToString()),
             ("Точные даты", $"{result.Coverage.ExactDateCoveragePercent:0.##}%")
@@ -101,6 +103,8 @@ internal static class ExecutiveBriefPdfReport
         column.Item().PaddingTop(4).Text(T(ctx.ActivityVerdict()))
             .FontSize(BodyFont - 1).FontColor(Colors.Grey.Darken2);
         column.Item().PaddingTop(4).Text(T(ctx.TransferVerdict()))
+            .FontSize(BodyFont - 1).FontColor(Colors.Grey.Darken2);
+        column.Item().PaddingTop(4).Text(T(ctx.NetworkSummary.Describe()))
             .FontSize(BodyFont - 1).FontColor(Colors.Grey.Darken2);
     }
 

@@ -30,6 +30,9 @@ internal static class ExcelReportGenerator
         AddDeviceActivitySheet(workbook, context);
         AddFileTransferSheet(workbook, context);
         AddEvidenceSheet(workbook, context.Timeline);
+        AddNetworkSheet(workbook, context);
+        AddNetworkVisitsSheet(workbook, context);
+        AddNetworkSessionsSheet(workbook, context);
         AddCleanupSheet(workbook, context.CleanupFindings, brief: false);
         AddWarningsSheet(workbook, context.Result.SourceWarnings);
         AddExternalUtilitiesSheet(workbook, context.ExternalUtilitySnapshot);
@@ -123,6 +126,10 @@ internal static class ExcelReportGenerator
                      ("Устройств со следами работы с файлами",
                          context.DevicesWithActivity().Count().ToString()),
                      ("Признаков переноса файлов", context.Transfers().Count().ToString()),
+                     ("Сетевых связей", context.NetworkSummary.Connections.ToString()),
+                     ("Связей, по которым данные могли уйти",
+                         context.NetworkSummary.OutsideReach.ToString()),
+                     ("Обращений по сети", context.NetworkSummary.Visits.ToString()),
                      ("Высокий риск", context.HighRiskCount.ToString()),
                      ("Предупреждений", result.SourceWarnings.Count.ToString()),
                      ("Canonical с точной датой",
@@ -334,6 +341,111 @@ internal static class ExcelReportGenerator
                 Column<EvidenceRecord>("Пояснение", 52, x => x.UserExplanationText),
                 Column<EvidenceRecord>("Подробности", 62, x => x.Summary),
                 Column<EvidenceRecord>("Provenance", 70, x => x.Provenance)
+            ]);
+    }
+
+    /// <summary>
+    /// Связи машины с внешним миром одним листом. Строки, по которым данные
+    /// могли уйти, выделены тем же цветом, что и подозрительные находки: читатель
+    /// листа не должен искать сетевую папку среди сотни посещённых сайтов.
+    /// </summary>
+    private static void AddNetworkSheet(XLWorkbook workbook, ForensicReportContext context)
+    {
+        var rows = context.NetworkConnections;
+        var worksheet = AddDataSheet(
+            workbook,
+            "Сетевые подключения",
+            context.NetworkSummary.Describe(),
+            rows,
+            [
+                Column<NetworkConnectionRecord>("Как связывались", 26, x => x.KindText),
+                Column<NetworkConnectionRecord>("С чем именно", 44, x => x.TargetText),
+                Column<NetworkConnectionRecord>("Кто начал", 26, x => x.DirectionText),
+                Column<NetworkConnectionRecord>("Что нашлось внутри", 28, x => x.ActivityText),
+                Column<NetworkConnectionRecord>("Первое подключение", 24, x => x.FirstSeenText),
+                Column<NetworkConnectionRecord>("Откуда первая дата", 40, x => x.FirstSeenProvenance),
+                Column<NetworkConnectionRecord>("Последнее подключение", 24, x => x.LastSeenText),
+                Column<NetworkConnectionRecord>("Откуда последняя дата", 40, x => x.LastSeenProvenance),
+                Column<NetworkConnectionRecord>("Чем защищено", 34, x => x.SecurityText),
+                Column<NetworkConnectionRecord>("Через что шла связь", 34, x => x.AdapterText),
+                Column<NetworkConnectionRecord>("Адреса этой машины", 48, x => x.LocalAddressesText),
+                Column<NetworkConnectionRecord>("Учётная запись", 26, x => x.AccountText),
+                Column<NetworkConnectionRecord>("Простыми словами", 70, x => x.DetailsText),
+                Column<NetworkConnectionRecord>("Откуда взято", 40, x => x.SourcesText)
+            ]);
+
+        for (var index = 0; index < rows.Count; index++)
+        {
+            if (rows[index].IsOutsideReach)
+            {
+                worksheet.Range(index + 5, 1, index + 5, 14).Style.Fill.BackgroundColor = DangerColor;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Куда ходили по каждой связи: папки на серверах, введённые пути, адреса
+    /// страниц. Лист отвечает на вопрос «что именно смотрели», на который список
+    /// связей ответить не может.
+    /// </summary>
+    private static void AddNetworkVisitsSheet(XLWorkbook workbook, ForensicReportContext context)
+    {
+        var rows = context.NetworkConnections
+            .SelectMany(connection => connection.Visits.Select(visit => (Connection: connection, Visit: visit)))
+            .OrderBy(x => NetworkConnectionKind.Rank(x.Connection.Kind))
+            .ThenBy(x => x.Connection.Name, StringComparer.CurrentCulture)
+            .ThenByDescending(x => x.Visit.WhenUtc)
+            .ToArray();
+
+        AddDataSheet(
+            workbook,
+            "Куда ходили по сети",
+            "Папки на серверах, подключённые диски, введённые вручную пути и адреса страниц. "
+            + "Столбец «Что означает время» показывает, о каком именно моменте говорит отметка.",
+            rows,
+            [
+                Column<(NetworkConnectionRecord Connection, NetworkVisit Visit)>("Связь", 34, x => x.Connection.TargetText),
+                Column<(NetworkConnectionRecord Connection, NetworkVisit Visit)>("Как связывались", 24, x => x.Connection.KindText),
+                Column<(NetworkConnectionRecord Connection, NetworkVisit Visit)>("Когда", 24, x => x.Visit.WhenText),
+                Column<(NetworkConnectionRecord Connection, NetworkVisit Visit)>("Что делали", 34, x => x.Visit.KindText),
+                Column<(NetworkConnectionRecord Connection, NetworkVisit Visit)>("Папка, адрес или узел", 70, x => x.Visit.TargetText),
+                Column<(NetworkConnectionRecord Connection, NetworkVisit Visit)>("Подпись", 44, x => x.Visit.TitleText),
+                Column<(NetworkConnectionRecord Connection, NetworkVisit Visit)>("Кто", 28, x => x.Visit.UserText),
+                Column<(NetworkConnectionRecord Connection, NetworkVisit Visit)>("Сколько раз", 30, x => x.Visit.CountText),
+                Column<(NetworkConnectionRecord Connection, NetworkVisit Visit)>("Что означает время", 52, x => x.Visit.TimeMeaning),
+                Column<(NetworkConnectionRecord Connection, NetworkVisit Visit)>("Откуда взято", 34, x => x.Visit.SourceText),
+                Column<(NetworkConnectionRecord Connection, NetworkVisit Visit)>("Ссылка на источник", 64, x => x.Visit.Provenance)
+            ]);
+    }
+
+    /// <summary>
+    /// Когда именно связь была установлена и разорвана. Отдельные события,
+    /// сеансом не являющиеся, помечены прямо в столбце отключения.
+    /// </summary>
+    private static void AddNetworkSessionsSheet(XLWorkbook workbook, ForensicReportContext context)
+    {
+        var rows = context.NetworkConnections
+            .SelectMany(connection => connection.Sessions.Select(session => (Connection: connection, Session: session)))
+            .OrderByDescending(x => x.Session.StartedUtc)
+            .ToArray();
+
+        AddDataSheet(
+            workbook,
+            "Сеансы связи",
+            "Пары «подключение — отключение» из журналов Windows. Отдельные события, у которых "
+            + "конца нет и быть не может, помечены в столбце «Отключение».",
+            rows,
+            [
+                Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Связь", 34, x => x.Connection.TargetText),
+                Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Как связывались", 24, x => x.Connection.KindText),
+                Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Подключение", 24, x => x.Session.StartedText),
+                Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Отключение", 34, x => x.Session.EndedText),
+                Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Сколько держалось", 20, x => x.Session.DurationText),
+                Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Чем закончилось", 48, x => x.Session.OutcomeText),
+                Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Подробности", 62, x => x.Session.ReasonText),
+                Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Учётная запись", 26, x => x.Session.Account),
+                Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Откуда взято", 34, x => x.Session.SourceText),
+                Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Ссылка на источник", 64, x => x.Session.Provenance)
             ]);
     }
 

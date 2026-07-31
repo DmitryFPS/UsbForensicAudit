@@ -68,6 +68,7 @@ internal static class ForensicPdfReport
                     AppendDevicesSection(column, ctx, pageBreakBefore: true);
                     AppendDossiersSection(column, ctx, pageBreakBefore: true);
                     AppendEvidenceSection(column, ctx, pageBreakBefore: true);
+                    AppendNetworkSection(column, ctx, pageBreakBefore: true);
                     AppendWarningsSection(column, ctx, pageBreakBefore: true);
                     AppendMethodologySection(column, pageBreakBefore: true);
                     if (externalSnapshot is not null)
@@ -134,6 +135,7 @@ internal static class ForensicPdfReport
         column.Item().PaddingTop(4).Text(T(ctx.Counts.Describe())).FontSize(8).FontColor(Colors.Grey.Darken2);
         column.Item().PaddingTop(4).Text(T(ctx.ActivityVerdict())).FontSize(8).FontColor(Colors.Grey.Darken2);
         column.Item().PaddingTop(4).Text(T(ctx.TransferVerdict())).FontSize(8).FontColor(Colors.Grey.Darken2);
+        column.Item().PaddingTop(4).Text(T(ctx.NetworkSummary.Describe())).FontSize(8).FontColor(Colors.Grey.Darken2);
 
         SubTitle(column, "Покрытие источников");
         AddDataTable(column,
@@ -505,6 +507,116 @@ internal static class ForensicPdfReport
         }));
     }
 
+    /// <summary>
+    /// Сколько обращений и сеансов печатается по одной связи. У сайтов история
+    /// браузера даёт тысячи строк, и печать их целиком превращает отчёт в том,
+    /// который никто не читает. Обрезка названа прямо, чтобы её не приняли за
+    /// полный перечень.
+    /// </summary>
+    private const int MaxNetworkRowsInPdf = 60;
+
+    private static void AppendNetworkSection(ColumnDescriptor column, ForensicReportContext ctx, bool pageBreakBefore)
+    {
+        if (pageBreakBefore)
+        {
+            column.Item().PageBreak();
+        }
+
+        SectionTitle(column, "7. Сетевые подключения и куда по ним ходили");
+        column.Item().Text(T(ctx.NetworkSummary.Describe())).FontSize(8).FontColor(Colors.Grey.Darken2);
+        if (ctx.NetworkConnections.Count == 0)
+        {
+            return;
+        }
+
+        AddDataTable(column,
+        [
+            ("Как связывались", 1.1f),
+            ("С чем именно", 1.6f),
+            ("Кто начал", 1f),
+            ("Что нашлось", 1f),
+            ("Первое подключение", 1.2f),
+            ("Последнее подключение", 1.2f),
+            ("Чем защищено", 1.3f),
+            ("Простыми словами", 2.6f)
+        ],
+        ctx.NetworkConnections.Select(x => new[]
+        {
+            x.KindText,
+            x.TargetText,
+            x.DirectionText,
+            x.ActivityText,
+            x.FirstSeenText,
+            x.LastSeenText,
+            x.SecurityText,
+            T(x.DetailsText, 700)
+        }));
+
+        foreach (var connection in ctx.NetworkConnections.Where(x => x.Visits.Count > 0 || x.Sessions.Count > 0))
+        {
+            AppendNetworkConnectionCard(column, connection);
+        }
+    }
+
+    private static void AppendNetworkConnectionCard(ColumnDescriptor column, NetworkConnectionRecord connection)
+    {
+        SubTitle(column, $"{connection.KindText}: {connection.TargetText}");
+        AddDataTable(column,
+            [("Сведение", 1.4f), ("Значение", 3.6f)],
+            NetworkConnectionFacts.Rows(connection).Select(x => new[] { x.Name, T(x.Value, 700) }));
+
+        if (connection.Visits.Count > 0)
+        {
+            SubTitle(column, $"Куда ходили ({connection.Visits.Count})");
+            if (connection.Visits.Count > MaxNetworkRowsInPdf)
+            {
+                column.Item().Text(T($"В печатный отчёт вошли первые {MaxNetworkRowsInPdf} обращений из "
+                                     + $"{connection.Visits.Count}. Полный перечень — в отчёте HTML и в окне программы."))
+                    .FontSize(8).FontColor(Colors.Orange.Darken2);
+            }
+
+            AddDataTable(column,
+            [
+                ("Когда", 1.2f),
+                ("Что делали", 1.4f),
+                ("Папка, адрес или узел", 2.6f),
+                ("Кто", 1f),
+                ("Сколько раз", 1f),
+                ("Откуда взято", 1.4f)
+            ],
+            connection.Visits.Take(MaxNetworkRowsInPdf).Select(x => new[]
+            {
+                x.WhenText, x.KindText, T(x.TargetText, 400), x.UserText, x.CountText, x.SourceText
+            }));
+        }
+
+        if (connection.Sessions.Count == 0)
+        {
+            return;
+        }
+
+        SubTitle(column, $"Сеансы связи ({connection.Sessions.Count})");
+        if (connection.Sessions.Count > MaxNetworkRowsInPdf)
+        {
+            column.Item().Text(T($"В печатный отчёт вошли первые {MaxNetworkRowsInPdf} сеансов из "
+                                 + $"{connection.Sessions.Count}. Полный перечень — в отчёте HTML и в окне программы."))
+                .FontSize(8).FontColor(Colors.Orange.Darken2);
+        }
+
+        AddDataTable(column,
+        [
+            ("Подключение", 1.2f),
+            ("Отключение", 1.2f),
+            ("Сколько держалось", 1f),
+            ("Чем закончилось", 2f),
+            ("Подробности", 2f)
+        ],
+        connection.Sessions.Take(MaxNetworkRowsInPdf).Select(x => new[]
+        {
+            x.StartedText, x.EndedText, x.DurationText, T(x.OutcomeText, 300), T(x.ReasonText, 400)
+        }));
+    }
+
     private static void AppendWarningsSection(ColumnDescriptor column, ForensicReportContext ctx, bool pageBreakBefore)
     {
         if (pageBreakBefore)
@@ -512,7 +624,7 @@ internal static class ForensicPdfReport
             column.Item().PageBreak();
         }
 
-        SectionTitle(column, "7. Предупреждения и ограничения сбора");
+        SectionTitle(column, "8. Предупреждения и ограничения сбора");
         if (ctx.Result.SourceWarnings.Count == 0)
         {
             column.Item().Text(T("Предупреждений нет — все основные источники прочитаны успешно."));
@@ -535,7 +647,7 @@ internal static class ForensicPdfReport
             column.Item().PageBreak();
         }
 
-        SectionTitle(column, "8. Источники данных");
+        SectionTitle(column, "9. Источники данных");
         AddDataTable(column,
             [("Источник", 1.2f), ("Описание", 3.8f)],
             new[]
@@ -549,7 +661,10 @@ internal static class ForensicPdfReport
                 new[] { "Исполнение", "Prefetch, Amcache, Shimcache, PCA и BAM/DAM с явной силой доказательства." },
                 new[] { "Исторические источники", "Windows.old, существующие VSS и transaction-log provenance без заявления о полном replay." },
                 new[] { "Корреляция", "ContainerID, serial, topology, тома/VSN и защита от слияния только по VID/PID." },
-                new[] { "Покрытие", "Статус, лимиты и ошибки каждого сборщика; доля canonical-устройств с точной датой." }
+                new[] { "Покрытие", "Статус, лимиты и ошибки каждого сборщика; доля canonical-устройств с точной датой." },
+                new[] { "Сети", "Список сетей и подписи в реестре, параметры подключений, профили Wi-Fi, сопряжения Bluetooth." },
+                new[] { "Журналы сетей", "WLAN-AutoConfig, NetworkProfile, SMBClient, TerminalServices, RasClient." },
+                new[] { "Куда ходили по сети", "Сетевые диски, введённые пути, ярлыки, списки переходов, история браузеров и загрузки." }
             });
     }
 
@@ -563,7 +678,7 @@ internal static class ForensicPdfReport
             column.Item().PageBreak();
         }
 
-        SectionTitle(column, "9. Сторонние утилиты");
+        SectionTitle(column, "10. Сторонние утилиты");
         column.Item().Text(T(
                 $"Снимок: {DateDisplay.FormatMoscow(snapshot.CapturedAtUtc)}; утилита: {snapshot.UtilityName ?? "не указана"}"))
             .FontSize(8)
