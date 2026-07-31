@@ -332,6 +332,8 @@ public static class TextSanitizer
         return score;
     }
 
+    public static void EnsureCodePagesRegistered() => EnsureCodePages();
+
     private static void EnsureCodePages()
     {
         if (_codePagesRegistered)
