@@ -139,7 +139,7 @@ internal static class EventLogRecordParser
     internal static bool ContainsDeviceMarker(string value)
     {
         return !string.IsNullOrWhiteSpace(value)
-               && DeviceMarkers.Any(marker => value.Contains(marker, StringComparison.OrdinalIgnoreCase));
+               && DeviceMarkerText.ContainsAnyMarker(value, DeviceMarkers);
     }
 
     private static string ExtractDeviceHint(IReadOnlyDictionary<string, string> fields, string fallback)
