@@ -228,6 +228,52 @@ internal static class UsbRegistryForensicHelpers
         "USBSTOR", "USB4", "USB", "SCSI", "SDBUS", "SD"
     ];
 
+    /// <summary>
+    /// Разбирает имя ключа истории ReadyBoost (EMDMgmt). Оно устроено так:
+    /// _??_USBSTOR#Disk&amp;Ven_...#SERIAL&amp;0#{GUID}МЕТКА_ТОМА_СЕРИЙНЫЙНОМЕР,
+    /// где серийный номер тома записан десятичным числом. Это единственное место
+    /// реестра, где метка тома хранится вместе с идентификатором носителя, —
+    /// по ней ярлык или недавний документ привязывается к конкретной флешке.
+    /// </summary>
+    internal static bool TryParseReadyBoostKey(
+        string keyName, out string deviceInstanceId, out string volumeLabel, out string volumeSerialNumber)
+    {
+        deviceInstanceId = "";
+        volumeLabel = "";
+        volumeSerialNumber = "";
+
+        var closingBrace = keyName.LastIndexOf('}');
+        if (closingBrace < 0 || closingBrace + 1 >= keyName.Length)
+        {
+            return false;
+        }
+
+        var identity = ParseWpdIdentity(keyName[..(closingBrace + 1)]);
+        if (string.IsNullOrWhiteSpace(identity.DeviceInstanceId))
+        {
+            return false;
+        }
+
+        deviceInstanceId = identity.DeviceInstanceId;
+
+        var tail = keyName[(closingBrace + 1)..];
+        var separator = tail.LastIndexOf('_');
+        if (separator < 0)
+        {
+            volumeLabel = tail;
+            return true;
+        }
+
+        volumeLabel = tail[..separator];
+        var serialText = tail[(separator + 1)..];
+        if (uint.TryParse(serialText, out var serial))
+        {
+            volumeSerialNumber = serial.ToString("X8");
+        }
+
+        return true;
+    }
+
     internal static WpdIdentity ParseWpdIdentity(string keyName)
     {
         var decoded = Uri.UnescapeDataString(keyName).Replace('#', '\\').Trim('\\');

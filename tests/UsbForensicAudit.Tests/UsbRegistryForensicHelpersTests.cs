@@ -166,6 +166,43 @@ public sealed class UsbRegistryForensicHelpersTests
         Assert.Equal("8dde262e", identity.Serial);
     }
 
+    [Fact]
+    public void ReadyBoost_key_gives_volume_label_and_serial_for_a_flash_drive()
+    {
+        var parsed = UsbRegistryForensicHelpers.TryParseReadyBoostKey(
+            "_??_USBSTOR#Disk&Ven_General&Prod_UDisk&Rev_5.00#2412242109410569603146&0"
+            + "#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}JINNLIVEUSB_3512837709",
+            out var instanceId, out var label, out var volumeSerial);
+
+        Assert.True(parsed);
+        Assert.Equal(
+            @"USBSTOR\Disk&Ven_General&Prod_UDisk&Rev_5.00\2412242109410569603146&0",
+            instanceId);
+        Assert.Equal("JINNLIVEUSB", label);
+        Assert.Equal(3512837709u.ToString("X8"), volumeSerial);
+    }
+
+    [Fact]
+    public void ReadyBoost_key_without_a_volume_label_still_yields_the_device()
+    {
+        var parsed = UsbRegistryForensicHelpers.TryParseReadyBoostKey(
+            "_??_USBSTOR#Disk&Ven_General&Prod_UDisk&Rev_5.00#2412281911546114543745&0"
+            + "#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}_1234567890",
+            out var instanceId, out var label, out var volumeSerial);
+
+        Assert.True(parsed);
+        Assert.Equal("", label);
+        Assert.EndsWith(@"2412281911546114543745&0", instanceId, StringComparison.Ordinal);
+        Assert.Equal(1234567890u.ToString("X8"), volumeSerial);
+    }
+
+    [Fact]
+    public void Unrelated_key_is_not_taken_for_a_readyboost_entry()
+    {
+        Assert.False(UsbRegistryForensicHelpers.TryParseReadyBoostKey(
+            "WriteFilterState", out _, out _, out _));
+    }
+
     [Theory]
     [InlineData("Device Parameters", true)]
     [InlineData("Properties", true)]
