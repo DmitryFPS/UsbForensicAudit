@@ -210,33 +210,122 @@ internal static class UsbRegistryForensicHelpers
         target.IsCurrentlyConnected |= candidate.IsCurrentlyConnected;
     }
 
+    /// <summary>
+    /// Имена перечислителей, с которых начинается идентификатор экземпляра устройства.
+    /// </summary>
+    private static readonly string[] EnumeratorNames =
+    [
+        "USBSTOR", "USB4", "USBSER", "USB", "SWD", "SCSI", "HID", "PCI",
+        "BTHENUM", "BTHLEDEVICE", "BTH", "SDBUS", "SD", "STORAGE", "ACPI"
+    ];
+
+    /// <summary>
+    /// Перечислители, за которыми стоит физическое устройство: по ним WPD-узел
+    /// связывается с записью из Enum.
+    /// </summary>
+    private static readonly string[] BackingEnumeratorNames =
+    [
+        "USBSTOR", "USB4", "USB", "SCSI", "SDBUS", "SD"
+    ];
+
     internal static WpdIdentity ParseWpdIdentity(string keyName)
     {
         var decoded = Uri.UnescapeDataString(keyName).Replace('#', '\\').Trim('\\');
-        var instanceId = decoded;
+        var parts = decoded.Split('\\', StringSplitOptions.RemoveEmptyEntries).ToList();
 
-        var usbStart = decoded.IndexOf(@"USB\", StringComparison.OrdinalIgnoreCase);
-        if (usbStart >= 0)
+        // Хвостовой {GUID} — это класс интерфейса устройства (например, GUID_DEVINTERFACE_DISK),
+        // одинаковый у всех устройств своего класса. Серийным номером он быть не может.
+        if (parts.Count > 1 && IsGuidSegment(parts[^1]))
         {
-            instanceId = decoded[usbStart..];
+            parts.RemoveAt(parts.Count - 1);
         }
-        else
+
+        // Ведущий _??_ или \??\ — экранированная форма пути устройства, не часть идентификатора.
+        if (parts.Count > 0)
         {
-            var swdStart = decoded.IndexOf(@"SWD\WPDBUSENUM\", StringComparison.OrdinalIgnoreCase);
-            if (swdStart >= 0)
+            parts[0] = StripDevicePathEscape(parts[0]);
+            if (parts[0].Length == 0)
             {
-                instanceId = decoded[swdStart..];
+                parts.RemoveAt(0);
             }
         }
 
-        var parts = instanceId.Split('\\', StringSplitOptions.RemoveEmptyEntries);
-        var serial = parts.Length >= 3 ? parts[^1].Trim('{', '}') : "";
-        if (serial.EndsWith("&0", StringComparison.OrdinalIgnoreCase))
+        var busIndex = parts.FindIndex(part => IsEnumeratorName(part));
+        if (busIndex > 0)
         {
-            serial = serial[..^2];
+            parts.RemoveRange(0, busIndex);
         }
 
-        return new WpdIdentity(instanceId, serial);
+        var instanceId = string.Join('\\', parts);
+        var serial = parts.Count >= 3 ? NormalizeInstanceSuffix(parts[^1]) : "";
+
+        return new WpdIdentity(instanceId, serial, FindBackingInstanceId(parts));
+    }
+
+    /// <summary>
+    /// Для узла WPD вида SWD\WPDBUSENUM\_??_USBSTOR\... возвращает идентификатор
+    /// физического устройства, по которому запись склеивается с данными из Enum.
+    /// </summary>
+    private static string FindBackingInstanceId(List<string> parts)
+    {
+        for (var index = 1; index < parts.Count; index++)
+        {
+            var candidate = StripDevicePathEscape(parts[index]);
+            if (candidate.Length > 0 && IsBackingEnumeratorName(candidate) && parts.Count - index >= 3)
+            {
+                var tail = parts.Skip(index).ToArray();
+                tail[0] = candidate;
+                return string.Join('\\', tail);
+            }
+        }
+
+        return "";
+    }
+
+    private static bool IsGuidSegment(string segment)
+    {
+        var trimmed = segment.Trim();
+        return trimmed.StartsWith('{')
+               && trimmed.EndsWith('}')
+               && Guid.TryParse(trimmed, out _);
+    }
+
+    private static string StripDevicePathEscape(string segment)
+    {
+        var value = segment;
+        if (value.StartsWith("_??_", StringComparison.Ordinal))
+        {
+            value = value[4..];
+        }
+        else if (value.StartsWith("??", StringComparison.Ordinal))
+        {
+            value = value[2..];
+        }
+
+        return value.Trim('\\');
+    }
+
+    private static bool IsEnumeratorName(string segment) =>
+        EnumeratorNames.Any(name => segment.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsBackingEnumeratorName(string segment) =>
+        BackingEnumeratorNames.Any(name => segment.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Убирает у идентификатора экземпляра хвост, добавленный шиной (&amp;0, &amp;1 и т.п.),
+    /// оставляя серийный номер в том виде, в каком его сообщило устройство.
+    /// </summary>
+    private static string NormalizeInstanceSuffix(string segment)
+    {
+        var value = segment.Trim().Trim('{', '}');
+        var ampersand = value.LastIndexOf('&');
+        if (ampersand > 0 && ampersand < value.Length - 1
+            && value[(ampersand + 1)..].All(char.IsDigit))
+        {
+            value = value[..ampersand];
+        }
+
+        return value;
     }
 
     internal static bool IdentitiesCorrelate(UsbDeviceRecord left, UsbDeviceRecord right)
@@ -325,4 +414,4 @@ internal sealed record PnpDateSelection(
     string LastSeenProvenance,
     string LastDisconnectedProvenance);
 
-internal sealed record WpdIdentity(string DeviceInstanceId, string Serial);
+internal sealed record WpdIdentity(string DeviceInstanceId, string Serial, string BackingDeviceInstanceId = "");
