@@ -141,7 +141,7 @@ public static class NetworkConnectionMerger
 
         record.Visits = [.. record.Visits
             .GroupBy(VisitKey, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.OrderByDescending(x => x.WhenUtc ?? DateTimeOffset.MinValue).First())
+            .SelectMany(CollapseSameTarget)
             .OrderBy(x => NetworkVisitKind.Rank(x.Kind))
             .ThenByDescending(x => x.WhenUtc ?? DateTimeOffset.MinValue)];
 
@@ -176,8 +176,57 @@ public static class NetworkConnectionMerger
     private static string SessionKey(NetworkSession session) =>
         $"{session.StartedUtc?.ToUnixTimeSeconds()}|{session.EndedUtc?.ToUnixTimeSeconds()}|{session.Outcome}";
 
+    /// <summary>
+    /// Один и тот же путь приходит из журнала обращений, из дерева папок
+    /// проводника и из ярлыка. Время у этих следов разное, и по времени их
+    /// различать нельзя: получалось три строки об одной и той же папке. В отчёте
+    /// остаётся одна — с самым поздним из известных времён и с числом следов, в
+    /// которых путь встретился.
+    /// </summary>
     private static string VisitKey(NetworkVisit visit) =>
-        $"{visit.Kind}|{visit.Target.Trim().ToLowerInvariant()}|{visit.WhenUtc?.ToUnixTimeSeconds()}";
+        $"{visit.Kind}|{visit.Target.Trim().TrimEnd('\\').ToLowerInvariant()}";
+
+    /// <summary>
+    /// Строки об одном и том же пути. У каждого пользователя остаётся своя
+    /// строка: две учётные записи, открывавшие одну папку, — это два разных
+    /// факта. Следы без пользователя приписываются к самой поздней строке с
+    /// известным пользователем: журнал обращений к сетевым папкам ведёт ядро, и
+    /// в его записях пользователя нет, но папка та же.
+    /// </summary>
+    private static IEnumerable<NetworkVisit> CollapseSameTarget(IEnumerable<NetworkVisit> group)
+    {
+        var items = group.OrderByDescending(x => x.WhenUtc ?? DateTimeOffset.MinValue).ToList();
+        var named = items
+            .Where(x => !string.IsNullOrWhiteSpace(x.UserSid))
+            .GroupBy(x => x.UserSid, StringComparer.OrdinalIgnoreCase)
+            .Select(KeepLatestMention)
+            .ToList();
+
+        var anonymousMentions = items
+            .Where(x => string.IsNullOrWhiteSpace(x.UserSid))
+            .Sum(x => x.MentionCount ?? 1);
+
+        if (named.Count == 0)
+        {
+            return [KeepLatestMention(items)];
+        }
+
+        if (anonymousMentions > 0)
+        {
+            var latest = named.OrderByDescending(x => x.WhenUtc ?? DateTimeOffset.MinValue).First();
+            latest.MentionCount = (latest.MentionCount ?? 1) + anonymousMentions;
+        }
+
+        return named;
+    }
+
+    private static NetworkVisit KeepLatestMention(IEnumerable<NetworkVisit> group)
+    {
+        var items = group.OrderByDescending(x => x.WhenUtc ?? DateTimeOffset.MinValue).ToList();
+        var latest = items[0];
+        latest.MentionCount = items.Sum(x => x.MentionCount ?? 1);
+        return latest;
+    }
 
     private static string Prefer(string current, string candidate) =>
         string.IsNullOrWhiteSpace(current) ? candidate : current;

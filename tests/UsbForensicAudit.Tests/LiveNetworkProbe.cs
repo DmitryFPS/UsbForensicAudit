@@ -13,7 +13,8 @@ public class LiveNetworkProbe
         var sets = new[]
         {
             new NetworkProfileCollector().Collect(warnings),
-            new NetworkEventLogCollector().Collect(warnings)
+            new NetworkEventLogCollector().Collect(warnings),
+            new NetworkShareArtifactCollector().Collect(warnings)
         };
 
         var merged = NetworkConnectionMerger.Merge(sets.SelectMany(x => x.Connections).ToList());
@@ -44,7 +45,7 @@ public class LiveNetworkProbe
             foreach (var visit in item.Visits)
             {
                 lines.Add($"      -> {visit.KindText}: {visit.TargetText} [{visit.WhenText}] "
-                          + $"x{visit.VisitCount} {visit.TitleText}");
+                          + $"{visit.MentionCountText}; {visit.SourceText}; {visit.TitleText}");
             }
 
             lines.Add("");

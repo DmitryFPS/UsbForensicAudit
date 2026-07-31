@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using System.Text;
 using UsbForensicAudit;
 using Xunit;
 
@@ -191,6 +193,81 @@ public class NetworkEventTests
     /// Номер сеанса «1» разбирается как адрес 0.0.0.1, и без проверки на точку
     /// он попадал в отчёт узлом, к которому подключались.
     /// </summary>
+    /// <summary>
+    /// Один и тот же путь приходит из журнала, из дерева папок проводника и из
+    /// ярлыка. В отчёте он должен остаться одной строкой, иначе список читается
+    /// как три разных захода в одну папку.
+    /// </summary>
+    [Fact]
+    public void The_same_folder_from_three_sources_stays_one_row()
+    {
+        var connection = new NetworkConnectionRecord
+        {
+            Kind = NetworkConnectionKind.NetworkShare,
+            Name = "20.20.20.76",
+            Visits =
+            [
+                new NetworkVisit
+                {
+                    Kind = NetworkVisitKind.Folder,
+                    Target = @"\\20.20.20.76\soft",
+                    WhenUtc = DateTimeOffset.Parse("2026-07-28T09:25:26Z"),
+                    Source = "Журнал Windows — обращения к сетевым папкам",
+                    MentionCount = 4
+                },
+                new NetworkVisit
+                {
+                    Kind = NetworkVisitKind.Folder,
+                    Target = @"\\20.20.20.76\SOFT",
+                    WhenUtc = DateTimeOffset.Parse("2026-07-31T11:39:05Z"),
+                    UserSid = "S-1-5-21-1-2-3-1001",
+                    Source = "Реестр Windows — папки, открытые в проводнике",
+                    MentionCount = 5
+                }
+            ]
+        };
+
+        var merged = Assert.Single(NetworkConnectionMerger.Merge([connection]));
+        var visit = Assert.Single(merged.Visits);
+        Assert.Equal(DateTimeOffset.Parse("2026-07-31T11:39:05Z"), visit.WhenUtc);
+        Assert.Equal(9, visit.MentionCount);
+        Assert.Equal("Следов: 9", visit.MentionCountText);
+    }
+
+    /// <summary>
+    /// Разные пользователи, открывавшие одну папку, — два разных факта, и
+    /// сливать их в одну строку нельзя.
+    /// </summary>
+    [Fact]
+    public void The_same_folder_opened_by_two_accounts_stays_two_rows()
+    {
+        var connection = new NetworkConnectionRecord
+        {
+            Kind = NetworkConnectionKind.NetworkShare,
+            Name = "20.20.20.76",
+            Visits =
+            [
+                new NetworkVisit
+                {
+                    Kind = NetworkVisitKind.Folder,
+                    Target = @"\\20.20.20.76\soft",
+                    UserSid = "S-1-5-21-1-2-3-1001",
+                    WhenUtc = DateTimeOffset.Parse("2026-07-31T11:39:05Z")
+                },
+                new NetworkVisit
+                {
+                    Kind = NetworkVisitKind.Folder,
+                    Target = @"\\20.20.20.76\soft",
+                    UserSid = "S-1-5-21-1-2-3-1002",
+                    WhenUtc = DateTimeOffset.Parse("2026-07-30T08:00:00Z")
+                }
+            ]
+        };
+
+        var merged = Assert.Single(NetworkConnectionMerger.Merge([connection]));
+        Assert.Equal(2, merged.Visits.Count);
+    }
+
     [Theory]
     [InlineData("1", false)]
     [InlineData("20.20.20.76", true)]
@@ -200,5 +277,87 @@ public class NetworkEventTests
     public void Session_numbers_are_not_taken_for_addresses(string value, bool expected)
     {
         Assert.Equal(expected, NetworkTarget.LooksLikeHost(value));
+    }
+
+    /// <summary>
+    /// Путь к файлу на сервере ярлык хранит отдельной структурой сетевой ссылки.
+    /// Без её разбора от такого ярлыка оставалось одно имя файла, и сказать, с
+    /// какого сервера его открывали, было нельзя.
+    /// </summary>
+    [Fact]
+    public void Shortcut_to_a_file_on_a_server_gives_the_whole_network_path()
+    {
+        var bytes = BuildNetworkShellLink(@"\\20.23.5.4\ModulsFiles", @"2026\result0.txt", "Z:");
+
+        var parsed = ShellLinkParser.TryParse(bytes, "network.lnk");
+
+        Assert.NotNull(parsed);
+        Assert.Equal(@"\\20.23.5.4\ModulsFiles", parsed!.NetworkPath);
+        Assert.Equal("Z:", parsed.NetworkDeviceName);
+        Assert.Equal(@"\\20.23.5.4\ModulsFiles\2026\result0.txt", parsed.BestTarget);
+        Assert.True(NetworkTarget.TryReadServer(parsed.BestTarget, out var host, out _));
+        Assert.Equal("20.23.5.4", host);
+    }
+
+    /// <summary>
+    /// Путь на диске этой машины остаётся главным: ярлык на локальный файл не
+    /// должен превратиться в сетевой из-за того, что папка когда-то была
+    /// подключена как диск.
+    /// </summary>
+    [Fact]
+    public void A_local_path_stays_the_target_of_the_shortcut()
+    {
+        var info = new ShellLinkInfo
+        {
+            LocalBasePath = @"E:\Сбор",
+            CommonPathSuffix = "report.txt",
+            NetworkPath = @"\\server\share"
+        };
+
+        Assert.Equal(@"E:\Сбор\report.txt", info.BestTarget);
+    }
+
+    private static byte[] BuildNetworkShellLink(string netName, string suffix, string deviceName)
+    {
+        const int linkInfoOffset = 0x4C;
+        const int headerSize = 0x1C;
+        var data = new byte[1024];
+
+        BinaryPrimitives.WriteUInt32LittleEndian(data, 0x4C);
+        new byte[]
+        {
+            0x01, 0x14, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46
+        }.CopyTo(data, 4);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0x14, 4), 0x2);
+
+        const int networkOffset = headerSize;
+        const int netNameFieldOffset = 0x14;
+        var netNameBytes = Encoding.Latin1.GetBytes(netName + "\0");
+        var deviceBytes = Encoding.Latin1.GetBytes(deviceName + "\0");
+        var networkSize = netNameFieldOffset + netNameBytes.Length + deviceBytes.Length;
+
+        var network = data.AsSpan(linkInfoOffset + networkOffset);
+        BinaryPrimitives.WriteUInt32LittleEndian(network, checked((uint)networkSize));
+        BinaryPrimitives.WriteUInt32LittleEndian(network.Slice(0x04, 4), 0x1);
+        BinaryPrimitives.WriteUInt32LittleEndian(network.Slice(0x08, 4), netNameFieldOffset);
+        BinaryPrimitives.WriteUInt32LittleEndian(
+            network.Slice(0x0C, 4), checked((uint)(netNameFieldOffset + netNameBytes.Length)));
+        netNameBytes.CopyTo(data.AsSpan(linkInfoOffset + networkOffset + netNameFieldOffset));
+        deviceBytes.CopyTo(data.AsSpan(linkInfoOffset + networkOffset + netNameFieldOffset + netNameBytes.Length));
+
+        var suffixOffset = networkOffset + networkSize;
+        var suffixBytes = Encoding.Latin1.GetBytes(suffix + "\0");
+        suffixBytes.CopyTo(data.AsSpan(linkInfoOffset + suffixOffset));
+
+        var info = data.AsSpan(linkInfoOffset);
+        BinaryPrimitives.WriteUInt32LittleEndian(info, checked((uint)(suffixOffset + suffixBytes.Length)));
+        BinaryPrimitives.WriteUInt32LittleEndian(info.Slice(0x04, 4), headerSize);
+        BinaryPrimitives.WriteUInt32LittleEndian(info.Slice(0x08, 4), 0x2);
+        BinaryPrimitives.WriteUInt32LittleEndian(info.Slice(0x14, 4), networkOffset);
+        BinaryPrimitives.WriteUInt32LittleEndian(info.Slice(0x18, 4), checked((uint)suffixOffset));
+
+        Array.Resize(ref data, linkInfoOffset + suffixOffset + suffixBytes.Length);
+        return data;
     }
 }

@@ -34,6 +34,7 @@ public static class InfrastructureServiceCollectionExtensions
         // они не укладываются.
         services.AddSingleton<INetworkArtifactCollector, NetworkProfileCollector>();
         services.AddSingleton<INetworkArtifactCollector, NetworkEventLogCollector>();
+        services.AddSingleton<INetworkArtifactCollector, NetworkShareArtifactCollector>();
 
         services.AddSingleton<IReportService, ReportService>();
         services.AddSingleton<WmiUsbMonitor>();
