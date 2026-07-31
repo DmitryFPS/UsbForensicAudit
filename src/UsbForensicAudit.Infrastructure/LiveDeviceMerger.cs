@@ -224,7 +224,11 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
             LastSeenUtc = scanTime,
             ConnectionDisplayKind = "LiveAtScan",
             DisconnectDisplayKind = "ConnectedNow",
-            DateConfidence = "Устройство обнаружено через WMI во время сканирования. DLP может блокировать обычные журналы Windows.",
+            FirstConnectedProvenance = ScanProvenance(scanTime),
+            LastSeenProvenance = ScanProvenance(scanTime),
+            DateConfidence = "Устройство обнаружено через WMI во время сканирования. Показано время сканирования: "
+                             + "оно доказывает, что устройство было подключено в этот момент, но не говорит, когда его подключили. "
+                             + "DLP может блокировать обычные журналы Windows.",
             CollectedAtUtc = scanTime
         };
 
@@ -246,7 +250,14 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
     internal static void ApplyLiveConnectionState(UsbDeviceRecord match, UsbDeviceRecord live, DateTimeOffset scanTime)
     {
         match.IsCurrentlyConnected = true;
+        var previousLastSeen = match.LastSeenUtc;
         match.LastSeenUtc = MaxNullable(match.LastSeenUtc, live.LastSeenUtc ?? scanTime);
+        if (match.LastSeenUtc != previousLastSeen)
+        {
+            match.LastSeenProvenance = string.IsNullOrWhiteSpace(live.LastSeenProvenance)
+                ? ScanProvenance(scanTime)
+                : live.LastSeenProvenance;
+        }
 
         if (!match.FirstConnectedUtc.HasValue)
         {
@@ -254,6 +265,9 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
             match.ConnectionDisplayKind = string.IsNullOrWhiteSpace(live.ConnectionDisplayKind)
                 ? "LiveAtScan"
                 : live.ConnectionDisplayKind;
+            match.FirstConnectedProvenance = string.IsNullOrWhiteSpace(live.FirstConnectedProvenance)
+                ? ScanProvenance(scanTime)
+                : live.FirstConnectedProvenance;
         }
 
         if (string.IsNullOrWhiteSpace(match.DisconnectDisplayKind)
@@ -274,6 +288,13 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
 
     private static DateTimeOffset MaxNullable(DateTimeOffset? current, DateTimeOffset candidate) =>
         current.HasValue ? (current.Value > candidate ? current.Value : candidate) : candidate;
+
+    /// <summary>
+    /// Дата без указания источника читается в отчёте как установленный факт.
+    /// Время сканирования — тоже наблюдение, и назвать его надо прямо.
+    /// </summary>
+    private static string ScanProvenance(DateTimeOffset scanTime) =>
+        $"Живой опрос системы во время сканирования {DateDisplay.FormatMoscow(scanTime)}";
 
     internal static UsbDeviceRecord? FindMatch(IEnumerable<UsbDeviceRecord> existing, UsbDeviceRecord live)
     {

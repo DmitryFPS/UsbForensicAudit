@@ -183,6 +183,9 @@ public sealed class TimelineEnricher
         {
             device.LastDisconnectedUtc = device.LastSeenUtc;
             device.DisconnectDisplayKind = "LastActivityEstimate";
+            device.LastDisconnectedProvenance = string.IsNullOrWhiteSpace(device.LastSeenProvenance)
+                ? "Оценка по последней активности устройства"
+                : $"Оценка по последней активности: {device.LastSeenProvenance}";
             device.DateConfidence = string.IsNullOrWhiteSpace(device.DateConfidence)
                 ? "Точное отключение не найдено. Показана дата последней активности — устройство сейчас не подключено."
                 : device.DateConfidence + " Отключение оценено по последней активности.";
@@ -212,7 +215,12 @@ public sealed class TimelineEnricher
         {
             if (device.IsCurrentlyConnected)
             {
+                var previous = device.LastSeenUtc;
                 device.LastSeenUtc = Max(device.LastSeenUtc, scanStartedUtc);
+                if (device.LastSeenUtc != previous)
+                {
+                    device.LastSeenProvenance = ScanProvenance(scanStartedUtc);
+                }
             }
 
             return;
@@ -222,7 +230,9 @@ public sealed class TimelineEnricher
         {
             device.FirstConnectedUtc = device.RegistryLastWriteUtc;
             device.ConnectionDisplayKind = "RegistryActivity";
+            device.FirstConnectedProvenance = "Время последнего изменения записи устройства в реестре";
             device.LastSeenUtc = Max(device.LastSeenUtc, scanStartedUtc);
+            device.LastSeenProvenance = ScanProvenance(scanStartedUtc);
             device.DateConfidence =
                 "Устройство подключено сейчас. Точные журналы Windows недоступны (часто из-за DLP). Дата взята из изменения записи в реестре.";
             return;
@@ -230,10 +240,21 @@ public sealed class TimelineEnricher
 
         device.FirstConnectedUtc = scanStartedUtc;
         device.ConnectionDisplayKind = "LiveAtScan";
+        device.FirstConnectedProvenance = ScanProvenance(scanStartedUtc);
         device.LastSeenUtc = scanStartedUtc;
+        device.LastSeenProvenance = ScanProvenance(scanStartedUtc);
         device.DateConfidence =
-            "Устройство подключено сейчас и обнаружено при сканировании. DLP может скрывать обычные следы Windows.";
+            "Устройство подключено сейчас и обнаружено при сканировании. Показано время сканирования: "
+            + "оно доказывает, что устройство было подключено в этот момент, но не говорит, когда его подключили. "
+            + "DLP может скрывать обычные следы Windows.";
     }
+
+    /// <summary>
+    /// Дата без указания источника в отчёте выглядит как установленный факт.
+    /// Время сканирования — тоже наблюдение, и назвать его надо прямо.
+    /// </summary>
+    private static string ScanProvenance(DateTimeOffset scanStartedUtc) =>
+        $"Живой опрос системы во время сканирования {DateDisplay.FormatMoscow(scanStartedUtc)}";
 
     private static void SetLastSeen(UsbDeviceRecord device, IReadOnlyList<EvidenceRecord> matches)
     {
