@@ -108,6 +108,11 @@ public sealed class TimelineEnricher
             .OrderBy(x => x.TimestampUtc)
             .ToArray();
 
+        device.Sessions = ConnectionSessionBuilder.Build(
+            connectionMatches.Select(x => (x.TimestampUtc, IsConnect: true, EvidenceProvenance(x)))
+                .Concat(disconnectMatches.Select(x => (x.TimestampUtc, IsConnect: false, EvidenceProvenance(x)))))
+            .ToList();
+
         if (connectionMatches.Length > 0)
         {
             if (!device.FirstConnectedUtc.HasValue

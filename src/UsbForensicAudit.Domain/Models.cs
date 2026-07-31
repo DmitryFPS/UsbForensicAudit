@@ -64,6 +64,12 @@ public sealed class UsbDeviceRecord
 
     public string LastSeenProvenance { get; set; } = "";
     public string LastDisconnectedProvenance { get; set; } = "";
+
+    /// <summary>
+    /// Отдельные сеансы работы устройства. Первая и последняя дата не показывают,
+    /// сколько раз устройство подключали и как долго оно оставалось в машине.
+    /// </summary>
+    public List<ConnectionSession> Sessions { get; set; } = [];
     public bool IsCurrentlyConnected { get; set; }
     public string ConnectionDisplayKind { get; set; } = "";
     public string DisconnectDisplayKind { get; set; } = "";
