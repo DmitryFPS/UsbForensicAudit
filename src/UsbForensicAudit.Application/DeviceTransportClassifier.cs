@@ -1,10 +1,12 @@
+using System.Text.RegularExpressions;
+
 namespace UsbForensicAudit;
 
 /// <summary>
 /// Evidence-driven transport/topology classification. Unknown is preferred to
 /// inferring an external device from a storage protocol or product name alone.
 /// </summary>
-public static class DeviceTransportClassifier
+public static partial class DeviceTransportClassifier
 {
     private static readonly string[] ThunderboltMarkers =
     [
@@ -92,7 +94,7 @@ public static class DeviceTransportClassifier
 
         ClassifyTransport(device, text, id);
         ClassifyConnection(device, text, id);
-        ClassifyRole(device, text, id);
+        ClassifyRole(device, RoleEvidenceText(device), id);
 
         if (device.Classification == "Unknown"
             && device.Connection is "USB" or "USB4/Thunderbolt" or "PCIe-tunneled candidate"
@@ -357,8 +359,10 @@ public static class DeviceTransportClassifier
             return;
         }
 
-        if (ContainsAny(text, "HUB") || device.Service.Equals("usbhub", StringComparison.OrdinalIgnoreCase)
-                                     || device.Service.Equals("usbhub3", StringComparison.OrdinalIgnoreCase))
+        if (DeviceMarkerText.ContainsWord(text, "HUB")
+            || ContainsAny(device.CompatibleIds, @"USB\CLASS_09")
+            || device.Service.Equals("usbhub", StringComparison.OrdinalIgnoreCase)
+            || device.Service.Equals("usbhub3", StringComparison.OrdinalIgnoreCase))
         {
             SetClassification(device, "Hub", "High", "USB hub service/device marker");
             return;
@@ -438,6 +442,23 @@ public static class DeviceTransportClassifier
         device.DeviceInstanceId, device.Source, device.DeviceType, device.Service,
         device.HardwareIds, device.CompatibleIds, device.LocationInformation, device.LocationPaths,
         device.FriendlyName, device.Manufacturer, device.Product, device.RawJson);
+
+    /// <summary>
+    /// Роль устройства нельзя определять по его месту в топологии. Windows пишет
+    /// каждому устройству LocationInformation вида "Port_#0008.Hub_#0001" — это
+    /// порт и концентратор, в которые устройство воткнуто, а не само устройство.
+    /// Пока эта строка попадала в текст признаков, любая флешка и любой телефон
+    /// получали роль Hub, уходили в инфраструктуру шины и пропадали из счётчика
+    /// физических устройств.
+    /// </summary>
+    private static string RoleEvidenceText(UsbDeviceRecord device) => PortLocationRegex().Replace(
+        Join(device.DeviceInstanceId, device.Source, device.DeviceType, device.Service,
+            device.HardwareIds, device.CompatibleIds,
+            device.FriendlyName, device.Manufacturer, device.Product, device.RawJson),
+        " ");
+
+    [GeneratedRegex(@"Port_#\d+\.Hub_#\d+", RegexOptions.IgnoreCase)]
+    private static partial Regex PortLocationRegex();
 
     private static bool IsSameTopology(UsbDeviceRecord left, UsbDeviceRecord right)
     {
