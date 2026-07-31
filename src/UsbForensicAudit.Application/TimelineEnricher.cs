@@ -115,16 +115,17 @@ public sealed class TimelineEnricher
             {
                 device.FirstConnectedUtc = connectionMatches.First().TimestampUtc;
                 device.ConnectionDisplayKind = "ExactEvent";
+                device.FirstConnectedProvenance = EvidenceProvenance(connectionMatches.First());
             }
 
-            device.LastSeenUtc = Max(device.LastSeenUtc, timelineMatches.Max(x => x.TimestampUtc));
+            SetLastSeen(device, timelineMatches);
             device.DateConfidence = AppendConfidence(
                 device.DateConfidence,
                 "Даты дополнены из журнала Windows и setupapi.dev.log.");
         }
         else if (timelineMatches.Length > 0)
         {
-            device.LastSeenUtc = Max(device.LastSeenUtc, timelineMatches.Max(x => x.TimestampUtc));
+            SetLastSeen(device, timelineMatches);
             device.DateConfidence = AppendConfidence(
                 device.DateConfidence,
                 "Устройство видно в системном журнале.");
@@ -145,6 +146,7 @@ public sealed class TimelineEnricher
             {
                 device.LastDisconnectedUtc = eventDisconnect;
                 device.DisconnectDisplayKind = "ExactEvent";
+                device.LastDisconnectedProvenance = EvidenceProvenance(disconnectMatches.Last());
             }
 
             if (device.IsCurrentlyConnected)
@@ -226,6 +228,32 @@ public sealed class TimelineEnricher
         device.LastSeenUtc = scanStartedUtc;
         device.DateConfidence =
             "Устройство подключено сейчас и обнаружено при сканировании. DLP может скрывать обычные следы Windows.";
+    }
+
+    private static void SetLastSeen(UsbDeviceRecord device, IReadOnlyList<EvidenceRecord> matches)
+    {
+        var latest = matches.OrderByDescending(x => x.TimestampUtc).First();
+        if (!device.LastSeenUtc.HasValue || latest.TimestampUtc > device.LastSeenUtc.Value)
+        {
+            device.LastSeenUtc = latest.TimestampUtc;
+            device.LastSeenProvenance = EvidenceProvenance(latest);
+        }
+    }
+
+    /// <summary>
+    /// Называет конкретную запись-источник, а не только её вид: по ней дату можно
+    /// перепроверить и увидеть, что она относится именно к этому устройству.
+    /// </summary>
+    private static string EvidenceProvenance(EvidenceRecord evidence)
+    {
+        var parts = new[]
+        {
+            evidence.Source,
+            string.IsNullOrWhiteSpace(evidence.EventId) ? "" : $"событие {evidence.EventId}",
+            string.IsNullOrWhiteSpace(evidence.DeviceHint) ? "" : evidence.DeviceHint
+        };
+
+        return string.Join(" | ", parts.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 
     private static DateTimeOffset Max(DateTimeOffset? current, DateTimeOffset candidate)

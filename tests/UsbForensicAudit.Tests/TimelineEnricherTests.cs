@@ -6,6 +6,78 @@ namespace UsbForensicAudit.Tests;
 public class TimelineEnricherTests
 {
     [Fact]
+    public void Interface_class_guid_does_not_transfer_dates_between_devices()
+    {
+        const string interfaceClassGuid = "53F56307-B6BF-11D0-94F2-00A0C91EFB8B";
+        var installedDevice = new UsbDeviceRecord
+        {
+            DeviceInstanceId = @"SWD\WPDBUSENUM\FLASH-B",
+            Serial = interfaceClassGuid,
+            VisualCategory = "RealUsb"
+        };
+        var untouchedDevice = new UsbDeviceRecord
+        {
+            DeviceInstanceId = @"SWD\WPDBUSENUM\FLASH-A",
+            Serial = interfaceClassGuid,
+            VisualCategory = "RealUsb"
+        };
+
+        var result = new AuditResult
+        {
+            Devices = { installedDevice, untouchedDevice },
+            Evidence =
+            {
+                new EvidenceRecord
+                {
+                    TimestampUtc = new DateTimeOffset(2026, 7, 29, 12, 58, 47, TimeSpan.Zero),
+                    Source = "setupapi.dev.log",
+                    EvidenceCategory = "Установка/инициализация устройства",
+                    DeviceHint = $@"SWD\WPDBUSENUM\FLASH-B#{{{interfaceClassGuid}}}",
+                    CanEstablishConnectionDate = true
+                }
+            }
+        };
+
+        new TimelineEnricher().Enrich(result);
+
+        Assert.Null(untouchedDevice.FirstConnectedUtc);
+        Assert.Equal("", untouchedDevice.FirstConnectedProvenance);
+    }
+
+    [Fact]
+    public void Date_taken_from_evidence_records_its_source()
+    {
+        var device = new UsbDeviceRecord
+        {
+            DeviceInstanceId = @"USBSTOR\Disk&Ven_General&Prod_UDisk&Rev_5.00\2412242109410569603146&0",
+            Serial = "2412242109410569603146",
+            VisualCategory = "RealUsb"
+        };
+        var result = new AuditResult
+        {
+            Devices = { device },
+            Evidence =
+            {
+                new EvidenceRecord
+                {
+                    TimestampUtc = new DateTimeOffset(2026, 7, 27, 6, 39, 17, TimeSpan.Zero),
+                    Source = "Microsoft-Windows-Partition/Diagnostic",
+                    EventId = "1006",
+                    EvidenceCategory = "Подключение/инициализация устройства",
+                    DeviceHint = @"USB\VID_ABCD&PID_1234\2412242109410569603146",
+                    CanEstablishConnectionDate = true
+                }
+            }
+        };
+
+        new TimelineEnricher().Enrich(result);
+
+        Assert.Equal(new DateTimeOffset(2026, 7, 27, 6, 39, 17, TimeSpan.Zero), device.FirstConnectedUtc);
+        Assert.Contains("Microsoft-Windows-Partition/Diagnostic", device.FirstConnectedProvenance, StringComparison.Ordinal);
+        Assert.Contains("1006", device.FirstConnectedProvenance, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Enrich_fills_user_explanation_for_prefetch()
     {
         var result = new AuditResult();

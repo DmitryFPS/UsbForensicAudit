@@ -5,33 +5,46 @@ internal static class DeviceEvidenceTokens
     public static IReadOnlyList<string> Build(UsbDeviceRecord device)
     {
         var tokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var value in new[]
-                 {
-                     device.Serial,
-                     device.ContainerId,
-                     device.ParentIdPrefix,
-                     device.DeviceInstanceId
-                 })
-        {
-            var normalized = NormalizeStrong(value);
-            if (IsStrong(normalized))
-            {
-                tokens.Add(normalized);
-            }
-        }
+
+        Add(tokens, device.Serial, guidAllowed: false);
+        Add(tokens, device.ParentIdPrefix, guidAllowed: false);
+        Add(tokens, device.DeviceInstanceId, guidAllowed: false);
+        Add(tokens, device.ContainerId, guidAllowed: true);
 
         foreach (var linkedId in device.LinkedSourceIds)
         {
-            var normalized = NormalizeStrong(linkedId);
-            if (IsStrong(normalized))
-            {
-                tokens.Add(normalized);
-            }
+            Add(tokens, linkedId, guidAllowed: false);
+        }
+
+        foreach (var alias in device.IdentityAliases)
+        {
+            Add(tokens, alias, guidAllowed: false);
         }
 
         // VID/PID and display names identify a model, not a physical instance. They are
         // deliberately excluded so two identical devices cannot inherit each other's dates.
         return tokens.ToArray();
+    }
+
+    private static void Add(HashSet<string> tokens, string value, bool guidAllowed)
+    {
+        // Класс интерфейса устройства и заглушка контейнера общие для всех устройств
+        // своего класса: по ним нельзя привязывать события к экземпляру.
+        if (WellKnownDeviceGuids.IsNonIdentifying(value))
+        {
+            return;
+        }
+
+        if (!guidAllowed && WellKnownDeviceGuids.IsBareGuid(value))
+        {
+            return;
+        }
+
+        var normalized = NormalizeStrong(value);
+        if (IsStrong(normalized))
+        {
+            tokens.Add(normalized);
+        }
     }
 
     public static bool Contains(EvidenceRecord evidence, string token)
