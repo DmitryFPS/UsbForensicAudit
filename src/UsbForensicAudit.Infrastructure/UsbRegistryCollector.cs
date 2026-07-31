@@ -57,12 +57,36 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
             }
         }
 
+        // Носитель может подключиться не только по USB: карта памяти через
+        // встроенный кардридер, телефон или гарнитура по Bluetooth, устройство,
+        // представляющееся COM-портом. Раньше эти шины не читались совсем.
+        foreach (var (suffix, source) in new[]
+                 {
+                     ("SD", "Registry: SD-карты"),
+                     ("SDBUS", "Registry: SD-карты"),
+                     ("BTHENUM", "Registry: Bluetooth"),
+                     ("BTHLEDEVICE", "Registry: Bluetooth LE"),
+                     ("USBSER", "Registry: USB COM-порт"),
+                     ("USBPRINT", "Registry: USB-принтер")
+                 })
+        {
+            foreach (var path in UsbRegistryForensicHelpers.BuildControlSetEnumPaths(controlSets, suffix))
+            {
+                if (RegistryPathExists(path))
+                {
+                    CollectEnumTree(path, source, records, warnings);
+                }
+            }
+        }
+
         foreach (var path in UsbRegistryForensicHelpers.BuildControlSetEnumPaths(controlSets, "PCI"))
         {
             CollectRelevantPci(path, records, warnings);
         }
 
         CollectPortableDevices(records, warnings);
+        CollectReadyBoostVolumeHistory(records, warnings);
+        CollectDeviceInterfaceArrivals(controlSets, records, warnings);
         records = DeduplicateEnumRecords(records);
         CorrelatePortableDevices(records);
         CollectUsbFlags(records, warnings);
@@ -73,6 +97,140 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         DeviceIdentityGraph.Process(records);
         return records;
     }
+
+    /// <summary>
+    /// История ReadyBoost хранит метку тома вместе с идентификатором носителя.
+    /// Без неё носитель нельзя связать с ярлыком или недавним документом,
+    /// в которых записана только буква диска и серийный номер тома.
+    /// </summary>
+    private static void CollectReadyBoostVolumeHistory(List<UsbDeviceRecord> records, List<string> warnings)
+    {
+        const string path = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\EMDMgmt";
+        try
+        {
+            using var root = Registry.LocalMachine.OpenSubKey(path);
+            if (root is null)
+            {
+                return;
+            }
+
+            foreach (var keyName in root.GetSubKeyNames().Take(4096))
+            {
+                if (!UsbRegistryForensicHelpers.TryParseReadyBoostKey(
+                        keyName, out var instanceId, out var label, out var volumeSerial))
+                {
+                    continue;
+                }
+
+                using var entry = root.OpenSubKey(keyName);
+                var volume = new VolumeIdentity
+                {
+                    VolumeSerialNumber = volumeSerial,
+                    DevicePath = instanceId,
+                    Source = "Registry: EMDMgmt (история ReadyBoost)",
+                    Confidence = "High",
+                    Provenance = [$@"HKLM\{path}\{keyName}"]
+                };
+
+                records.Add(new UsbDeviceRecord
+                {
+                    Source = "Registry: EMDMgmt (история ReadyBoost)",
+                    VisualCategory = "SupportArtifact",
+                    DeviceType = "VolumeHistory",
+                    UserMeaning = string.IsNullOrWhiteSpace(label)
+                        ? "Носитель отмечен в истории ReadyBoost. Подтверждает, что том подключали."
+                        : $"Носитель отмечен в истории ReadyBoost под меткой тома «{label}».",
+                    DeviceInstanceId = instanceId,
+                    FriendlyName = label,
+                    VolumeHints = label,
+                    Volumes = [volume],
+                    RegistryLastWriteUtc = entry is null ? null : RegistryKeyTimestamps.GetLastWriteUtc(entry),
+                    RawJson = JsonSerializer.Serialize(new
+                    {
+                        RegistryPath = $@"HKLM\{path}\{keyName}",
+                        VolumeLabel = label,
+                        VolumeSerialNumber = volumeSerial
+                    })
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"Ошибка чтения HKLM\\{path}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// DeviceClasses хранит по одной записи на каждый интерфейс устройства.
+    /// Время изменения такой записи — независимая отметка появления устройства
+    /// в системе, не зависящая от журналов, которые могли быть очищены.
+    /// </summary>
+    private static void CollectDeviceInterfaceArrivals(
+        IReadOnlyList<string> controlSets, List<UsbDeviceRecord> records, List<string> warnings)
+    {
+        foreach (var controlSet in controlSets)
+        {
+            var rootPath = $@"SYSTEM\{controlSet}\Control\DeviceClasses";
+            try
+            {
+                using var root = Registry.LocalMachine.OpenSubKey(rootPath);
+                if (root is null)
+                {
+                    continue;
+                }
+
+                foreach (var classGuid in root.GetSubKeyNames())
+                {
+                    using var classKey = root.OpenSubKey(classGuid);
+                    if (classKey is null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var symbolicLink in classKey.GetSubKeyNames().Take(4096))
+                    {
+                        var identity = UsbRegistryForensicHelpers.ParseWpdIdentity(symbolicLink);
+                        if (string.IsNullOrWhiteSpace(identity.DeviceInstanceId)
+                            || !LooksLikeRemovableInterface(identity.DeviceInstanceId))
+                        {
+                            continue;
+                        }
+
+                        using var linkKey = classKey.OpenSubKey(symbolicLink);
+                        records.Add(new UsbDeviceRecord
+                        {
+                            Source = "Registry: DeviceClasses",
+                            VisualCategory = "SupportArtifact",
+                            DeviceType = "DeviceInterface",
+                            UserMeaning = "Запись интерфейса устройства. Время её изменения — независимая "
+                                          + "отметка появления устройства, не зависящая от журналов Windows.",
+                            DeviceInstanceId = identity.DeviceInstanceId,
+                            Serial = identity.Serial,
+                            ClassGuid = classGuid,
+                            RegistryLastWriteUtc = linkKey is null ? null : RegistryKeyTimestamps.GetLastWriteUtc(linkKey),
+                            RawJson = JsonSerializer.Serialize(new
+                            {
+                                RegistryPath = $@"HKLM\{rootPath}\{classGuid}\{symbolicLink}",
+                                ControlSet = controlSet,
+                                InterfaceClass = classGuid
+                            })
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"Ошибка чтения HKLM\\{rootPath}: {ex.Message}");
+            }
+        }
+    }
+
+    private static bool LooksLikeRemovableInterface(string instanceId) =>
+        instanceId.StartsWith("USBSTOR", StringComparison.OrdinalIgnoreCase)
+        || instanceId.StartsWith("USB", StringComparison.OrdinalIgnoreCase)
+        || instanceId.StartsWith("SWD", StringComparison.OrdinalIgnoreCase)
+        || instanceId.StartsWith("SD", StringComparison.OrdinalIgnoreCase)
+        || instanceId.StartsWith("BTH", StringComparison.OrdinalIgnoreCase);
 
     private static bool RegistryPathExists(string path)
     {
