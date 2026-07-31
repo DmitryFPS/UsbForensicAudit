@@ -70,7 +70,17 @@ public static class DeviceKindResolver
     {
         if (device.DeviceType.Equals("VolumeMapping", StringComparison.OrdinalIgnoreCase)
             || device.DeviceType.Equals("USBFlags", StringComparison.OrdinalIgnoreCase)
+            || device.DeviceType.Equals("VolumeHistory", StringComparison.OrdinalIgnoreCase)
+            || device.DeviceType.Equals("VolumeLabel", StringComparison.OrdinalIgnoreCase)
             || device.VisualCategory.Equals("UsbFlagsTrace", StringComparison.OrdinalIgnoreCase))
+        {
+            return RegistryTrace;
+        }
+
+        // Запись интерфейса — след появления устройства, а не само устройство,
+        // если её не удалось приклеить к физической записи.
+        if (device.DeviceType.Equals("DeviceInterface", StringComparison.OrdinalIgnoreCase)
+            && device.Transport == "Unknown")
         {
             return RegistryTrace;
         }

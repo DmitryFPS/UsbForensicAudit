@@ -293,7 +293,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                         }
 
                         using var linkKey = classKey.OpenSubKey(symbolicLink);
-                        records.Add(new UsbDeviceRecord
+                        var record = new UsbDeviceRecord
                         {
                             Source = "Registry: DeviceClasses",
                             VisualCategory = "SupportArtifact",
@@ -301,7 +301,6 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                             UserMeaning = "Запись интерфейса устройства. Время её изменения — независимая "
                                           + "отметка появления устройства, не зависящая от журналов Windows.",
                             DeviceInstanceId = identity.DeviceInstanceId,
-                            Serial = identity.Serial,
                             ClassGuid = classGuid,
                             RegistryLastWriteUtc = linkKey is null ? null : RegistryKeyTimestamps.GetLastWriteUtc(linkKey),
                             RawJson = JsonSerializer.Serialize(new
@@ -310,7 +309,23 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                                 ControlSet = controlSet,
                                 InterfaceClass = classGuid
                             })
-                        });
+                        };
+
+                        // GUID класса интерфейса одинаков у всех устройств класса и
+                        // серийным номером быть не может.
+                        if (!WellKnownDeviceGuids.IsBareGuid(identity.Serial))
+                        {
+                            record.Serial = identity.Serial;
+                        }
+
+                        // Ссылка на физическое устройство, чтобы запись интерфейса
+                        // склеилась с ним, а не висела во вкладке отдельной строкой.
+                        if (!string.IsNullOrWhiteSpace(identity.BackingDeviceInstanceId))
+                        {
+                            record.IdentityAliases.Add(identity.BackingDeviceInstanceId);
+                        }
+
+                        records.Add(record);
                     }
                 }
             }
@@ -321,12 +336,21 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         }
     }
 
-    private static bool LooksLikeRemovableInterface(string instanceId) =>
-        instanceId.StartsWith("USBSTOR", StringComparison.OrdinalIgnoreCase)
-        || instanceId.StartsWith("USB", StringComparison.OrdinalIgnoreCase)
-        || instanceId.StartsWith("SWD", StringComparison.OrdinalIgnoreCase)
-        || instanceId.StartsWith("SD", StringComparison.OrdinalIgnoreCase)
-        || instanceId.StartsWith("BTH", StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// Под ветками SWD и BTH живут в основном программные записи Windows:
+    /// очереди печати PRINTENUM, звуковые точки MMDEVAPI, VPN-минипорты MSRRAS,
+    /// Wintun, DRIVERENUM. К подключаемым устройствам они отношения не имеют,
+    /// поэтому берутся только шины, за которыми стоит носитель или телефон.
+    /// </summary>
+    private static readonly string[] RemovableInterfacePrefixes =
+    [
+        @"USBSTOR\", @"USB\", @"USB4\", @"SWD\WPDBUSENUM\",
+        @"SD\", @"SDBUS\", @"BTHENUM\", @"BTHLEDEVICE\"
+    ];
+
+    internal static bool LooksLikeRemovableInterface(string instanceId) =>
+        RemovableInterfacePrefixes.Any(prefix =>
+            instanceId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
 
     private static bool RegistryPathExists(string path)
     {
