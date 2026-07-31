@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private readonly ICollectionView _cleanupFindingsView;
     private readonly ICollectionView _externalUtilityRowsView;
     private readonly ICollectionView _devicesView;
+    private readonly ICollectionView _networkView;
     private ExternalUtilityReportSnapshot _externalUtilitySnapshot = new();
     private string _lastExternalUtilityAnalysisCopyText = "";
     private ExternalUtilityRow? _activeExternalUtilityRow;
@@ -56,6 +57,9 @@ public partial class MainWindow : Window
         _devicesView = CollectionViewSource.GetDefaultView(_devices);
         _devicesView.Filter = FilterDevice;
         DevicesGrid.ItemsSource = _devicesView;
+        _networkView = CollectionViewSource.GetDefaultView(_vm.NetworkConnections);
+        _networkView.Filter = FilterNetworkConnection;
+        NetworkGrid.ItemsSource = _networkView;
         _cleanupFindingsView = CollectionViewSource.GetDefaultView(_cleanupFindings);
         _cleanupFindingsView.Filter = FilterCleanupFinding;
         FindingsGrid.ItemsSource = _cleanupFindingsView;
@@ -118,6 +122,58 @@ public partial class MainWindow : Window
     private void DeviceFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         _devicesView?.Refresh();
+    }
+
+    private void NetworkGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject source
+            || ItemsControl.ContainerFromElement(NetworkGrid, source) is not DataGridRow row
+            || row.Item is not NetworkConnectionRecord connection)
+        {
+            return;
+        }
+
+        new NetworkConnectionDetailsWindow(connection) { Owner = this }.ShowDialog();
+        e.Handled = true;
+    }
+
+    private void NetworkFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        _networkView?.Refresh();
+        UpdateNetworkCount();
+    }
+
+    private bool FilterNetworkConnection(object item)
+    {
+        if (item is not NetworkConnectionRecord connection)
+        {
+            return false;
+        }
+
+        var selected = (NetworkFilterCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
+        return selected switch
+        {
+            "All" => true,
+            "OutsideReach" => connection.IsOutsideReach,
+            _ => connection.Kind.Equals(selected, StringComparison.OrdinalIgnoreCase)
+        };
+    }
+
+    /// <summary>
+    /// Сколько строк показано из скольких. Без этого числа отобранный фильтром
+    /// список читается как весь список связей.
+    /// </summary>
+    private void UpdateNetworkCount()
+    {
+        if (_networkView is null)
+        {
+            return;
+        }
+
+        var shown = _networkView.Cast<object>().Count();
+        NetworkCountText.Text = shown == _vm.NetworkConnections.Count
+            ? $"Связей: {shown}"
+            : $"Связей: {shown} из {_vm.NetworkConnections.Count}";
     }
 
     private bool FilterDevice(object item)
@@ -206,6 +262,7 @@ public partial class MainWindow : Window
 
         DevicesCountText.Text = _devices.Count.ToString();
         EvidenceCountText.Text = _evidence.Count.ToString();
+        UpdateNetworkCount();
         var suspiciousCount = result.CleanupFindings.Count(x => x.IsSuspicious);
         FindingsCountText.Text = suspiciousCount.ToString();
         FindingsSubText.Text = result.CleanupFindings.Count == 0

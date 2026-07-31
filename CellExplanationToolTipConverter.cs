@@ -39,8 +39,117 @@ internal static class CellExplanationText
             UsbDeviceRecord device => ExplainDevice(device, header),
             EvidenceRecord evidence => ExplainEvidence(evidence, header),
             CleanupFinding finding => ExplainCleanup(finding, header),
+            NetworkConnectionRecord connection => ExplainNetwork(connection, header),
             _ => null
         };
+
+    private static string? ExplainNetwork(NetworkConnectionRecord connection, string header) =>
+        header switch
+        {
+            "Как связывались" => Build(
+                header,
+                connection.KindText,
+                ExplainNetworkKind(connection.Kind)),
+            "С чем именно" => Build(
+                header,
+                connection.TargetText,
+                "Имя сети, сервера, устройства или сайта и его адрес, если Windows его сохранила."),
+            "Кто начал" => Build(
+                header,
+                connection.DirectionText,
+                "Кто установил соединение: эта машина обратилась наружу или к ней пришли извне.",
+                "«Направление не определено» означает, что в записи нет ни адреса вызывающей стороны, "
+                + "ни признака входящего соединения, — а не то, что связь была односторонней."),
+            "Что нашлось внутри" => Build(
+                header,
+                connection.ActivityText,
+                "Сколько по этой связи найдено сеансов и обращений. Двойной щелчок по строке открывает "
+                + "их все.",
+                "«Только сам факт связи» означает, что подробностей не сохранилось: журнал вытеснен по "
+                + "размеру или выключен."),
+            "Первое подключение" => Build(
+                header,
+                connection.FirstSeenText,
+                ExplainNetworkDate(connection.FirstSeenProvenance),
+                "У разных связей эта дата приходит из разных мест, поэтому сравнивать их между собой "
+                + "напрямую нельзя."),
+            "Последнее подключение" => Build(
+                header,
+                connection.LastSeenText,
+                ExplainNetworkDate(connection.LastSeenProvenance)),
+            "Чем защищено" => Build(
+                header,
+                connection.SecurityText,
+                "Способ проверки подлинности и шифрования, который записала Windows.",
+                "У проводной сети такого понятия нет, а у туннеля VPN способ шифрования задаёт его "
+                + "клиент, поэтому молчание Windows здесь не означает отсутствия защиты."),
+            "Через что шла связь" => Build(
+                header,
+                connection.AdapterText,
+                "Сетевое устройство, через которое шло соединение: адаптер Wi-Fi, сетевая карта, "
+                + "радиомодуль."),
+            "Адреса этой машины" => Build(
+                header,
+                connection.LocalAddressesText,
+                "Адреса, которые машина получала в этой сети, вместе со шлюзом и серверами имён.",
+                "Адрес хранится у сетевого устройства, а не у самой сети, поэтому к части сетей его "
+                + "привязать невозможно."),
+            "Учётная запись" => Build(
+                header,
+                connection.AccountText,
+                "Учётная запись, под которой шло соединение, если источник её сохранил."),
+            "Простыми словами" => Build(
+                header,
+                connection.DetailsText,
+                "Что это за связь и что о ней известно, без сокращений и кодов."),
+            "Откуда взято" => Build(
+                header,
+                connection.SourcesText,
+                "Все источники, подтвердившие эту связь.",
+                "Связь, найденная сразу в реестре и в журнале, весит больше связи из одного источника."),
+            "Ссылка на источник" => Build(
+                header,
+                connection.Provenance,
+                "Ветка реестра, канал журнала или файл, по которым вывод можно проверить вручную."),
+            _ => null
+        };
+
+    private static string ExplainNetworkKind(string? kind) =>
+        kind switch
+        {
+            NetworkConnectionKind.NetworkShare =>
+                "Сервер, папки которого открывали с этой машины. Через сетевые папки файлы уходят с "
+                + "машины и приходят на неё — это прямой путь выноса данных без всякой флешки.",
+            NetworkConnectionKind.RemoteDesktop =>
+                "Удалённый рабочий стол: либо с этой машины управляли чужой, либо этой машиной "
+                + "управляли извне. Через буфер обмена и подключённые диски такой сеанс тоже переносит "
+                + "файлы.",
+            NetworkConnectionKind.Vpn =>
+                "Туннель VPN уводит связь в чужую сеть в обход своей: что именно шло внутри туннеля, "
+                + "по следам на машине не видно.",
+            NetworkConnectionKind.WiFi =>
+                "Беспроводная сеть. Windows запоминает её надолго — и саму сеть, и способ её защиты.",
+            NetworkConnectionKind.Wired =>
+                "Подключение по проводу.",
+            NetworkConnectionKind.MobileBroadband =>
+                "Мобильный интернет: через модем или телефон, раздающий связь.",
+            NetworkConnectionKind.Bluetooth =>
+                "Устройство, сопряжённое по Bluetooth. Телефон рядом с рабочей машиной — канал, по "
+                + "которому файлы уходят без флешки.",
+            NetworkConnectionKind.WebSite =>
+                "Сайт из истории браузера. Скачанные с него файлы перечислены внутри строки.",
+            NetworkConnectionKind.Nfc =>
+                "Обмен по NFC.",
+            _ => "Вид связи по имеющимся следам определить не удалось."
+        };
+
+    private static string ExplainNetworkDate(string? provenance)
+    {
+        var text = ReportText.ForDisplayOrClean(provenance, 400);
+        return text.Length > 0
+            ? $"Откуда взята дата: {text}."
+            : "Откуда взята эта дата, источник не сообщил.";
+    }
 
     private static string? ExplainDevice(UsbDeviceRecord device, string header) =>
         header switch

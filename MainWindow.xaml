@@ -25,6 +25,7 @@
         <SolidColorBrush x:Key="Danger" Color="#FB7185"/>
         <local:CellExplanationToolTipConverter x:Key="CellExplanationToolTipConverter"/>
         <local:DeviceExternalityBrushConverter x:Key="DeviceExternalityBrushConverter"/>
+        <local:NetworkConnectionBrushConverter x:Key="NetworkConnectionBrushConverter"/>
 
         <Style TargetType="ToolTip">
             <Setter Property="Background" Value="Transparent"/>
@@ -416,6 +417,114 @@
                             <DataGridTextColumn Header="Расположение в USB" Binding="{Binding LocationDisplayText}" Width="180"/>
                             <DataGridTextColumn Header="Откуда взята информация" Binding="{Binding SourceText}" Width="220"/>
                             <DataGridTextColumn Header="Системный ID" Binding="{Binding DeviceInstanceId}" Width="300"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Сетевые подключения">
+                <DockPanel Margin="4,14,4,4">
+                    <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Здесь связи этой машины с внешним миром: сети Wi-Fi и провод, туннели VPN, мобильный интернет, пары по Bluetooth, серверы с сетевыми папками, узлы удалённого рабочего стола и сайты."
+                                       Foreground="{StaticResource TextMain}"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding NetworkSummary}"
+                                       Foreground="#4ADE9B"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0"/>
+                            <TextBlock Text="Двойной щелчок по строке открывает окно со всей её историей: когда соединялись и сколько держалось соединение, какие папки и адреса открывали, что скачивали."
+                                       Foreground="{StaticResource Accent2}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0"/>
+                            <TextBlock Text="Цвет строки отвечает на вопрос «каким способом связывались»."
+                                       Foreground="{StaticResource TextMain}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0"/>
+                            <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0">
+                                <Run Text="Зелёный" Foreground="#4ADE9B" FontWeight="SemiBold"/>
+                                <Run Text="— сервер с сетевыми папками: через них файлы уходят с машины и приходят на неё."/>
+                                <LineBreak/>
+                                <Run Text="Оранжевый" Foreground="#FFB870" FontWeight="SemiBold"/>
+                                <Run Text="— удалённый рабочий стол: чужой машиной управляли отсюда или этой машиной управляли извне."/>
+                                <LineBreak/>
+                                <Run Text="Фиолетовый" Foreground="#C8C0F0"/>
+                                <Run Text="— туннель VPN: он уводит связь в чужую сеть в обход своей."/>
+                                <LineBreak/>
+                                <Run Text="Синий" Foreground="#DFF3FF"/>
+                                <Run Text="— сеть Wi-Fi."/>
+                                <Run Text="Тёмно-синий" Foreground="#D6DEFF"/>
+                                <Run Text="— пара по Bluetooth."/>
+                                <Run Text="Бирюзовый" Foreground="#CFF4FA"/>
+                                <Run Text="— мобильный интернет."/>
+                                <LineBreak/>
+                                <Run Text="Приглушённый серо-синий" Foreground="#9FB4C8"/>
+                                <Run Text="— проводная сеть."/>
+                                <Run Text="Сливовый" Foreground="#DCC4E6"/>
+                                <Run Text="— посещённый сайт: их сотни, поэтому они стоят в конце списка."/>
+                            </TextBlock>
+                            <TextBlock Text="Пустых клеток здесь нет: если Windows чего-то не сохранила, в клетке об этом сказано словами. «Сеансов» — сколько раз соединялись по записям журналов, «обращений» — сколько папок, адресов и файлов найдено внутри этой связи."
+                                       Foreground="{StaticResource TextMuted}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,0"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <TextBlock Text="Показывать:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <ComboBox x:Name="NetworkFilterCombo" Width="320" SelectionChanged="NetworkFilterCombo_SelectionChanged">
+                                    <ComboBoxItem Content="Все связи" Tag="All" IsSelected="True"/>
+                                    <ComboBoxItem Content="Только то, чем данные могли уйти" Tag="OutsideReach"/>
+                                    <ComboBoxItem Content="Сетевые папки" Tag="NetworkShare"/>
+                                    <ComboBoxItem Content="Удалённый рабочий стол" Tag="RemoteDesktop"/>
+                                    <ComboBoxItem Content="Сети Wi-Fi" Tag="WiFi"/>
+                                    <ComboBoxItem Content="Проводные сети" Tag="Wired"/>
+                                    <ComboBoxItem Content="Туннели VPN" Tag="Vpn"/>
+                                    <ComboBoxItem Content="Мобильный интернет" Tag="MobileBroadband"/>
+                                    <ComboBoxItem Content="Bluetooth" Tag="Bluetooth"/>
+                                    <ComboBoxItem Content="Сайты" Tag="WebSite"/>
+                                </ComboBox>
+                                <TextBlock x:Name="NetworkCountText"
+                                           Foreground="{StaticResource TextMuted}"
+                                           VerticalAlignment="Center"
+                                           Margin="14,0,0,0"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <DataGrid x:Name="NetworkGrid"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CellStyle="{StaticResource ExplainedDataGridCellStyle}"
+                              MouseDoubleClick="NetworkGrid_MouseDoubleClick">
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Setter Property="Background"
+                                        Value="{Binding Kind, Converter={StaticResource NetworkConnectionBrushConverter}, ConverterParameter=Background}"/>
+                                <Setter Property="Foreground"
+                                        Value="{Binding Kind, Converter={StaticResource NetworkConnectionBrushConverter}, ConverterParameter=Foreground}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsOutsideReach}" Value="True">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </DataTrigger>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="#175A78"/>
+                                        <Setter Property="Foreground" Value="#E5F2FF"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Как связывались" Binding="{Binding KindText}" Width="180"/>
+                            <DataGridTextColumn Header="С чем именно" Binding="{Binding TargetText}" Width="280"/>
+                            <DataGridTextColumn Header="Кто начал" Binding="{Binding DirectionText}" Width="160"/>
+                            <DataGridTextColumn Header="Что нашлось внутри" Binding="{Binding ActivityText}" Width="180"/>
+                            <DataGridTextColumn Header="Первое подключение" Binding="{Binding FirstSeenText}" Width="180"/>
+                            <DataGridTextColumn Header="Последнее подключение" Binding="{Binding LastSeenText}" Width="180"/>
+                            <DataGridTextColumn Header="Чем защищено" Binding="{Binding SecurityText}" Width="240"/>
+                            <DataGridTextColumn Header="Через что шла связь" Binding="{Binding AdapterText}" Width="240"/>
+                            <DataGridTextColumn Header="Адреса этой машины" Binding="{Binding LocalAddressesText}" Width="300"/>
+                            <DataGridTextColumn Header="Учётная запись" Binding="{Binding AccountText}" Width="180"/>
+                            <DataGridTextColumn Header="Простыми словами" Binding="{Binding DetailsText}" Width="420"/>
+                            <DataGridTextColumn Header="Откуда взято" Binding="{Binding SourcesText}" Width="280"/>
+                            <DataGridTextColumn Header="Ссылка на источник" Binding="{Binding Provenance}" Width="320"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </DockPanel>

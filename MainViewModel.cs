@@ -24,6 +24,8 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<CleanupFinding> CleanupFindings { get; } = [];
 
+    public ObservableCollection<NetworkConnectionRecord> NetworkConnections { get; } = [];
+
     public ObservableCollection<ExternalUtilityRow> ExternalUtilityRows { get; } = [];
 
     public ObservableCollection<RunningExternalUtility> RunningExternalUtilities { get; } = [];
@@ -42,6 +44,14 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private string _externalDeviceSummary = "Сканирование ещё не выполнялось.";
+
+    /// <summary>
+    /// Сколько нашлось сетевых связей и сколько из них таких, по которым данные
+    /// могли уйти с машины. Без этой строки читателю пришлось бы считать строки
+    /// таблицы глазами.
+    /// </summary>
+    [ObservableProperty]
+    private string _networkSummary = "Сканирование ещё не выполнялось.";
 
     public AuditResult? LastResult { get; set; }
 
@@ -77,8 +87,27 @@ public partial class MainViewModel : ObservableObject
             CleanupFindings.Add(finding);
         }
 
+        NetworkConnections.Clear();
+        foreach (var connection in OrderNetworkConnections(result.NetworkConnections))
+        {
+            NetworkConnections.Add(connection);
+        }
+
         ExternalDeviceSummary = DescribeExternalDevices(result.Devices);
+        NetworkSummary = NetworkConnectionSummary.Create(result.NetworkConnections).Describe();
     }
+
+    /// <summary>
+    /// Сверху то, чем выносят данные и чем управляют чужой машиной, затем сами
+    /// сети, и лишь потом сайты: их сотни, и они не должны прятать одну сетевую
+    /// папку, куда ушли файлы.
+    /// </summary>
+    public static IEnumerable<NetworkConnectionRecord> OrderNetworkConnections(
+        IEnumerable<NetworkConnectionRecord> connections) =>
+        connections
+            .OrderBy(x => NetworkConnectionKind.Rank(x.Kind))
+            .ThenByDescending(x => x.LastSeenUtc ?? DateTimeOffset.MinValue)
+            .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase);
 
     public static string DescribeExternalDevices(IEnumerable<UsbDeviceRecord> devices)
     {
