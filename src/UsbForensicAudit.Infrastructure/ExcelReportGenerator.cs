@@ -116,6 +116,7 @@ internal static class ExcelReportGenerator
                      ("USB-доказательств", context.Timeline.Count.ToString()),
                      ("Релевантных признаков очистки", context.CleanupFindings.Count.ToString()),
                      ("Подозрительных", context.SuspiciousCount.ToString()),
+                     ("Требуют внимания", context.AttentionCount.ToString()),
                      ("Высокий риск", context.HighRiskCount.ToString()),
                      ("Предупреждений", result.SourceWarnings.Count.ToString()),
                      ("Canonical с точной датой",
@@ -685,13 +686,24 @@ internal static class ExcelReportGenerator
         if (context.SuspiciousCount > 0)
         {
             return new RiskStyle(
-                "Повышенное внимание: обнаружены подозрительные признаки. Они не являются доказательством очистки без дополнительной проверки.",
+                "Повышенное внимание: обнаружены подозрительные признаки. Они не являются доказательством очистки без дополнительной проверки. "
+                + context.CleanupVerdict(),
+                XLColor.FromHtml("#7A5200"),
+                StorageColor);
+        }
+
+        // Зелёный вердикт «ничего не найдено» рядом с запуском USBDeview и
+        // лежащим на диске USB Oblivion читается как разрешение не проверять.
+        if (context.AttentionCount > 0)
+        {
+            return new RiskStyle(
+                context.CleanupVerdict(),
                 XLColor.FromHtml("#7A5200"),
                 StorageColor);
         }
 
         return new RiskStyle(
-            "Явных подозрительных признаков очистки не обнаружено. Отсутствие артефактов само по себе не доказывает отсутствие активности.",
+            context.CleanupVerdict(),
             XLColor.FromHtml("#17633A"),
             RealUsbColor);
     }

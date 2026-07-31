@@ -274,6 +274,19 @@ public sealed class CleanupFinding
     [JsonIgnore]
     public bool IsSuspicious => Assessment.Equals("Suspicious", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Запуск утилиты для работы с USB и наличие средства удаления следов — не
+    /// доказательство очистки, поэтому подозрительными такие находки называть
+    /// нельзя. Но и молчать о них в сводке нельзя: раньше отчёт писал «явных
+    /// подозрительных признаков не обнаружено» в тот же день, когда
+    /// пользователь запускал USBDeview, а на диске лежал USB Oblivion.
+    /// </summary>
+    [JsonIgnore]
+    public bool NeedsAttention =>
+        !IsSuspicious
+        && ActionKind is "ToolLaunch" or "ToolPresence"
+        && (IsUsbUtilityTool || CleanerToolCatalog.IsTraceRemovalTool(PossibleTool));
+
     [JsonIgnore]
     public string ActionKindText => UserDisplayText.ActionKind(ActionKind);
 

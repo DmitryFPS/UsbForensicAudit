@@ -377,7 +377,10 @@ public sealed class CleanupDetector
         return new CleanupFinding
         {
             TimestampUtc = evidence.TimestampUtc,
-            Severity = "Info",
+            // Наличие средства удаления следов — не доказательство очистки, но и
+            // не рядовая справка: с уровнем Info такая находка терялась в общем
+            // списке и не доходила до сводки.
+            Severity = CleanerToolCatalog.IsTraceRemovalTool(assessment.Tool) ? "Low" : "Info",
             Assessment = "Informational",
             ActionKind = "ToolPresence",
             InitiatorKind = "Unknown",

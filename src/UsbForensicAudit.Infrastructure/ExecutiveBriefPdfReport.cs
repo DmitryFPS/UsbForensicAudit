@@ -90,6 +90,7 @@ internal static class ExecutiveBriefPdfReport
             ("Записей в источниках", ctx.Counts.RegistryRecords.ToString()),
             ("USB-доказательств", ctx.Timeline.Count.ToString()),
             ("Подозрительных", ctx.SuspiciousCount.ToString()),
+            ("Требуют внимания", ctx.AttentionCount.ToString()),
             ("Высокий риск", ctx.HighRiskCount.ToString()),
             ("Предупреждений", result.SourceWarnings.Count.ToString()),
             ("Точные даты", $"{result.Coverage.ExactDateCoveragePercent:0.##}%")
@@ -104,11 +105,8 @@ internal static class ExecutiveBriefPdfReport
         column.Item().PageBreak();
         SubTitle(column, "4. Подозрительные события (топ-8)");
 
-        if (ctx.SuspiciousFindings.Count == 0)
-        {
-            column.Item().Text(T("Подозрительных признаков очистки или сокрытия следов не обнаружено."));
-        }
-        else
+        column.Item().PaddingBottom(4).Text(T(ctx.CleanupVerdict())).FontSize(BodyFont);
+        if (ctx.SuspiciousFindings.Count > 0)
         {
             AddCompactTable(column,
             [
@@ -118,6 +116,25 @@ internal static class ExecutiveBriefPdfReport
                 ("Инициатор / инструмент", 1.5f)
             ],
             ctx.SuspiciousFindings.Take(8).Select(f => new[]
+            {
+                f.TimestampText,
+                f.SeverityText,
+                f.Finding,
+                $"{f.InitiatorText}; {f.PossibleToolText}"
+            }));
+        }
+
+        if (ctx.AttentionFindings.Count > 0)
+        {
+            SubTitle(column, "Требуют внимания");
+            AddCompactTable(column,
+            [
+                ("Дата и время", 1.2f),
+                ("Риск", 0.8f),
+                ("Что найдено", 2f),
+                ("Инициатор / инструмент", 1.5f)
+            ],
+            ctx.AttentionFindings.Take(8).Select(f => new[]
             {
                 f.TimestampText,
                 f.SeverityText,
@@ -245,7 +262,9 @@ internal static class ExecutiveBriefPdfReport
             return new RiskAssessment("Средний");
         }
 
-        return new RiskAssessment("Низкий");
+        // Низкий риск при запущенной утилите работы с USB читается как «проверять
+        // нечего», хотя обстоятельства запуска ещё никто не выяснял.
+        return new RiskAssessment(ctx.AttentionCount > 0 ? "Требует проверки" : "Низкий");
     }
 
     private static string BuildExecutiveSummary(ForensicReportContext ctx, RiskAssessment risk)
@@ -267,6 +286,15 @@ internal static class ExecutiveBriefPdfReport
                 $"требующих внимания специалиста. Критических находок: {ctx.HighRiskCount}. " +
                 $"Физических устройств: {ctx.Counts.PhysicalDevices}, записей в источниках: {ctx.Counts.RegistryRecords}. " +
                 "Общая оценка риска: средний.";
+        }
+
+        if (ctx.AttentionCount > 0)
+        {
+            return
+                $"Проверка USB-устройств на компьютере {result.ComputerName} не выявила подозрительных признаков очистки. " +
+                $"Зафиксировано {ctx.Counts.PhysicalDevices} физических устройств, собрано {ctx.Timeline.Count} связанных доказательств. " +
+                ctx.CleanupVerdict() +
+                " Общая оценка риска: требует проверки обстоятельств.";
         }
 
         return
@@ -291,7 +319,7 @@ internal static class ExecutiveBriefPdfReport
         }
         else
         {
-            yield return "Явных признаков очистки журналов или сокрытия USB-активности не выявлено.";
+            yield return ctx.CleanupVerdict();
         }
 
         yield return
