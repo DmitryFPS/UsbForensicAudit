@@ -45,6 +45,12 @@ internal sealed class ForensicReportContext
             .Select(g => (Category: g.Key, Count: g.Count()))
             .ToArray();
         Counts = DeviceCountSummary.FromDevices(ReportableDevices);
+        NetworkConnections = result.NetworkConnections
+            .OrderBy(x => NetworkConnectionKind.Rank(x.Kind))
+            .ThenByDescending(x => x.LastSeenUtc ?? DateTimeOffset.MinValue)
+            .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        NetworkSummary = NetworkConnectionSummary.Create(NetworkConnections);
     }
 
     public AuditResult Result { get; }
@@ -69,6 +75,15 @@ internal sealed class ForensicReportContext
     /// Единственный источник чисел об устройствах для всех отчётов.
     /// </summary>
     public DeviceCountSummary Counts { get; }
+
+    /// <summary>
+    /// Связи машины с внешним миром в том же порядке, в каком они стоят во
+    /// вкладке: сверху то, чем данные могли уйти.
+    /// </summary>
+    public IReadOnlyList<NetworkConnectionRecord> NetworkConnections { get; }
+
+    /// <summary>Единственный источник чисел о сетевых связях для всех отчётов.</summary>
+    public NetworkConnectionSummary NetworkSummary { get; }
 
     public int SuspiciousCount => SuspiciousFindings.Count;
     public int HighRiskCount => HighRiskFindings.Count;
@@ -462,11 +477,12 @@ internal static class ForensicReportBuilder
         html.AppendLine("<li><a href=\"#dossiers\">5. Досье устройств</a></li>");
         html.AppendLine("<li><a href=\"#timeline\">6. Хронология событий</a></li>");
         html.AppendLine("<li><a href=\"#evidence\">7. Журнал доказательств</a></li>");
-        html.AppendLine("<li><a href=\"#warnings\">8. Предупреждения и ограничения</a></li>");
-        html.AppendLine("<li><a href=\"#methodology\">9. Источники данных</a></li>");
+        html.AppendLine("<li><a href=\"#network\">8. Сетевые подключения и куда по ним ходили</a></li>");
+        html.AppendLine("<li><a href=\"#warnings\">9. Предупреждения и ограничения</a></li>");
+        html.AppendLine("<li><a href=\"#methodology\">10. Источники данных</a></li>");
         if (ctx.ExternalUtilitySnapshot is not null && (ctx.ExternalUtilitySnapshot.Rows.Count > 0 || ctx.ExternalUtilitySnapshot.HistoricalLaunches.Count > 0))
         {
-            html.AppendLine("<li><a href=\"#external-utils\">10. Сторонние утилиты</a></li>");
+            html.AppendLine("<li><a href=\"#external-utils\">11. Сторонние утилиты</a></li>");
         }
         html.AppendLine("</ul></nav>");
 
@@ -477,6 +493,7 @@ internal static class ForensicReportBuilder
         AppendDossiersSection(html, ctx);
         AppendTimelineSection(html, ctx);
         AppendEvidenceSection(html, ctx);
+        AppendNetworkSection(html, ctx);
         AppendWarningsSection(html, result);
         AppendMethodologySection(html);
         if (ctx.ExternalUtilitySnapshot is not null)
@@ -504,7 +521,8 @@ internal static class ForensicReportBuilder
         html.AppendLine($"<b>canonical devices с точной датой:</b> {result.Coverage.CanonicalDevicesWithExactDates}/{result.Coverage.CanonicalDeviceCount} ({result.Coverage.ExactDateCoveragePercent:0.##}%)<br>");
         html.AppendLine($"<span class=\"muted\">{E(ctx.CleanupVerdict())}</span><br>");
         html.AppendLine($"<span class=\"muted\">{E(ctx.ActivityVerdict())}</span><br>");
-        html.AppendLine($"<span class=\"muted\">{E(ctx.TransferVerdict())}</span>");
+        html.AppendLine($"<span class=\"muted\">{E(ctx.TransferVerdict())}</span><br>");
+        html.AppendLine($"<span class=\"muted\">{E(ctx.NetworkSummary.Describe())}</span>");
         html.AppendLine("</div>");
 
         html.AppendLine("<h3>Покрытие источников</h3><table><tr><th>Источник</th><th>Статус</th><th>Записей</th><th>Лимит</th><th>Ошибка/ограничение</th></tr>");
@@ -782,9 +800,100 @@ internal static class ForensicReportBuilder
         html.AppendLine("</table>");
     }
 
+    /// <summary>
+    /// Связи машины с внешним миром и то, куда по ним ходили. Раздел нужен рядом
+    /// с USB по той же причине, по которой заведена вкладка: сетевая папка и
+    /// сопряжённый телефон выносят данные не хуже флешки, и отчёт об одних
+    /// флешках создаёт ложное впечатление, что других путей не было.
+    /// </summary>
+    private static void AppendNetworkSection(StringBuilder html, ForensicReportContext ctx)
+    {
+        var connections = ctx.NetworkConnections;
+        html.AppendLine("<h2 id=\"network\">8. Сетевые подключения и куда по ним ходили</h2>");
+        html.AppendLine($"<p class=\"note\">{E(ctx.NetworkSummary.Describe())}</p>");
+        if (connections.Count == 0)
+        {
+            html.AppendLine("<p>Связей не найдено.</p>");
+            return;
+        }
+
+        html.AppendLine("<table><tr><th>Как связывались</th><th>С чем именно</th><th>Кто начал</th>"
+                        + "<th>Что нашлось внутри</th><th>Первое подключение</th><th>Последнее подключение</th>"
+                        + "<th>Чем защищено</th><th>Через что шла связь</th><th>Адреса этой машины</th>"
+                        + "<th>Учётная запись</th><th>Простыми словами</th><th>Откуда взято</th></tr>");
+        foreach (var connection in connections)
+        {
+            var rowClass = connection.IsOutsideReach ? "suspicious" : "";
+            html.AppendLine(
+                $"<tr class=\"{rowClass}\"><td>{E(connection.KindText)}</td><td>{E(connection.TargetText)}</td>" +
+                $"<td>{E(connection.DirectionText)}</td><td>{E(connection.ActivityText)}</td>" +
+                $"<td>{E(connection.FirstSeenText)}</td><td>{E(connection.LastSeenText)}</td>" +
+                $"<td>{E(connection.SecurityText)}</td><td>{E(connection.AdapterText)}</td>" +
+                $"<td>{E(connection.LocalAddressesText)}</td><td>{E(connection.AccountText)}</td>" +
+                $"<td>{E(connection.DetailsText)}</td><td>{E(connection.SourcesText)}</td></tr>");
+        }
+
+        html.AppendLine("</table>");
+
+        foreach (var connection in connections.Where(x => x.Visits.Count > 0 || x.Sessions.Count > 0))
+        {
+            AppendNetworkConnectionCard(html, connection);
+        }
+    }
+
+    private static void AppendNetworkConnectionCard(StringBuilder html, NetworkConnectionRecord connection)
+    {
+        html.AppendLine("<section class=\"card\">");
+        html.AppendLine($"<h3>{E(connection.KindText)}: {E(connection.TargetText)}</h3>");
+        html.AppendLine("<table><tr><th>Сведение</th><th>Значение</th></tr>");
+        foreach (var (name, value) in NetworkConnectionFacts.Rows(connection))
+        {
+            html.AppendLine($"<tr><td>{E(name)}</td><td>{E(value)}</td></tr>");
+        }
+
+        html.AppendLine("</table>");
+
+        if (connection.Visits.Count > 0)
+        {
+            html.AppendLine($"<h4>Куда ходили ({connection.Visits.Count})</h4>");
+            html.AppendLine("<table><tr><th>Когда</th><th>Что делали</th><th>Папка, адрес или узел</th>"
+                            + "<th>Подпись</th><th>Кто</th><th>Сколько раз</th><th>Что означает время</th>"
+                            + "<th>Откуда взято</th><th>Ссылка на источник</th></tr>");
+            foreach (var visit in connection.Visits)
+            {
+                html.AppendLine(
+                    $"<tr><td>{E(visit.WhenText)}</td><td>{E(visit.KindText)}</td><td>{E(visit.TargetText)}</td>" +
+                    $"<td>{E(visit.TitleText)}</td><td>{E(visit.UserText)}</td><td>{E(visit.CountText)}</td>" +
+                    $"<td>{E(visit.TimeMeaning)}</td><td>{E(visit.SourceText)}</td><td>{E(visit.Provenance)}</td></tr>");
+            }
+
+            html.AppendLine("</table>");
+        }
+
+        if (connection.Sessions.Count > 0)
+        {
+            html.AppendLine($"<h4>Сеансы связи ({connection.Sessions.Count})</h4>");
+            html.AppendLine("<table><tr><th>Подключение</th><th>Отключение</th><th>Сколько держалось</th>"
+                            + "<th>Чем закончилось</th><th>Подробности</th><th>Учётная запись</th>"
+                            + "<th>Откуда взято</th></tr>");
+            foreach (var session in connection.Sessions)
+            {
+                html.AppendLine(
+                    $"<tr><td>{E(session.StartedText)}</td><td>{E(session.EndedText)}</td>" +
+                    $"<td>{E(session.DurationText)}</td><td>{E(session.OutcomeText)}</td>" +
+                    $"<td>{E(session.ReasonText)}</td><td>{E(session.Account)}</td>" +
+                    $"<td>{E(session.SourceText)}</td></tr>");
+            }
+
+            html.AppendLine("</table>");
+        }
+
+        html.AppendLine("</section>");
+    }
+
     private static void AppendWarningsSection(StringBuilder html, AuditResult result)
     {
-        html.AppendLine("<h2 id=\"warnings\">8. Предупреждения и ограничения сбора</h2>");
+        html.AppendLine("<h2 id=\"warnings\">9. Предупреждения и ограничения сбора</h2>");
         if (result.SourceWarnings.Count == 0)
         {
             html.AppendLine("<p class=\"note\">Предупреждений нет — все основные источники прочитаны успешно.</p>");
@@ -801,7 +910,7 @@ internal static class ForensicReportBuilder
 
     private static void AppendMethodologySection(StringBuilder html)
     {
-        html.AppendLine("<h2 id=\"methodology\">9. Источники данных</h2>");
+        html.AppendLine("<h2 id=\"methodology\">10. Источники данных</h2>");
         html.AppendLine("""
             <ul>
             <li>Реестр Windows: USB, USBSTOR, SCSI/UASP, WPD/MTP, USB4 и только релевантные Thunderbolt PCI instances, MountedDevices.</li>
@@ -812,6 +921,9 @@ internal static class ForensicReportBuilder
             <li>Offline-анализ NTUSER.DAT и UsrClass.dat (при доступе).</li>
             <li>Execution/presence artifacts: Prefetch supports execution; BAM/DAM and PCA can corroborate activity; Amcache and Windows 10/11 Shimcache are treated as presence/inventory unless stronger evidence exists.</li>
             <li>Корреляция устройств с доказательствами по VID/PID, серийному номеру и Instance ID.</li>
+            <li>Сетевые связи: список сетей и их подписи в реестре, параметры сетевых подключений, профили Wi-Fi, сопряжения Bluetooth.</li>
+            <li>Журналы сетей: WLAN-AutoConfig, NetworkProfile, SMBClient, TerminalServices, RasClient.</li>
+            <li>Куда ходили по сети: сетевые диски, введённые пути, запомненные папки, ярлыки, списки переходов, история браузеров и их загрузки.</li>
             </ul>
             <p class="muted">Все даты указаны в московском времени (МСК). Отчёт сформирован автоматически по результатам одного полного сканирования.</p>
             """);
@@ -819,7 +931,7 @@ internal static class ForensicReportBuilder
 
     private static void AppendExternalUtilitiesSection(StringBuilder html, ExternalUtilityReportSnapshot snapshot)
     {
-        html.AppendLine("<h2 id=\"external-utils\">10. Сторонние утилиты</h2>");
+        html.AppendLine("<h2 id=\"external-utils\">11. Сторонние утилиты</h2>");
         html.AppendLine($"<p>Снимок окна/разбора: {E(DateDisplay.FormatMoscow(snapshot.CapturedAtUtc))}. Утилита: {E(snapshot.UtilityName ?? "не указана")}.</p>");
 
         if (snapshot.HistoricalLaunches.Count > 0)
