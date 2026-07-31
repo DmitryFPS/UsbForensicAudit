@@ -396,8 +396,20 @@ public sealed class NetworkConnectionRecord
     [JsonIgnore]
     public string LastSeenText => DateDisplay.FormatMoscowOr(LastSeenUtc, "Последнее подключение не записано");
 
+    /// <summary>
+    /// Чем защищено соединение. Пустая клетка здесь читается как «защиты нет»,
+    /// хотя означает лишь молчание Windows: способ шифрования туннеля VPN задаёт
+    /// его клиент, а у проводного подключения такого понятия нет вовсе.
+    /// </summary>
     [JsonIgnore]
-    public string SecurityText => ReportText.ForDisplayOrClean(Security, 220);
+    public string SecurityText
+    {
+        get
+        {
+            var text = ReportText.ForDisplayOrClean(Security, 220);
+            return text.Length > 0 ? text : "Сведений о защите Windows не сохранила";
+        }
+    }
 
     [JsonIgnore]
     public string AdapterText => ReportText.ForDisplay(Adapter, 220);
