@@ -54,6 +54,7 @@ internal sealed class ForensicReportContext
             .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         NetworkSummary = NetworkConnectionSummary.Create(NetworkConnections);
+        NetworkEnvironment = result.NetworkEnvironment;
     }
 
     public AuditResult Result { get; }
@@ -96,6 +97,9 @@ internal sealed class ForensicReportContext
 
     /// <summary>Единственный источник чисел о сетевых связях для всех отчётов.</summary>
     public NetworkConnectionSummary NetworkSummary { get; }
+
+    /// <summary>Снимок Wi-Fi в эфире и соседей по сети на момент съёмки.</summary>
+    public NetworkEnvironmentSnapshot NetworkEnvironment { get; }
 
     public int SuspiciousCount => SuspiciousFindings.Count;
     public int HighRiskCount => HighRiskFindings.Count;
@@ -506,6 +510,7 @@ internal static class ForensicReportBuilder
         AppendTimelineSection(html, ctx);
         AppendEvidenceSection(html, ctx);
         AppendNetworkSection(html, ctx);
+        AppendNetworkEnvironmentSection(html, ctx);
         AppendWarningsSection(html, result);
         AppendMethodologySection(html);
         if (ctx.ExternalUtilitySnapshot is not null)
@@ -937,9 +942,71 @@ internal static class ForensicReportBuilder
         html.AppendLine("</section>");
     }
 
+    private static void AppendNetworkEnvironmentSection(StringBuilder html, ForensicReportContext ctx)
+    {
+        var env = ctx.NetworkEnvironment;
+        html.AppendLine("<h2 id=\"network-environment\">9. Обстановка вокруг машины (снимок)</h2>");
+        html.AppendLine($"<p class=\"note\">{E(env.Describe())}</p>");
+        if (env.IsEmpty)
+        {
+            html.AppendLine("<p>Снимок не делался. Его можно получить кнопкой «Снять обстановку» на вкладке «Сетевые подключения».</p>");
+            return;
+        }
+
+        if (env.Warnings.Count > 0)
+        {
+            html.AppendLine("<ul>");
+            foreach (var warning in env.Warnings)
+            {
+                html.AppendLine($"<li>{E(warning)}</li>");
+            }
+            html.AppendLine("</ul>");
+        }
+
+        html.AppendLine("<h3>Wi-Fi в эфире</h3>");
+        if (env.WirelessNetworks.Count == 0)
+        {
+            html.AppendLine("<p>Сетей Wi-Fi не слышно.</p>");
+        }
+        else
+        {
+            html.AppendLine("<table><tr><th>SSID</th><th>Связь с машиной</th><th>Сигнал</th><th>Канал</th>"
+                            + "<th>Защита</th><th>BSSID</th><th>Производитель AP</th><th>Адаптер</th></tr>");
+            foreach (var network in env.WirelessNetworks)
+            {
+                html.AppendLine(
+                    $"<tr><td>{E(network.SsidText)}</td><td>{E(network.RelationText)}</td>" +
+                    $"<td>{E(network.SignalText)}</td><td>{E(network.ChannelText)}</td>" +
+                    $"<td>{E(network.SecurityText)}</td><td>{E(network.BssidText)}</td>" +
+                    $"<td>{E(network.VendorText)}</td><td>{E(network.Adapter)}</td></tr>");
+            }
+            html.AppendLine("</table>");
+        }
+
+        html.AppendLine("<h3>Устройства в текущей сети</h3>");
+        if (env.Neighbors.Count == 0)
+        {
+            html.AppendLine("<p>Устройств не найдено.</p>");
+        }
+        else
+        {
+            html.AppendLine("<table><tr><th>Роль</th><th>IP</th><th>MAC</th><th>Имя</th><th>Производитель</th>"
+                            + "<th>Как найдено</th><th>Состояние</th><th>Сеть</th></tr>");
+            foreach (var neighbor in env.Neighbors)
+            {
+                html.AppendLine(
+                    $"<tr><td>{E(neighbor.RoleText)}</td><td>{E(neighbor.AddressText)}</td>" +
+                    $"<td>{E(neighbor.MacText)}</td><td>{E(neighbor.NameText)}</td>" +
+                    $"<td>{E(neighbor.VendorText)}</td><td>{E(neighbor.DiscoveryText)}</td>" +
+                    $"<td>{E(neighbor.StateText)}</td><td>{E(neighbor.NetworkText)}</td></tr>");
+            }
+            html.AppendLine("</table>");
+        }
+    }
+
     private static void AppendWarningsSection(StringBuilder html, AuditResult result)
     {
-        html.AppendLine("<h2 id=\"warnings\">9. Предупреждения и ограничения сбора</h2>");
+        html.AppendLine("<h2 id=\"warnings\">10. Предупреждения и ограничения сбора</h2>");
         if (result.SourceWarnings.Count == 0)
         {
             html.AppendLine("<p class=\"note\">Предупреждений нет — все основные источники прочитаны успешно.</p>");
@@ -956,7 +1023,7 @@ internal static class ForensicReportBuilder
 
     private static void AppendMethodologySection(StringBuilder html)
     {
-        html.AppendLine("<h2 id=\"methodology\">10. Источники данных</h2>");
+        html.AppendLine("<h2 id=\"methodology\">11. Источники данных</h2>");
         html.AppendLine("""
             <ul>
             <li>Реестр Windows: USB, USBSTOR, SCSI/UASP, WPD/MTP, USB4 и только релевантные Thunderbolt PCI instances, MountedDevices.</li>

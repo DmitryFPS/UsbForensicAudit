@@ -435,7 +435,9 @@
             </TabItem>
 
             <TabItem Header="Сетевые подключения">
-                <DockPanel Margin="4,14,4,4">
+                <TabControl Margin="4,14,4,4">
+                    <TabItem Header="История связей">
+                <DockPanel Margin="0,8,0,0">
                     <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
                         <StackPanel>
                             <TextBlock Text="Здесь связи этой машины с внешним миром: сети Wi-Fi и провод, туннели VPN, мобильный интернет, пары по Bluetooth, серверы с сетевыми папками, узлы удалённого рабочего стола и сайты."
@@ -540,6 +542,96 @@
                         </DataGrid.Columns>
                     </DataGrid>
                 </DockPanel>
+                    </TabItem>
+
+                    <TabItem Header="Обстановка сейчас">
+                        <DockPanel Margin="0,8,0,0">
+                            <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="Снимок того, что видно прямо сейчас: сети Wi-Fi в эфире и устройства в текущей сети. Это не история — список меняется каждую минуту."
+                                               Foreground="{StaticResource TextMain}"
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock Text="Windows не хранит список всех клиентов Wi-Fi. Здесь видны только те устройства, с которыми машина уже обменивалась данными, или те, кто ответил на опрос сети."
+                                               Foreground="{StaticResource TextMuted}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,6,0,0"/>
+                                    <TextBlock Text="{Binding NetworkEnvironmentSummary}"
+                                               Foreground="#4ADE9B"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap"
+                                               Margin="0,6,0,0"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                        <Button x:Name="CaptureEnvironmentButton"
+                                                Content="Снять обстановку"
+                                                Padding="16,8"
+                                                Click="CaptureEnvironmentButton_Click"/>
+                                        <CheckBox x:Name="ActiveProbeCheck"
+                                                  Content="Опросить сеть активно (медленнее, но найдёт больше)"
+                                                  Foreground="{StaticResource TextMuted}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="16,0,0,0"/>
+                                        <TextBlock x:Name="EnvironmentStatusText"
+                                                   Foreground="{StaticResource TextMuted}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="16,0,0,0"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            <TabControl>
+                                <TabItem Header="Wi-Fi в эфире">
+                                    <DataGrid ItemsSource="{Binding WirelessNetworks}"
+                                              AutoGenerateColumns="False"
+                                              IsReadOnly="True"
+                                              CellStyle="{StaticResource ExplainedDataGridCellStyle}">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Имя сети" Binding="{Binding SsidText}" Width="200"/>
+                                            <DataGridTextColumn Header="Связь с машиной" Binding="{Binding RelationText}" Width="280"/>
+                                            <DataGridTextColumn Header="Сигнал" Binding="{Binding SignalText}" Width="80"/>
+                                            <DataGridTextColumn Header="Канал" Binding="{Binding ChannelText}" Width="120"/>
+                                            <DataGridTextColumn Header="Защита" Binding="{Binding SecurityText}" Width="280"/>
+                                            <DataGridTextColumn Header="Точка доступа" Binding="{Binding BssidText}" Width="180"/>
+                                            <DataGridTextColumn Header="Производитель AP" Binding="{Binding VendorText}" Width="160"/>
+                                            <DataGridTextColumn Header="Адаптер" Binding="{Binding Adapter}" Width="220"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </TabItem>
+                                <TabItem Header="Устройства в сети">
+                                    <DataGrid ItemsSource="{Binding NetworkNeighbors}"
+                                              AutoGenerateColumns="False"
+                                              IsReadOnly="True"
+                                              CellStyle="{StaticResource ExplainedDataGridCellStyle}">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Роль" Binding="{Binding RoleText}" Width="220"/>
+                                            <DataGridTextColumn Header="IP-адрес" Binding="{Binding AddressText}" Width="140"/>
+                                            <DataGridTextColumn Header="MAC" Binding="{Binding MacText}" Width="160"/>
+                                            <DataGridTextColumn Header="Имя" Binding="{Binding NameText}" Width="220"/>
+                                            <DataGridTextColumn Header="Производитель" Binding="{Binding VendorText}" Width="160"/>
+                                            <DataGridTextColumn Header="Как найдено" Binding="{Binding DiscoveryText}" Width="280"/>
+                                            <DataGridTextColumn Header="Состояние" Binding="{Binding StateText}" Width="140"/>
+                                            <DataGridTextColumn Header="Сеть" Binding="{Binding NetworkText}" Width="180"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </TabItem>
+                                <TabItem Header="Адаптеры">
+                                    <DataGrid ItemsSource="{Binding NetworkAdapters}"
+                                              AutoGenerateColumns="False"
+                                              IsReadOnly="True">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Адаптер" Binding="{Binding NameText}" Width="260"/>
+                                            <DataGridTextColumn Header="Тип" Binding="{Binding KindText}" Width="120"/>
+                                            <DataGridTextColumn Header="Wi-Fi сеть" Binding="{Binding ConnectedSsid}" Width="180"/>
+                                            <DataGridTextColumn Header="IP" Binding="{Binding AddressesText}" Width="140"/>
+                                            <DataGridTextColumn Header="Подсеть" Binding="{Binding SubnetText}" Width="140"/>
+                                            <DataGridTextColumn Header="Шлюз" Binding="{Binding GatewayText}" Width="140"/>
+                                            <DataGridTextColumn Header="DHCP" Binding="{Binding DhcpServer}" Width="140"/>
+                                            <DataGridTextColumn Header="DNS" Binding="{Binding DnsText}" Width="200"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </TabItem>
+                            </TabControl>
+                        </DockPanel>
+                    </TabItem>
+                </TabControl>
             </TabItem>
 
             <TabItem Header="Доказательства">

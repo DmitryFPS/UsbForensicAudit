@@ -377,6 +377,13 @@ public sealed class AuditResult
     public List<NetworkConnectionRecord> NetworkConnections { get; set; } = [];
 
     /// <summary>
+    /// Обстановка вокруг машины: сети Wi-Fi в эфире и устройства в той же
+    /// сети. Снимается отдельной кнопкой, поэтому у обычного сканирования
+    /// остаётся пустой.
+    /// </summary>
+    public NetworkEnvironmentSnapshot NetworkEnvironment { get; set; } = new();
+
+    /// <summary>
     /// За какой период прочитан журнал изменений NTFS на каждом внутреннем томе.
     /// Сами записи журнала в результат не сохраняются: их десятки тысяч, и после
     /// поиска признаков переноса они не нужны. А вот глубина журнала нужна: без
