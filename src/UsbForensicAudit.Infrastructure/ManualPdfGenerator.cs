@@ -40,6 +40,7 @@ public static class ManualPdfGenerator
                     AddDevicesTab(column);
                     AddEvidenceTab(column);
                     AddCleanupTab(column);
+                    AddNetworkTab(column);
                     AddExternalUtilitiesTab(column);
                     AddReportTab(column);
                     AddLiveWindow(column);
@@ -111,7 +112,7 @@ public static class ManualPdfGenerator
 
         SubTitle(column, "Рекомендуемый порядок работы");
         Numbered(column, 1, "Полное сканирование.");
-        Numbered(column, 2, "Изучение вкладок: USB устройства → Доказательства → Следы очистки → Сторонние утилиты (при необходимости).");
+        Numbered(column, 2, "Изучение вкладок: USB устройства → Сетевые подключения → Доказательства → Следы очистки → Сторонние утилиты (при необходимости).");
         Numbered(column, 3, "Создание полного или сводного отчёта в PDF либо Excel на вкладке «Отчёт».");
         Numbered(column, 4, "При необходимости — «Старт мониторинга» для фиксации новых подключений.");
 
@@ -276,10 +277,43 @@ public static class ManualPdfGenerator
         Paragraph(column, "Фильтр на вкладке: все записи / только USB-утилиты / только запуск / вероятная очистка / только подозрительные.");
     }
 
+    private static void AddNetworkTab(ColumnDescriptor column)
+    {
+        column.Item().PageBreak();
+        SectionTitle(column, "8. Вкладка «Сетевые подключения»");
+        Paragraph(column,
+            "Показывает связи машины с внешним миром: сети Wi-Fi, проводные сети, туннели VPN, мобильный интернет, " +
+            "сопряжения Bluetooth, серверы с сетевыми папками, узлы удалённого рабочего стола и сайты из истории браузеров. " +
+            "Раздел нужен рядом с USB по простой причине: сетевая папка и сопряжённый телефон выносят файлы не хуже флешки, " +
+            "и отчёт об одних флешках создаёт ложное впечатление, что других путей не было.");
+
+        AddTable(column,
+            ("Столбец", "Что означает"),
+            ("Как связывались", "Вид связи: Wi-Fi, провод, VPN, Bluetooth, сетевая папка, удалённый стол, сайт"),
+            ("С чем именно", "Имя сети, имя или адрес сервера, узел сайта, имя устройства Bluetooth"),
+            ("Кто начал", "С этой машины наружу или к этой машине извне"),
+            ("Что нашлось внутри", "Сколько сеансов связи и сколько обращений записано по этой связи"),
+            ("Первое и последнее подключение", "Даты с указанием источника; провенанс виден в подсказке и в отчётах"),
+            ("Чем защищено", "WPA2-Personal и способ шифрования для Wi-Fi; для проводной сети такого понятия нет"),
+            ("Адреса этой машины", "IP, шлюз, DNS и срок аренды, если параметры удалось привязать к этой сети"));
+
+        Bullet(column, "Двойной клик по строке открывает окно с полной историей: вкладки «Куда ходили», «Сеансы связи» и «О самой связи».");
+        Bullet(column, "«Куда ходили» — это папки на серверах, подключённые как диски ресурсы, введённые вручную пути, страницы и загрузки браузера.");
+        Bullet(column, "Строки сетевых папок, удалённого стола, VPN и Bluetooth выделены цветом: по ним данные могли уйти с машины.");
+        Bullet(column, "«Следов: N» означает, что обращение найдено в N артефактах, а не что папку открывали N раз. Счётчик самого источника (например, заходов на страницу) подписан отдельно.");
+        Bullet(column, "Наличие оборудования NFC проверяется по реестру: результат проверки — запись на вкладке «Доказательства», истории обращений по NFC Windows не ведёт.");
+        Bullet(column, "Пустых клеток нет: там, где Windows ничего не сохранила, так и написано. Пустая клетка читалась бы как «ничего не было».");
+
+        SubTitle(column, "Чего эти данные не доказывают");
+        Bullet(column, "Запись о сетевой папке доказывает обращение к ней, а не копирование файлов: журнала копирования Windows не ведёт.");
+        Bullet(column, "Дата сопряжения Bluetooth не хранится — известны только последнее обнаружение и последнее соединение.");
+        Bullet(column, "Журналы SMB и Wi-Fi невелики и вытесняются по кругу, поэтому отсутствие записи не означает отсутствие связи.");
+    }
+
     private static void AddExternalUtilitiesTab(ColumnDescriptor column)
     {
         column.Item().PageBreak();
-        SectionTitle(column, "8a. Вкладка «Сторонние утилиты»");
+        SectionTitle(column, "9. Вкладка «Сторонние утилиты»");
         Paragraph(column,
             "Позволяет считать результат из окна запущенной USBDetector, USBDeview или USB Oblivion и разобрать каждую строку: " +
             "почему утилита показала такую дату, совпадает ли это с нашим аудитом, не является ли это артефактом или багом утилиты.");
@@ -312,7 +346,7 @@ public static class ManualPdfGenerator
 
     private static void AddReportTab(ColumnDescriptor column)
     {
-        SectionTitle(column, "9. Вкладка «Отчёт»");
+        SectionTitle(column, "10. Вкладка «Отчёт»");
         AddTable(column,
             ("Кнопка", "Результат"),
             ("Полный PDF", "Детальный альбомный отчёт для расследования"),
@@ -332,7 +366,7 @@ public static class ManualPdfGenerator
     private static void AddLiveWindow(ColumnDescriptor column)
     {
         column.Item().PageBreak();
-        SectionTitle(column, "10. Окно «Сейчас подключено USB/Type-C»");
+        SectionTitle(column, "11. Окно «Сейчас подключено USB/Type-C»");
         Paragraph(column,
             "Открывается автоматически при нажатии «Старт мониторинга». Показывает только активные (физически подключённые) устройства. " +
             "Список обновляется при подключении и отключении USB — не нужно перезапускать мониторинг при каждом изменении.");
@@ -355,7 +389,7 @@ public static class ManualPdfGenerator
 
     private static void AddDataStorage(ColumnDescriptor column)
     {
-        SectionTitle(column, "11. Где хранятся данные");
+        SectionTitle(column, "12. Где хранятся данные");
         Paragraph(column,
             "Portable-сборка (exe с флешки или из bin\\publish\\): все данные рядом с программой в папке data\\ — " +
             "после удаления папки на ПК не остаётся следов в %LOCALAPPDATA%.");
@@ -364,7 +398,7 @@ public static class ManualPdfGenerator
             "данные сохраняются в %LOCALAPPDATA%\\UsbForensicAudit\\.");
         AddTable(column,
             ("Файл / папка", "Назначение"),
-            ("data\\audit.sqlite", "База SQLite — устройства, доказательства, находки"),
+            ("data\\audit.sqlite", "База SQLite — устройства, доказательства, находки, сетевые связи с сеансами и обращениями"),
             ("data\\evidence.jsonl", "Forensic-журнал с SHA-256 hash-chain"),
             ("data\\app.log", "Технический лог ошибок приложения"),
             ("data\\external_utility_snapshot.json", "Снимок сторонней утилиты и исторические запуски"),
@@ -378,7 +412,7 @@ public static class ManualPdfGenerator
 
     private static void AddSources(ColumnDescriptor column)
     {
-        SectionTitle(column, "12. Что сканирует программа");
+        SectionTitle(column, "13. Что сканирует программа");
         SubTitle(column, "Системные источники");
         Bullet(column, "Реестр: USB, USBSTOR, SCSI, SWD\\WPDBUSENUM, MountedDevices, usbflags (все ControlSet).");
         Bullet(column, "PnP DevProperties 0064–0067: точные даты подключения из реестра.");
@@ -397,6 +431,13 @@ public static class ManualPdfGenerator
         Bullet(column, "Противоречия между источниками (реестр vs setupapi).");
         Bullet(column, "ScanCoverageReport: статус каждого сборщика, лимиты и % устройств с точной датой в HTML/PDF/Excel.");
 
+        SubTitle(column, "Сетевые связи");
+        Bullet(column, "Реестр: список сетей NetworkList и подписи сетей, параметры Tcpip\\Parameters\\Interfaces, профили Wi-Fi из Wlansvc, сопряжения BTHPORT и BTHENUM.");
+        Bullet(column, "Журналы: WLAN-AutoConfig, NetworkProfile, SMBClient (Connectivity, Operational, Security), TerminalServices клиента и сервера, RasClient в Application.");
+        Bullet(column, "Куда ходили: HKCU\\Network, Map Network Drive MRU, TypedPaths, RunMRU, MountPoints2, Terminal Server Client, шеллбеги, ярлыки и списки переходов.");
+        Bullet(column, "Браузеры: история и загрузки Chromium-браузеров (Edge, Chrome, Yandex, Brave, Vivaldi) и Firefox — адреса, заголовки, время и число заходов.");
+        Bullet(column, "NFC: наличие оборудования и драйверов проверяется по реестру; истории обращений Windows по NFC не ведёт.");
+
         SubTitle(column, "Live-мониторинг");
         Bullet(column, "События PnP Windows (Win32_DeviceChangeEvent), если система их отдаёт.");
         Bullet(column, "Live-мониторинг обновляет окно «Сейчас подключено» по событиям Windows (PnP и USB), без опроса каждые 2 секунды.");
@@ -413,7 +454,7 @@ public static class ManualPdfGenerator
     private static void AddLimitations(ColumnDescriptor column)
     {
         column.Item().PageBreak();
-        SectionTitle(column, "13. Ограничения");
+        SectionTitle(column, "14. Ограничения");
         Bullet(column, "PDF/Excel/HTML-отчёты содержат только USB/Type-C; ОЗУ и внутренние SATA/NVMe-накопители исключены.");
         Bullet(column, "USB-C/Type-C порт не гарантирует USB-транспорт — возможен PCIe/Thunderbolt-туннель.");
         Bullet(column, "USB4/Thunderbolt покрыт частично; deleted-cell carving реестра не реализован.");
@@ -421,6 +462,10 @@ public static class ManualPdfGenerator
         Bullet(column, "Windows часто не сохраняет номер физического USB-порта — поэтому «Расположение в USB» может быть пустым.");
         Bullet(column, "Корпоративные политики контроля USB могут скрывать или подменять стандартные следы Windows — даты тогда помечаются как ориентир.");
         Bullet(column, "Отсутствие следов не всегда означает очистку.");
+        Bullet(column, "Обращение к сетевой папке не доказывает копирование файлов: журнала копирования Windows не ведёт ни для носителей, ни для сети.");
+        Bullet(column, "Дата сопряжения Bluetooth в Windows не хранится — известны только последнее обнаружение и последнее соединение.");
+        Bullet(column, "Журналы SMB и Wi-Fi невелики и вытесняются по кругу; отсутствие записи о связи не означает, что связи не было.");
+        Bullet(column, "История браузера чистится штатной кнопкой самого браузера, а режим приватного просмотра её вовсе не пишет.");
         Bullet(column, "Сразу после переустановки Windows (первые 3 часа) журналы часто очищаются самой системой — это не признак ручной зачистки USB.");
         Bullet(column, "Инициатор «Система» при очистке журналов не всегда означает злоумышленника — Windows Update, службы и политики тоже работают от SYSTEM.");
         Bullet(column, "Prefetch утилиты очистки не доказывает, что именно она очистила журнал в момент события 104/1102.");
@@ -433,7 +478,7 @@ public static class ManualPdfGenerator
 
     private static void AddScenarios(ColumnDescriptor column)
     {
-        SectionTitle(column, "14. Типичные сценарии");
+        SectionTitle(column, "15. Типичные сценарии");
         SubTitle(column, "Домашняя защита");
         Numbered(column, 1, "Запустить от администратора и выполнить полное сканирование.");
         Numbered(column, 2, "Проверить вкладку «USB устройства».");
@@ -453,7 +498,7 @@ public static class ManualPdfGenerator
 
     private static void AddTroubleshooting(ColumnDescriptor column)
     {
-        SectionTitle(column, "15. Устранение проблем");
+        SectionTitle(column, "16. Устранение проблем");
         AddTable(column,
             ("Проблема", "Решение"),
             ("UAC не подтверждён", "Запустите exe снова и нажмите «Да», либо используйте кнопку «Запуск от администратора»"),
@@ -479,7 +524,7 @@ public static class ManualPdfGenerator
     private static void AddDonation(ColumnDescriptor column)
     {
         column.Item().PageBreak();
-        SectionTitle(column, "16. А можно печеньку?");
+        SectionTitle(column, "17. А можно печеньку?");
         Paragraph(column,
             "Если UsbForensicAudit помог вам разобраться, кто подключал флешки, " +
             "найти следы очистки или просто спасти нервные клетки при разборе «кто это подключил» — " +
