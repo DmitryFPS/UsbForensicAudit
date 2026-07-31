@@ -150,6 +150,7 @@ public sealed class AuditOrchestrator
             progress?.Report("Поиск следов эталонного образа...");
             result.ReferenceImage = _referenceImageDetector.Detect(result.Devices, result.SourceWarnings);
             ApplyReferenceImageAttribution(result);
+            PreInstallArtifactExplainer.Explain(result);
 
             progress?.Report("Расчет дат подключения/отключения и пояснений...");
             _timelineEnricher.Enrich(result);
