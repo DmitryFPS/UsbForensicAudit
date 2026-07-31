@@ -16,6 +16,7 @@ public static class UserDisplayText
         "RelatedStorage" => "Память или диск USB",
         "UsbFlagsTrace" => "Остаточный след USB (usbflags)",
         "SupportArtifact" => "Служебная запись Windows",
+        "HistoricalResidual" => "След прошлого подключения",
         _ => "Не определено"
     };
 
