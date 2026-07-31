@@ -119,8 +119,8 @@ internal static class ForensicPdfReport
         column.Item().Row(row =>
         {
             row.Spacing(8);
-            StatBox(row, "USB/Type-C записей", ctx.ReportableDevices.Count.ToString());
-            StatBox(row, "Реальных USB", ctx.RealDevices.Count.ToString());
+            StatBox(row, "Физических устройств", ctx.Counts.PhysicalDevices.ToString());
+            StatBox(row, "Записей в источниках", ctx.Counts.RegistryRecords.ToString());
             StatBox(row, "USB-доказательств", ctx.Timeline.Count.ToString());
             StatBox(row, "Признаков очистки", ctx.CleanupFindings.Count.ToString());
             StatBox(row, "Подозрительных", ctx.SuspiciousCount.ToString());
@@ -129,6 +129,8 @@ internal static class ForensicPdfReport
             StatBox(row, "Точные даты",
                 $"{ctx.Result.Coverage.ExactDateCoveragePercent:0.##}%");
         });
+
+        column.Item().PaddingTop(4).Text(T(ctx.Counts.Describe())).FontSize(8).FontColor(Colors.Grey.Darken2);
 
         SubTitle(column, "Покрытие источников");
         AddDataTable(column,

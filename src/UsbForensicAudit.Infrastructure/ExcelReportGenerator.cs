@@ -110,8 +110,9 @@ internal static class ExcelReportGenerator
         AddSectionHeader(worksheet, metricRow++, 4, 6, "Ключевые показатели");
         foreach (var (label, value) in new (string Label, string Value)[]
                  {
-                     ("USB/Type-C записей", context.ReportableDevices.Count.ToString()),
-                     ("Реальных USB-устройств", context.RealDevices.Count.ToString()),
+                     ("Физических устройств", context.Counts.PhysicalDevices.ToString()),
+                     ("Записей в источниках", context.Counts.RegistryRecords.ToString()),
+                     ("Сведено к уже перечисленным", context.Counts.MergedRecords.ToString()),
                      ("USB-доказательств", context.Timeline.Count.ToString()),
                      ("Релевантных признаков очистки", context.CleanupFindings.Count.ToString()),
                      ("Подозрительных", context.SuspiciousCount.ToString()),
