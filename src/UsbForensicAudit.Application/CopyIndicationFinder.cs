@@ -70,7 +70,14 @@ public static class CopyIndicationFinder
                 LocalPath = path,
                 SeenOnDeviceUtc = deviceEntry.TimestampUtc,
                 SeenLocallyUtc = record.TimestampUtc,
-                Source = record.Source
+                Source = record.Source,
+                Direction = record.TimestampUtc >= deviceEntry.TimestampUtc
+                    ? CopyDirection.ToComputer
+                    : CopyDirection.ToDevice,
+                Confidence = "Low",
+                Basis = "Файл с этим именем открывали и на устройстве, и с внутреннего диска. "
+                        + "Журнал изменений NTFS о появлении этого файла на диске ничего не сообщает, "
+                        + "поэтому это совпадение имён — повод проверить, а не наблюдаемый перенос."
             });
 
             if (indications.Count >= MaxIndications)

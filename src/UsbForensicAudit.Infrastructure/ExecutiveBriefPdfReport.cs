@@ -100,6 +100,8 @@ internal static class ExecutiveBriefPdfReport
             .FontSize(BodyFont - 1).FontColor(Colors.Grey.Darken2);
         column.Item().PaddingTop(4).Text(T(ctx.ActivityVerdict()))
             .FontSize(BodyFont - 1).FontColor(Colors.Grey.Darken2);
+        column.Item().PaddingTop(4).Text(T(ctx.TransferVerdict()))
+            .FontSize(BodyFont - 1).FontColor(Colors.Grey.Darken2);
     }
 
     private static void AppendIncidentsPage(ColumnDescriptor column, ForensicReportContext ctx)

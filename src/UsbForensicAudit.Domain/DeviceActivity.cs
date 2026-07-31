@@ -109,9 +109,12 @@ public static class DeviceActivityKind
 }
 
 /// <summary>
-/// Признак того, что файл с устройства мог быть скопирован на эту машину.
-/// Windows не ведёт журнал копирования: одинаковое имя файла на устройстве и на
-/// внутреннем диске — это повод проверить, а не доказательство.
+/// Признак того, что файл переносили между устройством и этой машиной.
+///
+/// Само копирование Windows не журналирует. Но журнал изменений NTFS хранит
+/// момент появления файла на внутреннем диске, и если файл с тем же именем в это
+/// же время открывали на устройстве — перенос становится обоснованным выводом, а
+/// не догадкой. Когда журнала нет, остаётся совпадение имён: это повод проверить.
 /// </summary>
 public sealed class CopyIndication
 {
@@ -122,11 +125,67 @@ public sealed class CopyIndication
     public DateTimeOffset? SeenLocallyUtc { get; set; }
     public string Source { get; set; } = "";
 
+    public string Direction { get; set; } = CopyDirection.Unknown;
+
+    /// <summary>На чём основан вывод: журнал изменений или совпадение имён.</summary>
+    public string Basis { get; set; } = "";
+
+    public string Confidence { get; set; } = "Low";
+
     [JsonIgnore]
     public string SeenOnDeviceText => DateDisplay.FormatMoscowOr(SeenOnDeviceUtc, "Время неизвестно");
 
     [JsonIgnore]
     public string SeenLocallyText => DateDisplay.FormatMoscowOr(SeenLocallyUtc, "Время неизвестно");
+
+    [JsonIgnore]
+    public string DirectionText => CopyDirection.Describe(Direction);
+
+    [JsonIgnore]
+    public string ConfidenceText => DeviceActivityHistory.DescribeConfidence(Confidence);
+
+    /// <summary>
+    /// Сколько прошло между работой с файлом на устройстве и его появлением на
+    /// внутреннем диске. Короткий промежуток — главный довод в пользу переноса.
+    /// </summary>
+    [JsonIgnore]
+    public string GapText
+    {
+        get
+        {
+            if (SeenOnDeviceUtc is null || SeenLocallyUtc is null)
+            {
+                return "";
+            }
+
+            var gap = (SeenLocallyUtc.Value - SeenOnDeviceUtc.Value).Duration();
+            return gap.TotalMinutes < 1
+                ? "менее минуты"
+                : gap.TotalHours < 1
+                    ? $"{(int)gap.TotalMinutes} мин."
+                    : gap.TotalDays < 1
+                        ? $"{(int)gap.TotalHours} ч."
+                        : $"{(int)gap.TotalDays} дн.";
+        }
+    }
+}
+
+public static class CopyDirection
+{
+    /// <summary>Файл появился на внутреннем диске после работы с ним на устройстве.</summary>
+    public const string ToComputer = "ToComputer";
+
+    /// <summary>Файл был на внутреннем диске раньше, чем его открыли на устройстве.</summary>
+    public const string ToDevice = "ToDevice";
+
+    public const string Unknown = "Unknown";
+
+    public static string Describe(string? direction) => direction switch
+    {
+        ToComputer => "С устройства на компьютер",
+        ToDevice => "С компьютера на устройство",
+        _ => "Направление определить нельзя"
+    };
 }
 
 /// <summary>
@@ -152,6 +211,12 @@ public sealed class DeviceActivityHistory
     /// файлами: буква диска, серийный номер тома, GUID тома или видимое имя.
     /// </summary>
     public bool CanSearchFileActivity { get; set; }
+
+    /// <summary>
+    /// За какой период удалось прочитать журнал изменений NTFS. Нужен, чтобы
+    /// «признаков переноса нет» не читалось шире, чем есть основания.
+    /// </summary>
+    public List<string> JournalCoverage { get; set; } = [];
 
     [JsonIgnore]
     public int FolderCount => Entries
@@ -222,16 +287,55 @@ public sealed class DeviceActivityHistory
     }
 
     /// <summary>
-    /// Windows не журналирует копирование файлов. Об этом надо сказать прямо,
-    /// иначе пустой раздел прочитают как «ничего не копировали».
+    /// Что известно о переносе файлов. Windows не журналирует копирование, но
+    /// журнал изменений NTFS хранит момент появления файла на диске. Разница
+    /// между «нашли по журналу» и «совпали имена» принципиальна, и вывод обязан
+    /// её называть — иначе догадку прочитают как доказательство.
     /// </summary>
-    public string CopyVerdict() =>
-        CopyIndications.Count == 0
-            ? "Признаков копирования не найдено. Windows не ведёт журнал копирования файлов: "
-              + "само по себе отсутствие признаков не доказывает, что с устройства ничего не переносили."
-            : $"Найдено совпадений имён файлов между устройством и внутренним диском: {CopyIndications.Count}. "
-              + "Это повод проверить, а не доказательство копирования: Windows журнал копирования не ведёт, "
-              + "а совпасть может и имя постороннего файла.";
+    public string CopyVerdict()
+    {
+        var coverage = JournalCoverage.Count > 0
+            ? " " + string.Join(" ", JournalCoverage)
+            : " Журнал изменений NTFS прочитать не удалось, поэтому проверка опиралась только на "
+              + "совпадение имён файлов.";
+
+        if (CopyIndications.Count == 0)
+        {
+            return "Признаков переноса файлов не найдено. Windows не ведёт журнал копирования: "
+                   + "отсутствие признаков не доказывает, что с устройства ничего не переносили."
+                   + coverage;
+        }
+
+        var byJournal = CopyIndications.Count(x => x.Confidence != "Low");
+        var toComputer = CopyIndications.Count(x => x.Direction == CopyDirection.ToComputer);
+        var toDevice = CopyIndications.Count(x => x.Direction == CopyDirection.ToDevice);
+
+        var parts = new List<string>();
+        if (toComputer > 0)
+        {
+            parts.Add($"с устройства на компьютер — {toComputer}");
+        }
+
+        if (toDevice > 0)
+        {
+            parts.Add($"с компьютера на устройство — {toDevice}");
+        }
+
+        var undecided = CopyIndications.Count - toComputer - toDevice;
+        if (undecided > 0)
+        {
+            parts.Add($"направление не определено — {undecided}");
+        }
+
+        var direction = parts.Count > 0 ? $" ({string.Join(", ", parts)})" : "";
+        var basis = byJournal > 0
+            ? $" Из них {byJournal} подтверждены журналом изменений NTFS: файл с этим именем "
+              + "действительно появился на внутреннем диске, и время согласуется с работой на устройстве."
+            : " Все они основаны только на совпадении имён: это повод проверить, а не доказательство.";
+
+        return $"Найдено признаков переноса файлов: {CopyIndications.Count}{direction}."
+               + basis + coverage;
+    }
 
     public static string DescribeConfidence(string? confidence) => confidence switch
     {

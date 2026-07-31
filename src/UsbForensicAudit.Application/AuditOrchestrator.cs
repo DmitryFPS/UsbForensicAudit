@@ -17,6 +17,7 @@ public sealed class AuditOrchestrator
     private readonly IAuditStorage _storage;
     private readonly IPrivilegeChecker _privilegeChecker;
     private readonly IReferenceImageDetector _referenceImageDetector;
+    private readonly IFileSystemChangeCollector _fileSystemChangeCollector;
 
     public AuditOrchestrator(
         IUsbDeviceCollector deviceCollector,
@@ -28,9 +29,11 @@ public sealed class AuditOrchestrator
         CleanupDetector cleanupDetector,
         IAuditStorage storage,
         IPrivilegeChecker privilegeChecker,
-        IReferenceImageDetector? referenceImageDetector = null)
+        IReferenceImageDetector? referenceImageDetector = null,
+        IFileSystemChangeCollector? fileSystemChangeCollector = null)
     {
         _referenceImageDetector = referenceImageDetector ?? new NoReferenceImageDetector();
+        _fileSystemChangeCollector = fileSystemChangeCollector ?? new NoFileSystemChangeCollector();
         _deviceCollector = deviceCollector;
         _evidenceCollectors = evidenceCollectors.ToList();
         _historicalArtifactCollector = historicalArtifactCollector;
@@ -157,6 +160,9 @@ public sealed class AuditOrchestrator
             CalculateDateCoverage(result);
             cancellationToken.ThrowIfCancellationRequested();
 
+            AnalyzeFileTransfers(result, progress, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
             progress?.Report("Поиск признаков очистки...");
             result.CleanupFindings.AddRange(_cleanupDetector.Analyze(result));
 
@@ -168,6 +174,50 @@ public sealed class AuditOrchestrator
 
             return result;
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Ищет признаки переноса файлов между внешними устройствами и этой машиной.
+    ///
+    /// Шаг стоит здесь, а не среди сборщиков доказательств, потому что ему нужны
+    /// уже сопоставленные тома и заполненные даты: без них непонятно, какому
+    /// устройству принадлежит буква диска. Записи журнала изменений в результат
+    /// не попадают — их сотни тысяч; сохраняются найденные признаки и глубина
+    /// журнала, по которой видно, за какой период вывод вообще возможен.
+    /// </summary>
+    private void AnalyzeFileTransfers(
+        AuditResult result, IProgress<string>? progress, CancellationToken cancellationToken)
+    {
+        if (!_fileSystemChangeCollector.ShouldRun)
+        {
+            result.Coverage.Sources.Add(new SourceCoverage
+            {
+                Source = _fileSystemChangeCollector.GetType().Name,
+                Status = "NotRun"
+            });
+            result.SourceWarnings.Add(
+                "Журнал изменений NTFS не читался: нужны права администратора. "
+                + "Без него перенос файлов подтвердить нечем.");
+            return;
+        }
+
+        progress?.Report(_fileSystemChangeCollector.ProgressMessage);
+        var warningCount = result.SourceWarnings.Count;
+        try
+        {
+            var changes = _fileSystemChangeCollector.Collect(result.SourceWarnings, cancellationToken);
+            FileCopyAnalyzer.Process(result, changes);
+            AddCoverage(result, _fileSystemChangeCollector.GetType().Name, changes.Changes.Count, warningCount);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            result.SourceWarnings.Add($"{_fileSystemChangeCollector.GetType().Name}: {exception.Message}");
+            AddCoverage(result, _fileSystemChangeCollector.GetType().Name, 0, warningCount);
+        }
     }
 
     /// <summary>

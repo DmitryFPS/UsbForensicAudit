@@ -175,6 +175,43 @@ internal sealed class ForensicReportContext
               + $"по которым поиск был возможен: всего {actions} действий." + tail;
     }
 
+    /// <summary>
+    /// Признаки переноса файлов, отобранные по всем устройствам сразу.
+    /// </summary>
+    public IEnumerable<(UsbDeviceRecord Device, CopyIndication Indication)> Transfers() =>
+        DevicesWithActivity()
+            .SelectMany(x => x.History.CopyIndications.Select(indication => (x.Device, Indication: indication)));
+
+    /// <summary>
+    /// Одна фраза о переносе файлов для всех отчётов.
+    ///
+    /// Главное здесь — разделить подтверждённое журналом файловой системы и
+    /// догадку по совпадению имён, и назвать период, за который журнал вообще
+    /// сохранился. Без периода вывод «переносов не найдено» читается как «файлы
+    /// не переносили», хотя журнал мог просто не дожить до нужной даты.
+    /// </summary>
+    public string TransferVerdict()
+    {
+        var transfers = Transfers().ToArray();
+        var confirmed = transfers.Count(x => x.Indication.Confidence != "Low");
+        var coverage = Result.FileChangeJournals.Count == 0
+            ? " Журнал изменений NTFS не читался, поэтому перенос файлов подтвердить нечем: "
+              + "проверка опиралась только на совпадение имён."
+            : " " + string.Join(" ", Result.FileChangeJournals.Select(x => x.CoverageText));
+
+        if (transfers.Length == 0)
+        {
+            return "Признаков переноса файлов между устройствами и этой машиной не найдено." + coverage;
+        }
+
+        var devices = transfers.Select(x => x.Device.CanonicalDeviceId).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+        return $"Признаков переноса файлов: {transfers.Length} по {devices} устройствам. "
+               + (confirmed > 0
+                   ? $"Из них {confirmed} подтверждены журналом изменений NTFS."
+                   : "Все они основаны только на совпадении имён файлов.")
+               + coverage;
+    }
+
     public static IEnumerable<EvidenceRecord> GetRelatedEvidence(ForensicReportContext context, UsbDeviceRecord device)
     {
         var tokens = BuildSearchTokens(device).ToArray();
@@ -466,7 +503,8 @@ internal static class ForensicReportBuilder
         html.AppendLine($"<b>предупреждений:</b> {result.SourceWarnings.Count}; ");
         html.AppendLine($"<b>canonical devices с точной датой:</b> {result.Coverage.CanonicalDevicesWithExactDates}/{result.Coverage.CanonicalDeviceCount} ({result.Coverage.ExactDateCoveragePercent:0.##}%)<br>");
         html.AppendLine($"<span class=\"muted\">{E(ctx.CleanupVerdict())}</span><br>");
-        html.AppendLine($"<span class=\"muted\">{E(ctx.ActivityVerdict())}</span>");
+        html.AppendLine($"<span class=\"muted\">{E(ctx.ActivityVerdict())}</span><br>");
+        html.AppendLine($"<span class=\"muted\">{E(ctx.TransferVerdict())}</span>");
         html.AppendLine("</div>");
 
         html.AppendLine("<h3>Покрытие источников</h3><table><tr><th>Источник</th><th>Статус</th><th>Записей</th><th>Лимит</th><th>Ошибка/ограничение</th></tr>");
@@ -689,21 +727,25 @@ internal static class ForensicReportBuilder
             html.AppendLine("</table>");
         }
 
-        html.AppendLine("<h4>Признаки копирования</h4>");
+        html.AppendLine($"<h4>Перенос файлов ({history.CopyIndications.Count})</h4>");
         html.AppendLine($"<p class=\"muted\">{E(history.CopyVerdict())}</p>");
         if (history.CopyIndications.Count == 0)
         {
             return;
         }
 
-        html.AppendLine("<table><tr><th>Имя файла</th><th>Путь на устройстве</th><th>Когда виден на устройстве</th>"
-                        + "<th>Путь на внутреннем диске</th><th>Когда виден на диске</th><th>Откуда взято</th></tr>");
+        html.AppendLine("<table><tr><th>Имя файла</th><th>Куда перенесли</th><th>Насколько надёжен вывод</th>"
+                        + "<th>Разрыв во времени</th><th>Путь на устройстве</th><th>Когда виден на устройстве</th>"
+                        + "<th>Путь на внутреннем диске</th><th>Когда виден на диске</th>"
+                        + "<th>На чём основан вывод</th><th>Откуда взято</th></tr>");
         foreach (var indication in history.CopyIndications)
         {
             html.AppendLine(
-                $"<tr><td>{E(indication.FileName)}</td><td>{E(indication.PathOnDevice)}</td>" +
-                $"<td>{E(indication.SeenOnDeviceText)}</td><td>{E(indication.LocalPath)}</td>" +
-                $"<td>{E(indication.SeenLocallyText)}</td><td>{E(indication.Source)}</td></tr>");
+                $"<tr><td>{E(indication.FileName)}</td><td>{E(indication.DirectionText)}</td>" +
+                $"<td>{E(indication.ConfidenceText)}</td><td>{E(indication.GapText)}</td>" +
+                $"<td>{E(indication.PathOnDevice)}</td><td>{E(indication.SeenOnDeviceText)}</td>" +
+                $"<td>{E(indication.LocalPath)}</td><td>{E(indication.SeenLocallyText)}</td>" +
+                $"<td>{E(indication.Basis)}</td><td>{E(indication.Source)}</td></tr>");
         }
 
         html.AppendLine("</table>");

@@ -28,6 +28,7 @@ internal static class ExcelReportGenerator
         AddSummarySheet(workbook, context, isBrief: false);
         AddDevicesSheet(workbook, context.ReportableDevices, "USB устройства");
         AddDeviceActivitySheet(workbook, context);
+        AddFileTransferSheet(workbook, context);
         AddEvidenceSheet(workbook, context.Timeline);
         AddCleanupSheet(workbook, context.CleanupFindings, brief: false);
         AddWarningsSheet(workbook, context.Result.SourceWarnings);
@@ -121,6 +122,7 @@ internal static class ExcelReportGenerator
                      ("Требуют внимания", context.AttentionCount.ToString()),
                      ("Устройств со следами работы с файлами",
                          context.DevicesWithActivity().Count().ToString()),
+                     ("Признаков переноса файлов", context.Transfers().Count().ToString()),
                      ("Высокий риск", context.HighRiskCount.ToString()),
                      ("Предупреждений", result.SourceWarnings.Count.ToString()),
                      ("Canonical с точной датой",
@@ -276,6 +278,39 @@ internal static class ExcelReportGenerator
                 Column<(UsbDeviceRecord Device, DeviceActivityEntry Entry)>("Что означает время", 52, x => x.Entry.TimeMeaning),
                 Column<(UsbDeviceRecord Device, DeviceActivityEntry Entry)>("Откуда взято", 32, x => x.Entry.SourceText),
                 Column<(UsbDeviceRecord Device, DeviceActivityEntry Entry)>("Ссылка на источник", 64, x => x.Entry.Provenance)
+            ]);
+    }
+
+    /// <summary>
+    /// Перенос файлов отдельным листом: это единственное место в отчёте, где
+    /// сказано, какие именно файлы переходили между устройством и машиной.
+    /// Столбцы с надёжностью и основанием обязательны — подтверждённое журналом
+    /// файловой системы и совпадение имён имеют разный вес.
+    /// </summary>
+    private static void AddFileTransferSheet(XLWorkbook workbook, ForensicReportContext context)
+    {
+        var rows = context.Transfers()
+            .OrderByDescending(x => x.Indication.Confidence != "Low")
+            .ThenByDescending(x => x.Indication.SeenLocallyUtc)
+            .ToArray();
+
+        AddDataSheet(
+            workbook,
+            "Перенос файлов",
+            context.TransferVerdict(),
+            rows,
+            [
+                Column<(UsbDeviceRecord Device, CopyIndication Indication)>("Устройство", 34, x => x.Device.DisplayName),
+                Column<(UsbDeviceRecord Device, CopyIndication Indication)>("Имя файла", 40, x => x.Indication.FileName),
+                Column<(UsbDeviceRecord Device, CopyIndication Indication)>("Куда перенесли", 30, x => x.Indication.DirectionText),
+                Column<(UsbDeviceRecord Device, CopyIndication Indication)>("Насколько надёжен вывод", 24, x => x.Indication.ConfidenceText),
+                Column<(UsbDeviceRecord Device, CopyIndication Indication)>("Разрыв во времени", 18, x => x.Indication.GapText),
+                Column<(UsbDeviceRecord Device, CopyIndication Indication)>("Путь на устройстве", 56, x => x.Indication.PathOnDevice),
+                Column<(UsbDeviceRecord Device, CopyIndication Indication)>("Когда виден на устройстве", 24, x => x.Indication.SeenOnDeviceText),
+                Column<(UsbDeviceRecord Device, CopyIndication Indication)>("Путь на внутреннем диске", 56, x => x.Indication.LocalPath),
+                Column<(UsbDeviceRecord Device, CopyIndication Indication)>("Когда виден на диске", 24, x => x.Indication.SeenLocallyText),
+                Column<(UsbDeviceRecord Device, CopyIndication Indication)>("На чём основан вывод", 70, x => x.Indication.Basis),
+                Column<(UsbDeviceRecord Device, CopyIndication Indication)>("Откуда взято", 34, x => x.Indication.Source)
             ]);
     }
 

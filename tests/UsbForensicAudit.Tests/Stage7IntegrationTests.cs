@@ -51,8 +51,14 @@ public sealed class Stage7IntegrationTests
         Assert.Contains(result.Evidence, x => x.Source == "Correlation");
         Assert.Contains(result.Evidence, x => x.Source == "Historical residual");
 
-        Assert.Equal(5, result.Coverage.Sources.Count);
+        Assert.Equal(6, result.Coverage.Sources.Count);
         Assert.Contains(result.Coverage.Sources, x => x.Source == "FakeEvidenceCollector" && x.Status == "NotRun");
+
+        // Журнал изменений файловой системы в тестах не читается, но пропуск
+        // источника обязан попасть в покрытие: иначе отсутствие сведений о
+        // переносе файлов выглядит как «переносов не было».
+        Assert.Contains(result.Coverage.Sources,
+            x => x.Source == "NoFileSystemChangeCollector" && x.Status == "NotRun");
         Assert.Equal("Complete", result.Coverage.Sources.Single(x => x.Source == "FakeDeviceCollector").Status);
         Assert.True(result.Coverage.CanonicalDeviceCount >= 1);
         Assert.Contains(result.Devices, x => x.FirstConnectedUtc.HasValue);

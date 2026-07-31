@@ -39,7 +39,10 @@ public class DeviceActivityWindowTests
                 {
                     FileName = "смета.xlsx",
                     PathOnDevice = @"E:\Отчёты\смета.xlsx",
-                    LocalPath = @"C:\Users\ivanov\Documents\смета.xlsx"
+                    LocalPath = @"C:\Users\ivanov\Documents\смета.xlsx",
+                    Direction = CopyDirection.ToComputer,
+                    Confidence = "High",
+                    Basis = "Файл создан на внутреннем диске по данным журнала изменений NTFS."
                 }
             ]
         };
@@ -49,6 +52,9 @@ public class DeviceActivityWindowTests
             var window = new DeviceActivityWindow(history);
             Assert.Equal(history.Entries, window.FindName("ActivityGrid") is System.Windows.Controls.DataGrid grid
                 ? grid.ItemsSource
+                : null);
+            Assert.Equal(history.CopyIndications, window.FindName("CopyGrid") is System.Windows.Controls.DataGrid copies
+                ? copies.ItemsSource
                 : null);
             window.Close();
         });

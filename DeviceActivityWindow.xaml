@@ -103,7 +103,7 @@
                     </DataGrid>
                 </TabItem>
 
-                <TabItem Header="Признаки копирования">
+                <TabItem Header="Перенос файлов">
                     <DockPanel Margin="0,10,0,0">
                         <TextBlock x:Name="CopyVerdictText"
                                    DockPanel.Dock="Top"
@@ -111,13 +111,38 @@
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,10"/>
                         <DataGrid x:Name="CopyGrid" AutoGenerateColumns="False" IsReadOnly="True">
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow">
+                                    <Style.Triggers>
+                                        <!-- Подтверждённое журналом файловой системы и догадку по совпадению
+                                             имён нельзя показывать одинаково: их вес в выводах разный. -->
+                                        <DataTrigger Binding="{Binding Confidence}" Value="High">
+                                            <Setter Property="Background" Value="#0E5138"/>
+                                            <Setter Property="Foreground" Value="#EAFFF4"/>
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Confidence}" Value="Medium">
+                                            <Setter Property="Background" Value="#4A3B12"/>
+                                            <Setter Property="Foreground" Value="#FBEFCF"/>
+                                        </DataTrigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#175A78"/>
+                                            <Setter Property="Foreground" Value="#E5F2FF"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.RowStyle>
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Имя файла" Binding="{Binding FileName}" Width="240"/>
+                                <DataGridTextColumn Header="Куда перенесли" Binding="{Binding DirectionText}" Width="210"/>
+                                <DataGridTextColumn Header="Насколько надёжен вывод" Binding="{Binding ConfidenceText}" Width="180"/>
+                                <DataGridTextColumn Header="Разрыв во времени" Binding="{Binding GapText}" Width="130"/>
                                 <DataGridTextColumn Header="Путь на устройстве" Binding="{Binding PathOnDevice}" Width="330"/>
                                 <DataGridTextColumn Header="Когда виден на устройстве" Binding="{Binding SeenOnDeviceText}" Width="180"/>
                                 <DataGridTextColumn Header="Путь на внутреннем диске" Binding="{Binding LocalPath}" Width="330"/>
                                 <DataGridTextColumn Header="Когда виден на диске" Binding="{Binding SeenLocallyText}" Width="180"/>
-                                <DataGridTextColumn Header="Откуда взято" Binding="{Binding Source}" Width="220"/>
+                                <DataGridTextColumn Header="На чём основан вывод" Binding="{Binding Basis}" Width="460"/>
+                                <DataGridTextColumn Header="Откуда взято" Binding="{Binding Source}" Width="240"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </DockPanel>

@@ -133,6 +133,7 @@ internal static class ForensicPdfReport
 
         column.Item().PaddingTop(4).Text(T(ctx.Counts.Describe())).FontSize(8).FontColor(Colors.Grey.Darken2);
         column.Item().PaddingTop(4).Text(T(ctx.ActivityVerdict())).FontSize(8).FontColor(Colors.Grey.Darken2);
+        column.Item().PaddingTop(4).Text(T(ctx.TransferVerdict())).FontSize(8).FontColor(Colors.Grey.Darken2);
 
         SubTitle(column, "Покрытие источников");
         AddDataTable(column,
@@ -446,7 +447,7 @@ internal static class ForensicPdfReport
             }));
         }
 
-        SubTitle(column, "Признаки копирования");
+        SubTitle(column, $"Перенос файлов ({history.CopyIndications.Count})");
         column.Item().Text(T(history.CopyVerdict())).FontSize(8).FontColor(Colors.Grey.Darken2);
         if (history.CopyIndications.Count == 0)
         {
@@ -456,13 +457,15 @@ internal static class ForensicPdfReport
         AddDataTable(column,
         [
             ("Имя файла", 1.6f),
-            ("Путь на устройстве", 2.4f),
-            ("Путь на внутреннем диске", 2.4f),
+            ("Куда перенесли", 1.4f),
+            ("Надёжность", 1f),
+            ("Путь на устройстве", 2.2f),
+            ("Путь на внутреннем диске", 2.2f),
             ("Когда виден на диске", 1.2f)
         ],
         history.CopyIndications.Select(x => new[]
         {
-            x.FileName, x.PathOnDevice, x.LocalPath, x.SeenLocallyText
+            x.FileName, x.DirectionText, x.ConfidenceText, x.PathOnDevice, x.LocalPath, x.SeenLocallyText
         }));
     }
 
