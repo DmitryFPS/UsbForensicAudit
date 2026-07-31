@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
@@ -230,6 +230,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                 return;
             }
 
+            var enumPath = ExtractEnumPath(path, source);
             foreach (var familyName in root.GetSubKeyNames())
             {
                 using var family = root.OpenSubKey(familyName);
@@ -238,7 +239,23 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                     continue;
                 }
 
-                foreach (var instanceName in family.GetSubKeyNames())
+                // Под некоторыми шинами (SWD\WPDBUSENUM) идентификатор экземпляра лежит
+                // прямо здесь, и ниже находятся только служебные подразделы Windows.
+                // Раньше "Device Parameters" попадал в отчёт отдельным устройством.
+                var instanceNames = family.GetSubKeyNames()
+                    .Where(name => !IsServiceSubKey(name))
+                    .ToArray();
+                if (instanceNames.Length == 0)
+                {
+                    if (DescribesDeviceInstance(family))
+                    {
+                        AddEnumRecord(family, source, $"{enumPath}\\{familyName}", familyName, familyName, controlSet, path, records);
+                    }
+
+                    continue;
+                }
+
+                foreach (var instanceName in instanceNames)
                 {
                     using var instance = family.OpenSubKey(instanceName);
                     if (instance is null)
@@ -246,70 +263,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                         continue;
                     }
 
-                    var deviceId = $"{GetEnumPrefix(source)}\\{familyName}\\{instanceName}";
-                    var (dates, dateProperties) = ReadPnpDates(instance);
-                    var record = new UsbDeviceRecord
-                    {
-                        Source = source,
-                        VisualCategory = GetVisualCategory(source),
-                        UserMeaning = GetUserMeaning(source),
-                        DeviceInstanceId = deviceId,
-                        DeviceType = GuessDeviceType(source, familyName),
-                        Serial = CleanSerial(instanceName),
-                        FriendlyName = ReadString(instance, "FriendlyName"),
-                        Manufacturer = ReadString(instance, "Mfg"),
-                        Product = ReadString(instance, "DeviceDesc"),
-                        ClassGuid = ReadString(instance, "ClassGUID"),
-                        Service = ReadString(instance, "Service"),
-                        HardwareIds = ReadMultiString(instance, "HardwareID"),
-                        CompatibleIds = ReadMultiString(instance, "CompatibleIDs"),
-                        ContainerId = ReadString(instance, "ContainerID"),
-                        ParentIdPrefix = ReadString(instance, "ParentIdPrefix"),
-                        LocationInformation = ReadString(instance, "LocationInformation"),
-                        LocationPaths = ReadMultiString(instance, "LocationPaths"),
-                        RegistryLastWriteUtc = RegistryKeyTimestamps.GetLastWriteUtc(instance),
-                        FirstConnectedUtc = dates.FirstConnectedUtc,
-                        LastSeenUtc = dates.LastSeenUtc,
-                        LastDisconnectedUtc = dates.LastDisconnectedUtc,
-                        ConnectionDisplayKind = dates.FirstConnectedUtc.HasValue ? "PnpDevProperty" : "",
-                        DisconnectDisplayKind = dates.LastDisconnectedUtc.HasValue ? "PnpDevProperty" : "",
-                        DateConfidence = BuildPnpDateConfidence(dates),
-                        FirstConnectedProvenance = DateProvenance(deviceId, dates.FirstConnectedProvenance),
-                        LastSeenProvenance = DateProvenance(deviceId, dates.LastSeenProvenance),
-                        LastDisconnectedProvenance = DateProvenance(deviceId, dates.LastDisconnectedProvenance),
-                        RawJson = JsonSerializer.Serialize(new
-                        {
-                            RegistryPath = $@"HKLM\{path}\{familyName}\{instanceName}",
-                            ControlSet = controlSet,
-                            Values = ReadValues(instance),
-                            PnpDevProperties = dateProperties,
-                            DateProvenance = new
-                            {
-                                FirstConnected = dates.FirstConnectedProvenance,
-                                LastSeen = dates.LastSeenProvenance,
-                                LastDisconnected = dates.LastDisconnectedProvenance
-                            }
-                        })
-                    };
-
-                    var vidPid = VidPidRegex.Match(familyName);
-                    if (vidPid.Success)
-                    {
-                        record.Vid = vidPid.Groups[1].Value.ToUpperInvariant();
-                        record.Pid = vidPid.Groups[2].Value.ToUpperInvariant();
-                    }
-
-                    if (source.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase))
-                    {
-                        ParseUsbStorFamily(familyName, record);
-                    }
-
-                    if (source.Equals("Registry: USB", StringComparison.OrdinalIgnoreCase))
-                    {
-                        EnrichUsbVendorName(record);
-                    }
-
-                    records.Add(record);
+                    AddEnumRecord(instance, source, $"{enumPath}\\{familyName}\\{instanceName}", familyName, instanceName, controlSet, path, records);
                 }
             }
         }
@@ -317,6 +271,136 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         {
             warnings.Add($"Ошибка чтения HKLM\\{path}: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Подразделы, которые Windows заводит под записью устройства.
+    /// Устройствами они не являются.
+    /// </summary>
+    private static readonly HashSet<string> ServiceSubKeyNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Device Parameters", "Properties", "LogConf", "Control", "Configurations", "PowerData"
+    };
+
+    internal static bool IsServiceSubKey(string name) => ServiceSubKeyNames.Contains(name);
+
+    /// <summary>
+    /// Запись описывает экземпляр устройства, если у неё есть свойства PnP.
+    /// </summary>
+    private static bool DescribesDeviceInstance(RegistryKey key)
+    {
+        foreach (var name in new[] { "ClassGUID", "DeviceDesc", "Service", "HardwareID", "ContainerID" })
+        {
+            if (!string.IsNullOrWhiteSpace(ReadString(key, name)))
+            {
+                return true;
+            }
+        }
+
+        return key.GetSubKeyNames().Any(x => x.Equals("Properties", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Имя шины берётся из самого пути реестра, а не угадывается по названию источника:
+    /// для SWD\WPDBUSENUM в идентификатор должны попасть оба сегмента.
+    /// </summary>
+    internal static string ExtractEnumPath(string registryPath, string source)
+    {
+        var marker = registryPath.IndexOf(@"\Enum\", StringComparison.OrdinalIgnoreCase);
+        return marker < 0
+            ? GetEnumPrefix(source)
+            : registryPath[(marker + 6)..].Trim('\\');
+    }
+
+    private static void AddEnumRecord(
+        RegistryKey instance,
+        string source,
+        string deviceId,
+        string familyName,
+        string instanceName,
+        string controlSet,
+        string path,
+        List<UsbDeviceRecord> records)
+    {
+        var (dates, dateProperties) = ReadPnpDates(instance);
+        var record = new UsbDeviceRecord
+        {
+            Source = source,
+            VisualCategory = GetVisualCategory(source),
+            UserMeaning = GetUserMeaning(source),
+            DeviceInstanceId = deviceId,
+            DeviceType = GuessDeviceType(source, familyName),
+            Serial = CleanSerial(instanceName),
+            FriendlyName = ReadString(instance, "FriendlyName"),
+            Manufacturer = ReadString(instance, "Mfg"),
+            Product = ReadString(instance, "DeviceDesc"),
+            ClassGuid = ReadString(instance, "ClassGUID"),
+            Service = ReadString(instance, "Service"),
+            HardwareIds = ReadMultiString(instance, "HardwareID"),
+            CompatibleIds = ReadMultiString(instance, "CompatibleIDs"),
+            ContainerId = ReadString(instance, "ContainerID"),
+            ParentIdPrefix = ReadString(instance, "ParentIdPrefix"),
+            LocationInformation = ReadString(instance, "LocationInformation"),
+            LocationPaths = ReadMultiString(instance, "LocationPaths"),
+            RegistryLastWriteUtc = RegistryKeyTimestamps.GetLastWriteUtc(instance),
+            FirstConnectedUtc = dates.FirstConnectedUtc,
+            LastSeenUtc = dates.LastSeenUtc,
+            LastDisconnectedUtc = dates.LastDisconnectedUtc,
+            ConnectionDisplayKind = dates.FirstConnectedUtc.HasValue ? "PnpDevProperty" : "",
+            DisconnectDisplayKind = dates.LastDisconnectedUtc.HasValue ? "PnpDevProperty" : "",
+            DateConfidence = BuildPnpDateConfidence(dates),
+            FirstConnectedProvenance = DateProvenance(deviceId, dates.FirstConnectedProvenance),
+            LastSeenProvenance = DateProvenance(deviceId, dates.LastSeenProvenance),
+            LastDisconnectedProvenance = DateProvenance(deviceId, dates.LastDisconnectedProvenance),
+            RawJson = JsonSerializer.Serialize(new
+            {
+                RegistryPath = $@"HKLM\{path}\{familyName}\{instanceName}",
+                ControlSet = controlSet,
+                Values = ReadValues(instance),
+                PnpDevProperties = dateProperties,
+                DateProvenance = new
+                {
+                    FirstConnected = dates.FirstConnectedProvenance,
+                    LastSeen = dates.LastSeenProvenance,
+                    LastDisconnected = dates.LastDisconnectedProvenance
+                }
+            })
+        };
+
+        var vidPid = VidPidRegex.Match(familyName);
+        if (vidPid.Success)
+        {
+            record.Vid = vidPid.Groups[1].Value.ToUpperInvariant();
+            record.Pid = vidPid.Groups[2].Value.ToUpperInvariant();
+        }
+
+        if (source.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase))
+        {
+            ParseUsbStorFamily(familyName, record);
+        }
+
+        if (source.Equals("Registry: USB", StringComparison.OrdinalIgnoreCase))
+        {
+            EnrichUsbVendorName(record);
+        }
+
+        // Под WPDBUSENUM имя ключа само является идентификатором физического
+        // устройства: разбираем его, иначе серийным номером станет служебная строка.
+        if (deviceId.Contains("WPDBUSENUM", StringComparison.OrdinalIgnoreCase))
+        {
+            var identity = UsbRegistryForensicHelpers.ParseWpdIdentity(instanceName);
+            if (!string.IsNullOrWhiteSpace(identity.Serial))
+            {
+                record.Serial = identity.Serial;
+            }
+
+            if (!string.IsNullOrWhiteSpace(identity.BackingDeviceInstanceId))
+            {
+                record.IdentityAliases.Add(identity.BackingDeviceInstanceId);
+            }
+        }
+
+        records.Add(record);
     }
 
     private static void CollectRelevantPci(string path, List<UsbDeviceRecord> records, List<string> warnings)
