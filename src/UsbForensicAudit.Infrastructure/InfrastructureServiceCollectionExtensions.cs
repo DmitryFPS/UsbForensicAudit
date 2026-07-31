@@ -13,6 +13,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IConnectedDeviceProbe, WmiConnectedDeviceProbe>();
         services.AddSingleton<IExternalUtilityRegistryTracer, RegistryExternalUtilityTracer>();
         services.AddSingleton<IPrivilegeChecker, WindowsPrivilegeChecker>();
+        services.AddSingleton<IReferenceImageDetector, WindowsReferenceImageDetector>();
         services.AddSingleton<IAuditStorage, AuditStorage>();
         services.AddSingleton<ILiveDeviceMerger, LiveDeviceMerger>();
         services.AddSingleton<IUsbDeviceCollector, UsbRegistryCollector>();

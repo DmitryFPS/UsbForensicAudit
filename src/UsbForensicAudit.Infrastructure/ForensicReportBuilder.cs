@@ -313,7 +313,8 @@ internal static class ForensicReportBuilder
         html.AppendLine($"<b>Длительность:</b> {E(ctx.ScanDurationText)}<br>");
         html.AppendLine($"<b>Права администратора:</b> {(result.IsAdministrator ? "да" : "нет")}<br>");
         html.AppendLine("<b>Область отчёта:</b> USB/Type-C, UASP, MTP/WPD и подтверждённые USB4/Thunderbolt tunnels; встроенные USB явно маркируются, внутренние SATA/NVMe без external topology evidence исключены.<br>");
-        html.AppendLine($"<span class=\"muted\">{E(result.OsInstallGraceNote)}</span>");
+        html.AppendLine($"<span class=\"muted\">{E(result.OsInstallGraceNote)}</span><br>");
+        html.AppendLine($"<span class=\"muted\">{E(result.ReferenceImage.Describe())}</span>");
         html.AppendLine("</div>");
 
         html.AppendLine("<nav class=\"toc\"><b>Содержание</b><ul>");

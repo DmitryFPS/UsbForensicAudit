@@ -82,6 +82,12 @@ public sealed class UsbDeviceRecord
     /// серийный номер и VID/PID устройство сообщает о себе само.
     /// </summary>
     public List<IdentityTrustFinding> IdentityTrustFindings { get; set; } = [];
+
+    /// <summary>
+    /// Запись досталась от эталонного образа: устройство видел сборщик образа,
+    /// а не человек, работающий за этой машиной.
+    /// </summary>
+    public bool InheritedFromReferenceImage { get; set; }
     public bool IsCurrentlyConnected { get; set; }
     public string ConnectionDisplayKind { get; set; } = "";
     public string DisconnectDisplayKind { get; set; } = "";
@@ -291,6 +297,12 @@ public sealed class AuditResult
     /// отсутствие устройства в отчёте доказательством.
     /// </summary>
     public PrivilegeState Privileges { get; set; } = new(false, false, false, false);
+
+    /// <summary>
+    /// Следы развёртывания из готового образа. Нужны, чтобы не приписывать
+    /// человеку устройства, попавшие в реестр при подготовке образа.
+    /// </summary>
+    public ReferenceImageTrace ReferenceImage { get; set; } = new();
 
     [JsonIgnore]
     public string OsInstalledAtText => OsInstallInfo.FormatInstallDate(OsInstalledAtUtc);

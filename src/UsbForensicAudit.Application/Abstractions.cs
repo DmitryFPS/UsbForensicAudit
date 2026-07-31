@@ -69,3 +69,20 @@ public interface IPrivilegeChecker
     /// </summary>
     PrivilegeState AcquireAndDescribe() => new(IsAdministrator(), false, false, false);
 }
+
+/// <summary>
+/// Порт поиска следов развёртывания системы из готового образа.
+/// </summary>
+public interface IReferenceImageDetector
+{
+    ReferenceImageTrace Detect(IEnumerable<UsbDeviceRecord> devices, List<string> warnings);
+}
+
+/// <summary>
+/// Заглушка для сборок без доступа к реестру: проверка просто не выполняется,
+/// а отчёт об этом честно сообщает пустым набором признаков.
+/// </summary>
+public sealed class NoReferenceImageDetector : IReferenceImageDetector
+{
+    public ReferenceImageTrace Detect(IEnumerable<UsbDeviceRecord> devices, List<string> warnings) => new();
+}
