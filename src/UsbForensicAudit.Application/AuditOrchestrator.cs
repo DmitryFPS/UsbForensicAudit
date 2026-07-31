@@ -45,12 +45,18 @@ public sealed class AuditOrchestrator
     {
         return await Task.Run(() =>
         {
+            // Привилегии повышаются до первого сборщика: иначе защищённые ветки
+            // реестра будут пропущены ещё до того, как о них станет известно.
+            var privileges = _privilegeChecker.AcquireAndDescribe();
             var result = new AuditResult
             {
                 StartedAtUtc = DateTimeOffset.UtcNow,
                 OsInstalledAtUtc = OsInstallInfo.GetInstalledAtUtc(),
-                IsAdministrator = _privilegeChecker.IsAdministrator()
+                IsAdministrator = privileges.IsAdministrator,
+                Privileges = privileges
             };
+
+            result.SourceWarnings.Add(privileges.Describe());
 
             progress?.Report(_deviceCollector.ProgressMessage);
             var warningCount = result.SourceWarnings.Count;
