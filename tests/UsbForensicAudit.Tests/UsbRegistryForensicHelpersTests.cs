@@ -112,6 +112,60 @@ public sealed class UsbRegistryForensicHelpersTests
         Assert.Equal(expectedSerial, identity.Serial);
     }
 
+    [Theory]
+    [InlineData(
+        "_??_USBSTOR#Disk&Ven_General&Prod_UDisk&Rev_5.00#2412242109410569603146&0#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}",
+        "2412242109410569603146")]
+    [InlineData(
+        "_??_USBSTOR#Disk&Ven_General&Prod_UDisk&Rev_5.00#2412281911546114543745&0#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}",
+        "2412281911546114543745")]
+    public void ParseWpdIdentity_ignores_interface_class_guid_and_returns_real_serial(
+        string keyName, string expectedSerial)
+    {
+        var identity = UsbRegistryForensicHelpers.ParseWpdIdentity(keyName);
+
+        Assert.Equal(expectedSerial, identity.Serial);
+        Assert.DoesNotContain("53f56307", identity.Serial, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(
+            $@"USBSTOR\Disk&Ven_General&Prod_UDisk&Rev_5.00\{expectedSerial}&0",
+            identity.DeviceInstanceId);
+    }
+
+    [Fact]
+    public void ParseWpdIdentity_gives_two_different_flash_drives_different_serials()
+    {
+        var first = UsbRegistryForensicHelpers.ParseWpdIdentity(
+            "_??_USBSTOR#Disk&Ven_General&Prod_UDisk&Rev_5.00#2412242109410569603146&0#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}");
+        var second = UsbRegistryForensicHelpers.ParseWpdIdentity(
+            "_??_USBSTOR#Disk&Ven_General&Prod_UDisk&Rev_5.00#2412281911546114543745&0#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}");
+
+        Assert.NotEqual(first.Serial, second.Serial);
+        Assert.NotEqual(first.DeviceInstanceId, second.DeviceInstanceId);
+    }
+
+    [Fact]
+    public void ParseWpdIdentity_extracts_backing_device_from_wpdbusenum_node()
+    {
+        var identity = UsbRegistryForensicHelpers.ParseWpdIdentity(
+            @"SWD\WPDBUSENUM\_??_USBSTOR#Disk&Ven_General&Prod_UDisk&Rev_5.00#2412242109410569603146&0#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}");
+
+        Assert.StartsWith(@"SWD\WPDBUSENUM\", identity.DeviceInstanceId, StringComparison.Ordinal);
+        Assert.Equal("2412242109410569603146", identity.Serial);
+        Assert.Equal(
+            @"USBSTOR\Disk&Ven_General&Prod_UDisk&Rev_5.00\2412242109410569603146&0",
+            identity.BackingDeviceInstanceId);
+    }
+
+    [Fact]
+    public void ParseWpdIdentity_reads_phone_mtp_key()
+    {
+        var identity = UsbRegistryForensicHelpers.ParseWpdIdentity(
+            "_??_USB#VID_2717&PID_FF40#8dde262e#{6ac27878-a6fa-4155-ba85-f98f491d4f33}");
+
+        Assert.Equal(@"USB\VID_2717&PID_FF40\8dde262e", identity.DeviceInstanceId);
+        Assert.Equal("8dde262e", identity.Serial);
+    }
+
     [Fact]
     public void IdentitiesCorrelate_matches_container_or_serial()
     {
