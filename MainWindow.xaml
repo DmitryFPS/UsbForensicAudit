@@ -1,4 +1,4 @@
-﻿<Window x:Class="UsbForensicAudit.MainWindow"
+<Window x:Class="UsbForensicAudit.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -627,6 +627,67 @@
                                             <DataGridTextColumn Header="DNS" Binding="{Binding DnsText}" Width="200"/>
                                         </DataGrid.Columns>
                                     </DataGrid>
+                                </TabItem>
+                                <TabItem Header="История устройств (за сессию)">
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,8,0,8">
+                                            <StackPanel>
+                                                <TextBlock Text="История активности устройств в сети, накопленная из повторных снимков. Каждое нажатие «Снять обстановку» добавляет наблюдения сюда, а не стирает прошлые: так видно, кто появлялся в сети, когда впервые и когда в последний раз."
+                                                           Foreground="{StaticResource TextMain}"
+                                                           TextWrapping="Wrap"/>
+                                                <TextBlock Text="Устройства узнаются между снимками по заводскому аппаратному адресу. Случайный адрес (так с завода настроены телефоны) для опознания не годится: такое устройство в другой раз придёт под другим адресом, и его наблюдения намеренно не склеиваются — колонка «Опознание» говорит об этом прямо."
+                                                           Foreground="{StaticResource TextMuted}"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <DataGrid ItemsSource="{Binding NetworkNeighborHistory}"
+                                                  AutoGenerateColumns="False"
+                                                  IsReadOnly="True"
+                                                  CellStyle="{StaticResource ExplainedDataGridCellStyle}">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Роль" Binding="{Binding RoleText}" Width="200"/>
+                                                <DataGridTextColumn Header="MAC" Binding="{Binding MacText}" Width="160"/>
+                                                <DataGridTextColumn Header="Производитель" Binding="{Binding VendorText}" Width="160"/>
+                                                <DataGridTextColumn Header="Имена" Binding="{Binding NamesText}" Width="220"/>
+                                                <DataGridTextColumn Header="IP-адреса" Binding="{Binding IpAddressesText}" Width="180"/>
+                                                <DataGridTextColumn Header="Сети" Binding="{Binding NetworksText}" Width="180"/>
+                                                <DataGridTextColumn Header="Впервые замечено" Binding="{Binding FirstSeenText}" Width="180"/>
+                                                <DataGridTextColumn Header="Последний раз" Binding="{Binding LastSeenText}" Width="180"/>
+                                                <DataGridTextColumn Header="Замечено в" Binding="{Binding TimesSeenText}" Width="120"/>
+                                                <DataGridTextColumn Header="Опознание" Binding="{Binding IdentityText}" Width="420"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </DockPanel>
+                                </TabItem>
+                                <TabItem Header="Подключения к Wi-Fi (журнал Windows)">
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,8,0,8">
+                                            <StackPanel>
+                                                <TextBlock Text="Реальная история подключений самой машины к сетям Wi-Fi — из реестра и журналов Windows, а не из эфира. В отличие от снимка обстановки, это следы прошлого: к этим сетям машина действительно подключалась."
+                                                           Foreground="{StaticResource TextMain}"
+                                                           TextWrapping="Wrap"/>
+                                                <TextBlock Text="Список заполняется при полном сканировании. Подробности каждой сети — во вкладке «Сетевые связи»: двойной щелчок по строке там открывает все сеансы."
+                                                           Foreground="{StaticResource TextMuted}"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <DataGrid ItemsSource="{Binding WiFiConnections}"
+                                                  AutoGenerateColumns="False"
+                                                  IsReadOnly="True"
+                                                  CellStyle="{StaticResource ExplainedDataGridCellStyle}">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Имя сети" Binding="{Binding TargetText}" Width="260"/>
+                                                <DataGridTextColumn Header="Первое подключение" Binding="{Binding FirstSeenText}" Width="180"/>
+                                                <DataGridTextColumn Header="Последнее подключение" Binding="{Binding LastSeenText}" Width="180"/>
+                                                <DataGridTextColumn Header="Что нашлось внутри" Binding="{Binding ActivityText}" Width="180"/>
+                                                <DataGridTextColumn Header="Чем защищено" Binding="{Binding SecurityText}" Width="240"/>
+                                                <DataGridTextColumn Header="Через что шла связь" Binding="{Binding AdapterText}" Width="240"/>
+                                                <DataGridTextColumn Header="Простыми словами" Binding="{Binding DetailsText}" Width="420"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </DockPanel>
                                 </TabItem>
                             </TabControl>
                         </DockPanel>

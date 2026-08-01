@@ -35,6 +35,12 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<NetworkNeighborRecord> NetworkNeighbors { get; } = [];
 
+    /// <summary>История активности устройств, накопленная за сессию из повторных снимков.</summary>
+    public ObservableCollection<NetworkNeighborHistory> NetworkNeighborHistory { get; } = [];
+
+    /// <summary>Реальная история подключений самой машины к Wi-Fi из журналов Windows.</summary>
+    public ObservableCollection<NetworkConnectionRecord> WiFiConnections { get; } = [];
+
     public ObservableCollection<NetworkAdapterRecord> NetworkAdapters { get; } = [];
 
     public ObservableCollection<ExternalUtilityRow> ExternalUtilityRows { get; } = [];
@@ -111,6 +117,15 @@ public partial class MainViewModel : ObservableObject
             NetworkConnections.Add(connection);
         }
 
+        WiFiConnections.Clear();
+        foreach (var connection in result.NetworkConnections
+                     .Where(x => x.Kind == NetworkConnectionKind.WiFi)
+                     .OrderByDescending(x => x.LastSeenUtc ?? DateTimeOffset.MinValue)
+                     .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            WiFiConnections.Add(connection);
+        }
+
         ExternalDeviceSummary = DescribeExternalDevices(result.Devices);
         NetworkSummary = NetworkConnectionSummary.Create(result.NetworkConnections).Describe();
         PopulateNetworkEnvironment(result.NetworkEnvironment);
@@ -136,6 +151,15 @@ public partial class MainViewModel : ObservableObject
             NetworkNeighbors.Add(neighbor);
         }
 
+        NetworkNeighborHistory.Clear();
+        foreach (var history in snapshot.NeighborHistory
+                     .OrderByDescending(x => x.LastSeenUtc)
+                     .ThenByDescending(x => x.TimesSeen)
+                     .ThenBy(x => NeighborRole.Rank(x.Role)))
+        {
+            NetworkNeighborHistory.Add(history);
+        }
+
         NetworkAdapters.Clear();
         foreach (var adapter in snapshot.Adapters)
         {
@@ -157,6 +181,14 @@ public partial class MainViewModel : ObservableObject
                     await _networkEnvironmentService.CaptureAsync(activeProbe, progress, cancellationToken)
                         .ConfigureAwait(false),
                 cancellationToken).ConfigureAwait(true);
+
+            // История активности устройств копится по повторным съёмкам за
+            // сессию: новый снимок дополняет прежнюю историю, а не стирает её.
+            var previousHistory = LastResult?.NetworkEnvironment.NeighborHistory ?? [];
+            snapshot.NeighborHistory = NetworkNeighborHistoryAccumulator.Merge(
+                previousHistory,
+                snapshot.Neighbors,
+                snapshot.TakenAtUtc ?? DateTimeOffset.UtcNow);
 
             if (LastResult is not null)
             {
