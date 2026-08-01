@@ -268,6 +268,7 @@ public partial class MainWindow : Window
             BriefPdfReportButton.IsEnabled = true;
             ExcelReportButton.IsEnabled = true;
             BriefExcelReportButton.IsEnabled = true;
+            AnalystNoteExcelReportButton.IsEnabled = true;
             AppendLog($"Дата установки Windows: {result.OsInstalledAtText}.");
             var suspiciousCount = result.CleanupFindings.Count(x => x.IsSuspicious);
             AppendLog($"Готово: устройств {result.Devices.Count}, доказательств {result.Evidence.Count}, записей об очистке {result.CleanupFindings.Count} (подозрительных {suspiciousCount}).");
@@ -604,6 +605,22 @@ public partial class MainWindow : Window
             () => _vm.ReportService.CreateBriefExcel(result, _vm.Storage.DataDirectory, snapshot),
             "Сводный Excel создан",
             "Brief Excel creation failed",
+            "Ошибка Excel");
+    }
+
+    private async void AnalystNoteExcelReportButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.LastResult is null)
+        {
+            return;
+        }
+
+        var result = _vm.LastResult;
+        var snapshot = GetExternalUtilitySnapshotForReport();
+        await RunReportAsync(
+            () => _vm.ReportService.CreateAnalystNoteExcel(result, _vm.Storage.DataDirectory, snapshot),
+            "Аналитическая записка (Excel) создана",
+            "Analyst note Excel creation failed",
             "Ошибка Excel");
     }
 
@@ -1452,6 +1469,7 @@ public partial class MainWindow : Window
         BriefPdfReportButton.IsEnabled = !busy && _vm.LastResult is not null;
         ExcelReportButton.IsEnabled = !busy && _vm.LastResult is not null;
         BriefExcelReportButton.IsEnabled = !busy && _vm.LastResult is not null;
+        AnalystNoteExcelReportButton.IsEnabled = !busy && _vm.LastResult is not null;
         UpdateExternalUtilityControls();
         if (busy)
         {

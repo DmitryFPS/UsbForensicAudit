@@ -18,6 +18,9 @@ public interface IReportService
     /// </summary>
     string CreateAnalystNotePdf(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
 
+    /// <summary>Та же аналитическая записка, но в Excel — по листу на раздел.</summary>
+    string CreateAnalystNoteExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
+
     string CreateExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
 
     string CreateBriefExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
