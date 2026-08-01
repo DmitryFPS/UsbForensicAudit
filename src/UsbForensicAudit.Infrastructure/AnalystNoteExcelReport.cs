@@ -97,7 +97,7 @@ internal static class AnalystNoteExcelReport
     {
         var sheet = workbook.Worksheets.Add("Устройства");
         ConfigureSheet(sheet);
-        double[] widths = [5, 34, 26, 16, 26, 22, 22, 70];
+        double[] widths = [5, 34, 26, 16, 26, 22, 22, 26, 70];
         for (var i = 0; i < widths.Length; i++)
         {
             sheet.Column(i + 1).Width = widths[i];
@@ -106,8 +106,22 @@ internal static class AnalystNoteExcelReport
         AddTitle(sheet, "1. Подключаемые устройства", "Таблица устройств и досье в одну строку на устройство", widths.Length);
 
         var row = 4;
+
+        // Строк в таблице больше, чем «физических устройств» в выводах:
+        // таблица доказывает полноту разбора и содержит записи шины и
+        // остаточные следы. Без пояснения два числа выглядят противоречием.
+        sheet.Range(row, 1, row, widths.Length).Merge();
+        sheet.Cell(row, 1).Value = Clean(
+            ctx.Counts.Describe()
+            + " В таблице ниже перечислены все записи области аудита, включая записи шины "
+            + "и остаточные следы, — их тип назван в колонке «Тип записи».");
+        sheet.Cell(row, 1).Style.Font.Italic = true;
+        sheet.Cell(row, 1).Style.Alignment.WrapText = true;
+        sheet.Row(row).Height = 44;
+        row++;
+
         var tableHeaderRow = row;
-        row = AddTableHeader(sheet, row, ["№", "Устройство", "Канал", "VID/PID", "Serial/MAC", "Первое", "Последнее", "Детали"]);
+        row = AddTableHeader(sheet, row, ["№", "Устройство", "Канал", "VID/PID", "Serial/MAC", "Первое", "Последнее", "Тип записи", "Детали"]);
 
         var index = 0;
         foreach (var device in ctx.ListedDevices)
@@ -122,6 +136,7 @@ internal static class AnalystNoteExcelReport
                 device.SerialText,
                 device.FirstConnectedText,
                 device.LastSeenText,
+                device.CategoryText,
                 AnalystNoteContent.DeviceDetailLine(ctx, device)
             ];
             row = AddDataRow(sheet, row, cells);
@@ -129,12 +144,12 @@ internal static class AnalystNoteExcelReport
 
         if (ctx.ListedDevices.Count > 0)
         {
-            FinalizeTable(sheet, tableHeaderRow, row - 1, 8);
+            FinalizeTable(sheet, tableHeaderRow, row - 1, 9);
         }
 
         foreach (var warning in AnalystNoteContent.SharedVidPidWarnings(ctx))
         {
-            sheet.Range(row, 1, row, 8).Merge();
+            sheet.Range(row, 1, row, widths.Length).Merge();
             sheet.Cell(row, 1).Value = Clean(warning);
             sheet.Cell(row, 1).Style.Fill.BackgroundColor = WarningColor;
             sheet.Cell(row, 1).Style.Alignment.WrapText = true;

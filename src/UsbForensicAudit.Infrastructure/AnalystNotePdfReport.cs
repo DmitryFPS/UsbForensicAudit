@@ -116,8 +116,17 @@ internal static class AnalystNotePdfReport
             return;
         }
 
+        // Строк в таблице больше, чем «физических устройств» в выводах:
+        // таблица доказывает полноту разбора и содержит записи шины и
+        // остаточные следы. Без пояснения два числа выглядят противоречием.
+        column.Item().Text(T(
+                ctx.Counts.Describe()
+                + " В таблице ниже перечислены все записи области аудита, включая записи шины "
+                + "и остаточные следы, — их тип назван в последней колонке."))
+            .FontColor(Colors.Grey.Darken2);
+
         AddTable(column,
-            [("№", 0.35f), ("Устройство", 1.9f), ("Канал", 1.05f), ("ID", 0.9f), ("Serial/MAC", 1.55f), ("Первое", 1.05f), ("Последнее", 1.05f)],
+            [("№", 0.35f), ("Устройство", 1.7f), ("Канал", 0.95f), ("ID", 0.85f), ("Serial/MAC", 1.4f), ("Первое", 1.0f), ("Последнее", 1.0f), ("Тип записи", 1.1f)],
             ctx.ListedDevices.Select((device, index) => new[]
             {
                 (index + 1).ToString(),
@@ -126,7 +135,8 @@ internal static class AnalystNotePdfReport
                 device.VidPidText,
                 device.SerialText,
                 device.FirstConnectedText,
-                device.LastSeenText
+                device.LastSeenText,
+                device.CategoryText
             }));
     }
 

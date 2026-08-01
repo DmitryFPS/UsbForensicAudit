@@ -81,11 +81,16 @@ public sealed record DeviceCountSummary(
         return text;
     }
 
-    private static bool IsInfrastructure(UsbDeviceRecord device) =>
+    /// <summary>
+    /// Запись самой шины: разветвитель, контроллер или интерфейс составного
+    /// устройства. Открыто, чтобы отчёты делили записи так же, как счётчик.
+    /// </summary>
+    public static bool IsInfrastructure(UsbDeviceRecord device) =>
         device.DeviceKind == DeviceKindResolver.Infrastructure
         || device.Classification is "Hub" or "Composite";
 
-    private static bool IsRegistryTrace(UsbDeviceRecord device) =>
+    /// <summary>Остаточный след в реестре без самого устройства.</summary>
+    public static bool IsRegistryTrace(UsbDeviceRecord device) =>
         device.DeviceKind == DeviceKindResolver.RegistryTrace
         || device.VisualCategory.Equals("UsbFlagsTrace", StringComparison.OrdinalIgnoreCase);
 

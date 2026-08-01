@@ -190,20 +190,38 @@ internal sealed class ForensicReportContext
     /// </summary>
     public string ActivityVerdict()
     {
+        // Находки делятся на два сорта: полноценный поиск по буквам дисков и
+        // серийникам томов — и попутные упоминания устройства в журналах
+        // системы (Shimcache, Jump Lists). Смешивать их в одно «X из Y»
+        // нельзя: упоминаний может оказаться больше, чем «искомых» устройств,
+        // и фраза выродится в бессмыслицу вроде «по 8 устройствам из 4».
         var withActivity = DevicesWithActivity().ToArray();
         var searchable = ListedDevices.Count(x => GetActivity(x).CanSearchFileActivity);
+        var bySearch = withActivity.Count(x => x.History.CanSearchFileActivity);
+        var byMention = withActivity.Length - bySearch;
         var actions = withActivity.Sum(x => x.History.Entries.Count);
         var unsearchable = ListedDevices.Count - searchable;
+        var mentionTail = byMention > 0
+            ? $" Ещё по {byMention} устройствам найдены упоминания в журналах системы "
+              + "(запуски программ, открытия папок): полный поиск по ним был невозможен, "
+              + "и такие находки — примета присутствия устройства, а не восстановленная работа с файлами."
+            : "";
         var tail = unsearchable > 0
-            ? $" Ещё у {unsearchable} устройств нет буквы диска, серийного номера тома или видимого имени, "
+            ? $" У {unsearchable} устройств нет буквы диска, серийного номера тома или видимого имени, "
               + "поэтому следы работы с файлами по ним искать нечем."
             : "";
 
-        return withActivity.Length == 0
-            ? $"Следов работы с файлами не найдено ни по одному из {searchable} устройств, "
-              + "по которым поиск был возможен." + tail
-            : $"Восстановлена работа с файлами по {withActivity.Length} устройствам из {searchable}, "
-              + $"по которым поиск был возможен: всего {actions} действий." + tail;
+        if (withActivity.Length == 0)
+        {
+            return $"Следов работы с файлами не найдено ни по одному из {searchable} устройств, "
+                   + "по которым поиск был возможен." + tail;
+        }
+
+        var lead = bySearch > 0
+            ? $"Восстановлена работа с файлами по {bySearch} устройствам из {searchable}, "
+              + "по которым поиск был возможен"
+            : $"Полноценный поиск по {searchable} устройствам работы с файлами не выявил";
+        return $"{lead}: всего {actions} действий с учётом упоминаний." + mentionTail + tail;
     }
 
     /// <summary>
@@ -697,7 +715,7 @@ internal static class ForensicReportBuilder
         html.AppendLine("<h2 id=\"dossiers\">5. Досье устройств</h2>");
         html.AppendLine("<p>Для каждого устройства — полные идентификаторы и связанные доказательства из всех источников. "
                         + "Досье пишется на устройство, а не на запись реестра: записи, заведённые Windows на части "
-                        + "того же устройства, перечислены внутри его досье, а полностью все записи стоят в таблице выше.</p>");
+                        + "того же устройства, перечислен�� внутри его досье, а полностью все записи стоят в таблице выше.</p>");
 
         foreach (var device in ctx.ListedDevices)
         {
