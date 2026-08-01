@@ -14,6 +14,7 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
     private const int MaxProbeHosts = 254;
     private const int ProbeTimeoutMs = 400;
     private const int WlanScanWaitMs = 2500;
+    private const int DnsTimeoutMs = 800;
 
     public async Task<NetworkEnvironmentSnapshot> CaptureAsync(
         bool activeProbe,
@@ -80,13 +81,19 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
                 .FirstOrDefault(x => x.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
             var dhcp = dhcpEntry?.ToString() ?? "";
 
+            // Туннели и виртуальные адаптеры распознаются и по типу, и по
+            // описанию: TAP-адаптер VPN прикидывается обычным Ethernet.
             var kind = nic.NetworkInterfaceType switch
             {
                 NetworkInterfaceType.Wireless80211 => NetworkConnectionKind.WiFi,
                 NetworkInterfaceType.Ethernet or NetworkInterfaceType.GigabitEthernet => NetworkConnectionKind.Wired,
-                NetworkInterfaceType.Ppp => NetworkConnectionKind.Vpn,
+                NetworkInterfaceType.Ppp or NetworkInterfaceType.Tunnel => NetworkConnectionKind.Vpn,
                 _ => NetworkConnectionKind.Unknown
             };
+            if (kind != NetworkConnectionKind.Vpn && NetworkAddressFilter.IsVirtualAdapterDescription(nic.Description))
+            {
+                kind = NetworkConnectionKind.Vpn;
+            }
 
             var connectedSsid = kind == NetworkConnectionKind.WiFi
                 ? wireless.FirstOrDefault(x => x.IsConnected
@@ -338,6 +345,13 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
 
         foreach (var arp in IpHelperApi.ReadArpTable())
         {
+            // Групповые рассылки, широковещание и link-local — не устройства.
+            // Групповой MAC (первый байт нечётный) — тоже не устройство.
+            if (NetworkAddressFilter.IsNoise(arp.IpAddress) || MacAddress.IsGroup(arp.MacAddress))
+            {
+                continue;
+            }
+
             AddNeighbor(neighbors, new NetworkNeighborRecord
             {
                 IpAddress = arp.IpAddress,
@@ -371,14 +385,14 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
                         return null;
                     }
 
-                    var mac = IpHelperApi.TryResolveMac(ip) ?? "";
+                    var mac = await ResolveMacWithRetryAsync(ip, cancellationToken).ConfigureAwait(false);
                     return new NetworkNeighborRecord
                     {
                         IpAddress = ip,
                         MacAddress = mac,
                         Role = ClassifyRole(ip, adapters),
                         Discovery = NeighborDiscovery.ActiveProbe,
-                        State = "ответил на опрос",
+                        State = mac.Length > 0 ? "ответил на опрос" : "ответил на опрос, MAC не получен",
                         Network = networkLabel,
                         SeenAtUtc = seenAt
                     };
@@ -439,7 +453,7 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
                 MacAddress = IpHelperApi.TryResolveMac(ip) ?? "",
                 Role = NeighborRole.Gateway,
                 Discovery = NeighborDiscovery.Configuration,
-                State = "из настроек адаптера",
+                State = "из настроек ада��тера",
                 Adapter = adapter.Description,
                 Network = networkLabel,
                 SeenAtUtc = seenAt
@@ -556,6 +570,13 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
                 continue;
             }
 
+            // Подсеть VPN-туннеля — не локальная сеть вокруг машины:
+            // опрашивать её долго и бессмысленно, там нет соседей.
+            if (adapter.Kind == NetworkConnectionKind.Vpn)
+            {
+                continue;
+            }
+
             var parts = adapter.Subnet.Split('/');
             if (parts.Length != 2 || !IPAddress.TryParse(parts[0], out var network)
                 || !int.TryParse(parts[1], out var prefix) || prefix > 24)
@@ -609,18 +630,7 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                var entry = await Dns.GetHostEntryAsync(neighbor.IpAddress)
-                    .WaitAsync(TimeSpan.FromMilliseconds(800), cancellationToken)
-                    .ConfigureAwait(false);
-                var host = entry.HostName;
-                if (host.Length > 0 && !host.Equals(neighbor.IpAddress, StringComparison.OrdinalIgnoreCase))
-                {
-                    neighbor.HostName = host;
-                }
-            }
-            catch
-            {
-                // Имя не ответило — норма для телефонов и IoT.
+                await ResolveNameCascadeAsync(neighbor, cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -634,6 +644,81 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
         });
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Имя устройства по цепочке: обратный DNS, затем NetBIOS (так отвечают
+    /// машины Windows и NAS), затем mDNS (так отвечают телефоны и принтеры).
+    /// Каждый следующий способ пробуется, только если предыдущий промолчал.
+    /// </summary>
+    private static async Task ResolveNameCascadeAsync(
+        NetworkNeighborRecord neighbor, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Таймаут через отменяемую перегрузку, а не WaitAsync: WaitAsync
+            // бросал задачу DNS доживать в фоне, и её SocketException падал в
+            // журнал как Unobserved task exception — сотнями за один опрос.
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(DnsTimeoutMs);
+            var entry = await Dns.GetHostEntryAsync(neighbor.IpAddress, timeout.Token).ConfigureAwait(false);
+            var host = entry.HostName;
+            if (host.Length > 0 && !host.Equals(neighbor.IpAddress, StringComparison.OrdinalIgnoreCase))
+            {
+                neighbor.HostName = host;
+                neighbor.NameSource = "обратный DNS";
+                return;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            // Имя не ответило — норма для телефонов и IoT.
+        }
+
+        var netbios = await NeighborNameResolver.TryNetbiosAsync(neighbor.IpAddress, cancellationToken)
+            .ConfigureAwait(false);
+        if (netbios.Length > 0)
+        {
+            neighbor.NetbiosName = netbios;
+            neighbor.NameSource = "NetBIOS";
+            return;
+        }
+
+        var mdns = await NeighborNameResolver.TryMdnsAsync(neighbor.IpAddress, cancellationToken)
+            .ConfigureAwait(false);
+        if (mdns.Length > 0)
+        {
+            neighbor.HostName = mdns;
+            neighbor.NameSource = "mDNS";
+        }
+    }
+
+    /// <summary>
+    /// Аппаратный адрес по ARP с повторами. Первый запрос после ping нередко
+    /// приходит раньше, чем устройство попало в таблицу соседей, поэтому
+    /// короткая пауза и повтор заметно сокращают «MAC не получен».
+    /// </summary>
+    private static async Task<string> ResolveMacWithRetryAsync(string ip, CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            if (attempt > 0)
+            {
+                await Task.Delay(150 * attempt, cancellationToken).ConfigureAwait(false);
+            }
+
+            var mac = IpHelperApi.TryResolveMac(ip);
+            if (mac is { Length: > 0 })
+            {
+                return mac;
+            }
+        }
+
+        return "";
     }
 
     private static bool ShouldResolveName(string ipAddress)
