@@ -439,12 +439,16 @@ internal sealed class BrowserHistoryCollector : INetworkArtifactCollector
 /// <summary>Размер файла словами: «54,2 МБ» вместо «54229584».</summary>
 internal static class FileSizeText
 {
+    /// <summary>Русская культура: дробная часть через запятую независимо от локали системы.</summary>
+    private static readonly System.Globalization.CultureInfo Russian =
+        System.Globalization.CultureInfo.GetCultureInfo("ru-RU");
+
     internal static string Describe(long bytes) => bytes switch
     {
         < 1024 => $"{bytes} Б",
-        < 1024 * 1024 => $"{bytes / 1024.0:0.#} КБ",
-        < 1024L * 1024 * 1024 => $"{bytes / (1024.0 * 1024):0.#} МБ",
-        _ => $"{bytes / (1024.0 * 1024 * 1024):0.##} ГБ"
+        < 1024 * 1024 => string.Create(Russian, $"{bytes / 1024.0:0.#} КБ"),
+        < 1024L * 1024 * 1024 => string.Create(Russian, $"{bytes / (1024.0 * 1024):0.#} МБ"),
+        _ => string.Create(Russian, $"{bytes / (1024.0 * 1024 * 1024):0.##} ГБ")
     };
 }
 
