@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Win32;
 
 namespace UsbForensicAudit;
@@ -12,6 +13,7 @@ namespace UsbForensicAudit;
 /// отдельной строкой «вид связи неизвестен» рядом с той же самой сетью из
 /// реестра, и одна сеть выглядела бы двумя.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "чтение живого реестра HKLM NetworkList")]
 internal sealed class NetworkProfileIndex
 {
     private const string ProfilesPath =

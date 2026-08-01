@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
 namespace UsbForensicAudit;
@@ -10,6 +11,7 @@ namespace UsbForensicAudit;
 /// вывод netsh переведён на язык системы и разбирать его пришлось бы по
 /// русским словам, а на англоязычной Windows разбор молча ломался бы.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "P/Invoke wlanapi.dll — требует службы WLAN")]
 internal static class WlanApi
 {
     public const int Success = 0;

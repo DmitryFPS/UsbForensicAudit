@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -8,6 +9,7 @@ namespace UsbForensicAudit;
 /// сканирования через use case и презентационную логику сортировки/наполнения результатов.
 /// Прямая работа с контролами и платформенными API (Win32/буфер обмена/Procmon) остаётся во view.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "WPF ViewModel — живёт только внутри окна приложения")]
 public partial class MainViewModel : ObservableObject
 {
     private readonly AuditOrchestrator _orchestrator;
