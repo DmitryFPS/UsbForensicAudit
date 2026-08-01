@@ -697,7 +697,7 @@ internal static class ForensicReportBuilder
         html.AppendLine("<h2 id=\"dossiers\">5. Досье устройств</h2>");
         html.AppendLine("<p>Для каждого устройства — полные идентификаторы и связанные доказательства из всех источников. "
                         + "Досье пишется на устройство, а не на запись реестра: записи, заведённые Windows на части "
-                        + "того же устройства, перечислены внутри его досье, а полностью все записи стоят в таблице выше.</p>");
+                        + "того же устройства, перечи��лены внутри его досье, а полностью все записи стоят в таблице выше.</p>");
 
         foreach (var device in ctx.ListedDevices)
         {
@@ -990,13 +990,14 @@ internal static class ForensicReportBuilder
         }
         else
         {
-            html.AppendLine("<table><tr><th>Роль</th><th>IP</th><th>MAC</th><th>Имя</th><th>Производитель</th>"
-                            + "<th>Как найдено</th><th>Состояние</th><th>Сеть</th></tr>");
+            html.AppendLine("<table><tr><th>Роль</th><th>IP</th><th>MAC</th><th>Имя</th><th>Откуда имя</th>"
+                            + "<th>Производитель</th><th>Как найдено</th><th>Состояние</th><th>Сеть</th></tr>");
             foreach (var neighbor in env.Neighbors)
             {
                 html.AppendLine(
                     $"<tr><td>{E(neighbor.RoleText)}</td><td>{E(neighbor.AddressText)}</td>" +
                     $"<td>{E(neighbor.MacText)}</td><td>{E(neighbor.NameText)}</td>" +
+                    $"<td>{E(neighbor.NameSourceText)}</td>" +
                     $"<td>{E(neighbor.VendorText)}</td><td>{E(neighbor.DiscoveryText)}</td>" +
                     $"<td>{E(neighbor.StateText)}</td><td>{E(neighbor.NetworkText)}</td></tr>");
             }
