@@ -51,6 +51,14 @@ public sealed class ReportService : IReportService
             path => ExcelReportGenerator.GenerateFull(path, ForensicReportContext.Create(result, externalUtilitySnapshot)));
     }
 
+    public string CreateAnalystNoteExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null)
+    {
+        return CreateAtomically(
+            directory,
+            $"UsbForensicAudit_Zapiska_{ReportTimestamp()}.xlsx",
+            path => AnalystNoteExcelReport.Generate(path, ForensicReportContext.Create(result, externalUtilitySnapshot)));
+    }
+
     public string CreateBriefExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null)
     {
         return CreateAtomically(

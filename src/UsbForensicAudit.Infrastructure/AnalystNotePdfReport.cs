@@ -144,48 +144,20 @@ internal static class AnalystNotePdfReport
 
         foreach (var device in ctx.ListedDevices)
         {
-            var parts = new List<string>();
-            if (device.DriveLetters.Length > 0)
-            {
-                parts.Add($"тома {device.DriveLetters}");
-            }
-
-            if (device.Manufacturer.Length > 0)
-            {
-                parts.Add($"производитель {device.Manufacturer}");
-            }
-
-            if (device.ContainerId.Length > 0)
-            {
-                parts.Add($"ContainerID {device.ContainerId}");
-            }
-
-            var activity = ctx.GetActivity(device);
-            parts.Add(activity.IsEmpty
-                ? "следов работы с файлами не найдено"
-                : $"действий с файлами: {activity.Entries.Count}");
-
+            var details = AnalystNoteContent.DeviceDetailLine(ctx, device);
             column.Item().Text(text =>
             {
                 text.DefaultTextStyle(x => x.FontSize(BodyFont).FontFamily(PdfFontHelper.DefaultFamily));
                 text.Span(T(device.ModelText)).SemiBold();
-                text.Span(T($" — {string.Join(", ", parts)}."));
+                text.Span(T($" — {details}."));
             });
         }
 
         // Одинаковый нелегитимный VID/PID у нескольких носителей — примета
         // клонов или кастомной прошивки, о которой аналитик обязан сказать.
-        var sharedIds = ctx.ListedDevices
-            .Where(x => x.Vid.Length > 0 && x.Pid.Length > 0)
-            .GroupBy(x => $"{x.Vid}:{x.Pid}", StringComparer.OrdinalIgnoreCase)
-            .Where(g => g.Count() > 1)
-            .ToArray();
-        foreach (var group in sharedIds)
+        foreach (var warning in AnalystNoteContent.SharedVidPidWarnings(ctx))
         {
-            column.Item().PaddingTop(2).Text(T(
-                    $"Внимание: VID/PID {group.Key} совпадает у {group.Count()} устройств "
-                    + $"({string.Join(", ", group.Select(x => x.ModelText))}) — возможен клон или кастомная прошивка."))
-                .FontColor(Colors.Red.Darken2);
+            column.Item().PaddingTop(2).Text(T(warning)).FontColor(Colors.Red.Darken2);
         }
     }
 
@@ -261,8 +233,13 @@ internal static class AnalystNotePdfReport
                 .ToArray();
             foreach (var entry in entries.Take(MaxActivityPerDevice))
             {
+                // Дата старше установки ОС — не ошибка привязки, а штамп из
+                // самого артефакта (Jump Lists/Shimcache хранят время файла).
+                var caveat = AnalystNoteContent.IsOlderThanOsInstall(ctx, entry.TimestampUtc)
+                    ? $" ({AnalystNoteContent.PreInstallCaveat})"
+                    : "";
                 column.Item().PaddingLeft(10).Text(T(
-                    $"{DateDisplay.FormatMoscow(entry.TimestampUtc)} — {entry.KindText}: {entry.PathText}"));
+                    $"{DateDisplay.FormatMoscow(entry.TimestampUtc)} — {entry.KindText}: {entry.PathText}{caveat}"));
             }
 
             if (entries.Length > MaxActivityPerDevice)
@@ -288,7 +265,7 @@ internal static class AnalystNotePdfReport
     {
         SectionTitle(column, "4. Полная хронология");
 
-        var events = BuildChronology(ctx);
+        var events = AnalystNoteContent.BuildChronology(ctx);
         if (events.Count == 0)
         {
             column.Item().Text(T("Датированных событий для хронологии не набралось.")).Italic();
@@ -297,7 +274,8 @@ internal static class AnalystNotePdfReport
 
         column.Item().Text(T(
                 "Одна лента: подключения устройств, сетевые события, действия с файлами и признаки очистки — "
-                + "в порядке времени. Так видно, что за чем следовало."))
+                + "в порядке времени. Так видно, что за чем следовало. Даты старше установки ОС помечены звёздочкой: "
+                + "такие штампы приходят из Shimcache и Jump Lists, которые хранят время файла-источника, а не момент действия."))
             .FontColor(Colors.Grey.Darken2);
 
         foreach (var entry in events.Take(MaxChronologyRows))
@@ -306,6 +284,11 @@ internal static class AnalystNotePdfReport
             {
                 text.DefaultTextStyle(x => x.FontSize(BodyFont).FontFamily(PdfFontHelper.DefaultFamily));
                 text.Span(T(DateDisplay.FormatMoscow(entry.At))).SemiBold();
+                if (entry.IsOlderThanOsInstall)
+                {
+                    text.Span("*").SemiBold().FontColor(Colors.Orange.Darken3);
+                }
+
                 text.Span(T($" — {entry.Text}"));
             });
         }
@@ -316,66 +299,6 @@ internal static class AnalystNotePdfReport
                     $"…и ещё {events.Count - MaxChronologyRows} событий — полная лента в полном отчёте."))
                 .FontColor(Colors.Grey.Darken1);
         }
-    }
-
-    private static List<(DateTimeOffset At, string Text)> BuildChronology(ForensicReportContext ctx)
-    {
-        var events = new List<(DateTimeOffset At, string Text)>();
-        var result = ctx.Result;
-
-        if (result.OsInstalledAtUtc is { } installed)
-        {
-            events.Add((installed, "Установка Windows."));
-        }
-
-        foreach (var device in ctx.ListedDevices)
-        {
-            if (device.FirstConnectedUtc is { } first)
-            {
-                events.Add((first, $"Устройство: {device.ModelText}, первое подключение."));
-            }
-
-            if (device.LastSeenUtc is { } last && last != device.FirstConnectedUtc)
-            {
-                events.Add((last, $"Устройство: {device.ModelText}, последняя активность."));
-            }
-        }
-
-        foreach (var connection in ctx.NetworkConnections)
-        {
-            var label = connection.NameText.Length > 0 ? connection.NameText : connection.AddressText;
-            if (connection.FirstSeenUtc is { } first)
-            {
-                events.Add((first, $"{connection.KindText}: {label}, первое событие."));
-            }
-
-            foreach (var session in connection.Sessions)
-            {
-                if (session.StartedUtc is { } started)
-                {
-                    var outcome = session.OutcomeText.Length > 0 ? $" {session.OutcomeText}" : "";
-                    events.Add((started, $"{connection.KindText}: {label}.{outcome}"));
-                }
-            }
-        }
-
-        foreach (var (device, history) in ctx.DevicesWithActivity())
-        {
-            foreach (var entry in history.Entries)
-            {
-                events.Add((entry.TimestampUtc, $"{device.ModelText}: {entry.KindText} — {entry.PathText}."));
-            }
-        }
-
-        foreach (var finding in ctx.CleanupFindings)
-        {
-            events.Add((finding.TimestampUtc, $"Признак очистки: {finding.Finding}"));
-        }
-
-        return events
-            .Where(x => x.At > DateTimeOffset.MinValue)
-            .OrderBy(x => x.At)
-            .ToList();
     }
 
     // ------------------------------------------------------------------
