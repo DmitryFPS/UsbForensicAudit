@@ -264,6 +264,7 @@ public partial class MainWindow : Window
             _vm.LastResult = result;
             BindResult(result);
             PdfReportButton.IsEnabled = true;
+            AnalystNotePdfReportButton.IsEnabled = true;
             BriefPdfReportButton.IsEnabled = true;
             ExcelReportButton.IsEnabled = true;
             BriefExcelReportButton.IsEnabled = true;
@@ -1447,6 +1448,7 @@ public partial class MainWindow : Window
     {
         ScanButton.IsEnabled = !busy;
         PdfReportButton.IsEnabled = !busy && _vm.LastResult is not null;
+        AnalystNotePdfReportButton.IsEnabled = !busy && _vm.LastResult is not null;
         BriefPdfReportButton.IsEnabled = !busy && _vm.LastResult is not null;
         ExcelReportButton.IsEnabled = !busy && _vm.LastResult is not null;
         BriefExcelReportButton.IsEnabled = !busy && _vm.LastResult is not null;
