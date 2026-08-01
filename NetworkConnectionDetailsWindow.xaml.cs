@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Windows;
 
@@ -9,6 +10,7 @@ namespace UsbForensicAudit;
 /// строки видно, откуда она взята и что означает её время, — иначе список нечем
 /// проверить.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "WPF-окно")]
 public partial class NetworkConnectionDetailsWindow : Window
 {
     private readonly NetworkConnectionRecord _connection;

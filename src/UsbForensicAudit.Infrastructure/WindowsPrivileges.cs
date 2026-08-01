@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
@@ -11,6 +12,7 @@ namespace UsbForensicAudit;
 /// администратора. Без неё сборщик молча пропускает ветки Enum и получает
 /// неполную картину.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "P/Invoke advapi32.dll — работа с токеном процесса")]
 public static class WindowsPrivileges
 {
     public const string Backup = "SeBackupPrivilege";

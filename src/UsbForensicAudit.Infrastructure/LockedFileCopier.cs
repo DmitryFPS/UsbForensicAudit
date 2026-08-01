@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.ComponentModel;
 using System.IO;
 using System.Management;
@@ -11,6 +12,7 @@ namespace UsbForensicAudit;
 /// доступа: загруженные кусты реестра, журналы, NTUSER.DAT активного сеанса.
 /// Обычный File.Copy на них падает, и артефакт просто выпадает из анализа.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "копирование заблокированных файлов через VSS — требует прав администратора")]
 public static class LockedFileCopier
 {
     private const int GenericRead = unchecked((int)0x80000000);

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.ComponentModel;
 using System.Text;
 using System.Windows;
@@ -11,6 +12,7 @@ namespace UsbForensicAudit;
 /// файлы открывали и удаляли, что запускали. У каждой строки видно основание,
 /// по которому она отнесена к этому устройству, — иначе список нечем проверить.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "WPF-окно")]
 public partial class DeviceActivityWindow : Window
 {
     private const string AllKinds = "Все действия";

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
@@ -17,6 +18,7 @@ namespace UsbForensicAudit;
 /// Чтение идёт через штатный интерфейс тома, а не разбором сырого диска: том не
 /// изменяется, и не нужен разбор структур MFT. Требуются права администратора.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "чтение журнала USN через DeviceIoControl — требует прав администратора")]
 public sealed class UsnJournalReader : IDisposable
 {
     private const uint FsctlQueryUsnJournal = 0x000900f4;
