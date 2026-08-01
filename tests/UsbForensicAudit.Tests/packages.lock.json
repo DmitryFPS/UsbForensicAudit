@@ -403,8 +403,8 @@
       },
       "QuestPDF": {
         "type": "Transitive",
-        "resolved": "2026.7.1",
-        "contentHash": "GsBxQb48dFAGmvI1eP3SHyz0Pua4uH6aUHX7f0ywTin6hordAviZRAiTiIQiKMLwq6hN1FmgS+qLjfh2v7vhOg=="
+        "resolved": "2026.7.2",
+        "contentHash": "GSPOoErqB4Yh7mnbV4m/ykHOF6erHdm5qyMRHDr4sjk+fvrtkEL+RoG5YpOqiWrS833jEiktC1Uthyy5/QMNQA=="
       },
       "RBush.Signed": {
         "type": "Transitive",
@@ -562,7 +562,7 @@
           "CommunityToolkit.Mvvm": "[8.4.2, )",
           "Microsoft.Data.Sqlite": "[10.0.10, )",
           "Microsoft.Extensions.Hosting": "[10.0.10, )",
-          "QuestPDF": "[2026.7.1, )",
+          "QuestPDF": "[2026.7.2, )",
           "SQLitePCLRaw.lib.e_sqlite3": "[3.53.3, )",
           "System.Diagnostics.EventLog": "[10.0.10, )",
           "System.Management": "[10.0.10, )",
@@ -591,7 +591,7 @@
           "ClosedXML": "[0.105.1, )",
           "Microsoft.Data.Sqlite": "[10.0.10, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.10, )",
-          "QuestPDF": "[2026.7.1, )",
+          "QuestPDF": "[2026.7.2, )",
           "SQLitePCLRaw.lib.e_sqlite3": "[3.53.3, )",
           "System.Diagnostics.EventLog": "[10.0.10, )",
           "System.Management": "[10.0.10, )",
@@ -604,8 +604,8 @@
     "net8.0-windows7.0/win-x64": {
       "QuestPDF": {
         "type": "Transitive",
-        "resolved": "2026.7.1",
-        "contentHash": "GsBxQb48dFAGmvI1eP3SHyz0Pua4uH6aUHX7f0ywTin6hordAviZRAiTiIQiKMLwq6hN1FmgS+qLjfh2v7vhOg=="
+        "resolved": "2026.7.2",
+        "contentHash": "GSPOoErqB4Yh7mnbV4m/ykHOF6erHdm5qyMRHDr4sjk+fvrtkEL+RoG5YpOqiWrS833jEiktC1Uthyy5/QMNQA=="
       },
       "SQLitePCLRaw.lib.e_sqlite3": {
         "type": "Transitive",
