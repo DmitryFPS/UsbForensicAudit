@@ -15,6 +15,8 @@ internal static class AnalystNoteExcelReport
     private static readonly XLColor BorderColor = XLColor.FromHtml("#AFC4D4");
     private static readonly XLColor WarningColor = XLColor.FromHtml("#FDE2E6");
     private static readonly XLColor CaveatColor = XLColor.FromHtml("#FFF1C9");
+    private const double MinimumDataRowHeight = 21;
+    private const double MaximumDataRowHeight = 108;
 
     public static void Generate(string path, ForensicReportContext ctx)
     {
@@ -104,6 +106,7 @@ internal static class AnalystNoteExcelReport
         AddTitle(sheet, "1. Подключаемые устройства", "Таблица устройств и досье в одну строку на устройство", widths.Length);
 
         var row = 4;
+        var tableHeaderRow = row;
         row = AddTableHeader(sheet, row, ["№", "Устройство", "Канал", "VID/PID", "Serial/MAC", "Первое", "Последнее", "Детали"]);
 
         var index = 0;
@@ -122,6 +125,11 @@ internal static class AnalystNoteExcelReport
                 AnalystNoteContent.DeviceDetailLine(ctx, device)
             ];
             row = AddDataRow(sheet, row, cells);
+        }
+
+        if (ctx.ListedDevices.Count > 0)
+        {
+            FinalizeTable(sheet, tableHeaderRow, row - 1, 8);
         }
 
         foreach (var warning in AnalystNoteContent.SharedVidPidWarnings(ctx))
@@ -157,6 +165,7 @@ internal static class AnalystNoteExcelReport
 
         var row = 4;
         AddSectionHeader(sheet, row++, widths.Length, "2.1. Сетевые подключения (сводка)");
+        var summaryHeaderRow = row;
         row = AddTableHeader(sheet, row, ["Тип", "Объект", "Направление", "Первое", "Последнее"]);
         foreach (var connection in ctx.NetworkConnections)
         {
@@ -174,6 +183,10 @@ internal static class AnalystNoteExcelReport
         {
             sheet.Cell(row++, 1).Value = "Сетевых связей в собранных данных не найдено.";
         }
+        else
+        {
+            FinalizeTable(sheet, summaryHeaderRow, row - 1, 5);
+        }
 
         var sessions = ctx.NetworkConnections
             .SelectMany(connection => connection.Sessions.Select(session => (Connection: connection, Session: session)))
@@ -185,6 +198,7 @@ internal static class AnalystNoteExcelReport
         {
             row++;
             AddSectionHeader(sheet, row++, widths.Length, $"2.2. Сетевые сеансы (последние {sessions.Length})");
+            var sessionsHeaderRow = row;
             row = AddTableHeader(sheet, row, ["Связь", "Тип", "Подключение", "Отключение", "Длительность", "", "Итог"]);
             foreach (var (connection, session) in sessions)
             {
@@ -199,6 +213,8 @@ internal static class AnalystNoteExcelReport
                     session.OutcomeText
                 ]);
             }
+
+            FinalizeTable(sheet, sessionsHeaderRow, row - 1, 7);
         }
     }
 
@@ -218,9 +234,11 @@ internal static class AnalystNoteExcelReport
         AddTitle(sheet, "3. Действия пользователя на устройствах", Clean(ctx.ActivityVerdict()), widths.Length);
 
         var row = 4;
+        var tableHeaderRow = row;
         row = AddTableHeader(sheet, row, ["Устройство", "Когда", "Действие", "Файл или папка", "Примечание"]);
 
         var withActivity = ctx.DevicesWithActivity().ToArray();
+        var activityRowCount = 0;
         foreach (var (device, history) in withActivity)
         {
             foreach (var entry in history.Entries.OrderBy(x => x.TimestampUtc))
@@ -236,7 +254,13 @@ internal static class AnalystNoteExcelReport
                     entry.PathText,
                     caveat
                 ], highlight: caveat.Length > 0 ? CaveatColor : null);
+                activityRowCount++;
             }
+        }
+
+        if (activityRowCount > 0)
+        {
+            FinalizeTable(sheet, tableHeaderRow, row - 1, 5);
         }
 
         if (withActivity.Length == 0)
@@ -272,9 +296,11 @@ internal static class AnalystNoteExcelReport
             + "Помеченные даты старше установки ОС: штамп из артефакта хранит время файла-источника, а не момент действия.", 3);
 
         var row = 4;
+        var tableHeaderRow = row;
         row = AddTableHeader(sheet, row, ["Когда", "Событие", "Примечание"]);
 
-        foreach (var entry in AnalystNoteContent.BuildChronology(ctx))
+        var chronology = AnalystNoteContent.BuildChronology(ctx).ToArray();
+        foreach (var entry in chronology)
         {
             row = AddDataRow(sheet, row,
             [
@@ -283,6 +309,11 @@ internal static class AnalystNoteExcelReport
                 entry.IsOlderThanOsInstall ? AnalystNoteContent.PreInstallCaveat : ""
             ], highlight: entry.IsOlderThanOsInstall ? CaveatColor : null);
         }
+
+        if (chronology.Length > 0)
+        {
+            FinalizeTable(sheet, tableHeaderRow, row - 1, 3);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -290,8 +321,11 @@ internal static class AnalystNoteExcelReport
     // ------------------------------------------------------------------
     private static void ConfigureSheet(IXLWorksheet sheet)
     {
-        sheet.Style.Font.FontName = "Calibri";
+        sheet.Style.Font.FontName = "Segoe UI";
         sheet.Style.Font.FontSize = 10;
+        sheet.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        sheet.Style.Alignment.WrapText = false;
+        sheet.ShowGridLines = false;
         sheet.SheetView.FreezeRows(4);
     }
 
@@ -321,53 +355,105 @@ internal static class AnalystNoteExcelReport
 
     private static void AddKeyValueRow(IXLWorksheet sheet, int row, string label, string? value, bool tall = false)
     {
-        sheet.Cell(row, 1).Value = Clean(label);
+        var cleanedLabel = Clean(label);
+        var cleanedValue = Clean(value);
+        sheet.Cell(row, 1).Value = cleanedLabel;
         sheet.Cell(row, 1).Style.Font.Bold = true;
-        sheet.Cell(row, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
-        sheet.Cell(row, 2).Value = Clean(value);
+        sheet.Cell(row, 2).Value = cleanedValue;
         sheet.Cell(row, 2).Style.Alignment.WrapText = true;
-        sheet.Cell(row, 2).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
-        var range = sheet.Range(row, 1, row, 2);
-        range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-        range.Style.Border.OutsideBorderColor = BorderColor;
-        if (tall)
-        {
-            sheet.Row(row).Height = 44;
-        }
+        sheet.Range(row, 1, row, 2).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        sheet.Row(row).Height = EstimateRowHeight(
+            [(cleanedLabel, sheet.Column(1).Width), (cleanedValue, sheet.Column(2).Width)],
+            minimum: tall ? 44 : 22,
+            maximum: tall ? 88 : 66);
+        ApplyThinBorder(sheet.Range(row, 1, row, 2));
     }
 
     private static int AddTableHeader(IXLWorksheet sheet, int row, IReadOnlyList<string> headers)
     {
         for (var i = 0; i < headers.Count; i++)
         {
-            var cell = sheet.Cell(row, i + 1);
-            cell.Value = headers[i];
-            cell.Style.Font.Bold = true;
-            cell.Style.Font.FontColor = XLColor.White;
-            cell.Style.Fill.BackgroundColor = HeaderColor;
+            sheet.Cell(row, i + 1).Value = headers[i];
         }
 
+        var headerRange = sheet.Range(row, 1, row, headers.Count);
+        headerRange.Style.Font.Bold = true;
+        headerRange.Style.Font.FontColor = XLColor.White;
+        headerRange.Style.Fill.BackgroundColor = HeaderColor;
+        headerRange.Style.Alignment.WrapText = true;
+        headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
         sheet.Row(row).Height = 20;
         return row + 1;
     }
 
     private static int AddDataRow(IXLWorksheet sheet, int row, IReadOnlyList<string> cells, XLColor? highlight = null)
     {
+        var heightInputs = new List<(string Value, double Width)>(cells.Count);
         for (var i = 0; i < cells.Count; i++)
         {
-            var cell = sheet.Cell(row, i + 1);
-            cell.Value = Clean(cells[i]);
-            cell.Style.Alignment.WrapText = true;
-            cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
-            cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-            cell.Style.Border.OutsideBorderColor = BorderColor;
-            if (highlight is not null)
-            {
-                cell.Style.Fill.BackgroundColor = highlight;
-            }
+            var value = Clean(cells[i]);
+            sheet.Cell(row, i + 1).Value = value;
+            heightInputs.Add((value, sheet.Column(i + 1).Width));
+        }
+
+        sheet.Row(row).Height = EstimateRowHeight(heightInputs, MinimumDataRowHeight, MaximumDataRowHeight);
+        if (highlight is not null)
+        {
+            sheet.Range(row, 1, row, cells.Count).Style.Fill.BackgroundColor = highlight;
         }
 
         return row + 1;
+    }
+
+    private static void FinalizeTable(IXLWorksheet sheet, int headerRow, int lastRow, int columnCount)
+    {
+        if (lastRow < headerRow || columnCount <= 0)
+        {
+            return;
+        }
+
+        var tableRange = sheet.Range(headerRow, 1, lastRow, columnCount);
+        ApplyThinBorder(tableRange);
+
+        if (lastRow <= headerRow)
+        {
+            return;
+        }
+
+        var dataRange = sheet.Range(headerRow + 1, 1, lastRow, columnCount);
+        dataRange.Style.Alignment.WrapText = true;
+        dataRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+    }
+
+    private static void ApplyThinBorder(IXLRange range)
+    {
+        range.Style.Border.TopBorder = XLBorderStyleValues.Thin;
+        range.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+        range.Style.Border.LeftBorder = XLBorderStyleValues.Thin;
+        range.Style.Border.RightBorder = XLBorderStyleValues.Thin;
+        range.Style.Border.TopBorderColor = BorderColor;
+        range.Style.Border.BottomBorderColor = BorderColor;
+        range.Style.Border.LeftBorderColor = BorderColor;
+        range.Style.Border.RightBorderColor = BorderColor;
+    }
+
+    private static double EstimateRowHeight(
+        IEnumerable<(string Value, double Width)> values,
+        double minimum,
+        double maximum)
+    {
+        var lineCount = 1;
+        foreach (var (value, width) in values)
+        {
+            var usableWidth = Math.Max(8, width - 2);
+            var cellLines = value
+                .Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Split('\n')
+                .Sum(line => Math.Max(1, (int)Math.Ceiling(line.Length / usableWidth)));
+            lineCount = Math.Max(lineCount, cellLines);
+        }
+
+        return Math.Clamp(9 + lineCount * 12, minimum, maximum);
     }
 
     private static string Clean(string? value)
