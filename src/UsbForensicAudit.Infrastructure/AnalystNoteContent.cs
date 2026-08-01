@@ -103,9 +103,11 @@ internal static class AnalystNoteContent
             parts.Add($"тома {device.DriveLetters}");
         }
 
-        if (device.Manufacturer.Length > 0)
+        // Именно ManufacturerText, а не сырое поле реестра: там бывают
+        // неразвёрнутые ссылки на строки INF вроде «@usb.inf,%generic.mfg%».
+        if (device.Manufacturer.Length > 0 || device.FriendlyName.Length > 0)
         {
-            parts.Add($"производитель {device.Manufacturer}");
+            parts.Add($"производитель {device.ManufacturerText}");
         }
 
         if (device.ContainerId.Length > 0)
@@ -123,16 +125,35 @@ internal static class AnalystNoteContent
 
     /// <summary>
     /// Предупреждения о совпадающих VID/PID у нескольких устройств —
-    /// примета клонов или кастомной прошивки.
+    /// примета клонов или кастомной прошивки. Остаточные следы реестра
+    /// в число устройств не входят: такой след почти всегда оставлен одним
+    /// из тех же носителей, и считать его отдельным устройством — завышать
+    /// масштаб находки.
     /// </summary>
     public static IReadOnlyList<string> SharedVidPidWarnings(ForensicReportContext ctx)
     {
-        return ctx.ListedDevices
+        var warnings = new List<string>();
+        var groups = ctx.ListedDevices
             .Where(x => x.Vid.Length > 0 && x.Pid.Length > 0)
-            .GroupBy(x => $"{x.Vid}:{x.Pid}", StringComparer.OrdinalIgnoreCase)
-            .Where(g => g.Count() > 1)
-            .Select(g => $"Внимание: VID/PID {g.Key} совпадает у {g.Count()} устройств "
-                         + $"({string.Join(", ", g.Select(x => x.ModelText))}) — возможен клон или кастомная прошивка.")
-            .ToArray();
+            .GroupBy(x => $"{x.Vid}:{x.Pid}", StringComparer.OrdinalIgnoreCase);
+        foreach (var group in groups)
+        {
+            var devices = group.Where(x => !DeviceCountSummary.IsRegistryTrace(x)).ToArray();
+            if (devices.Length < 2)
+            {
+                continue;
+            }
+
+            var traces = group.Count() - devices.Length;
+            warnings.Add(
+                $"Внимание: VID/PID {group.Key} совпадает у {devices.Length} устройств "
+                + $"({string.Join(", ", devices.Select(x => x.ModelText))})"
+                + (traces > 0
+                    ? $" и ещё у {traces} остаточных следов реестра, вероятно от них же,"
+                    : "")
+                + " — возможен клон или кастомная прошивка.");
+        }
+
+        return warnings;
     }
 }
