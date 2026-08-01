@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Collections.ObjectModel;
@@ -555,6 +555,22 @@ public partial class MainWindow : Window
             () => _vm.ReportService.CreateBriefPdf(result, _vm.Storage.DataDirectory, snapshot),
             "Сводный PDF создан",
             "Brief PDF creation failed",
+            "Ошибка PDF");
+    }
+
+    private async void AnalystNotePdfReportButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.LastResult is null)
+        {
+            return;
+        }
+
+        var result = _vm.LastResult;
+        var snapshot = GetExternalUtilitySnapshotForReport();
+        await RunReportAsync(
+            () => _vm.ReportService.CreateAnalystNotePdf(result, _vm.Storage.DataDirectory, snapshot),
+            "Аналитическая записка создана",
+            "Analyst note PDF creation failed",
             "Ошибка PDF");
     }
 

@@ -675,7 +675,7 @@
                                                 <TextBlock Text="Реальная история подключений самой машины к сетям Wi-Fi — из реестра и журналов Windows, а не из эфира. В отличие от снимка обстановки, это следы прошлого: к этим сетям машина действительно подключалась."
                                                            Foreground="{StaticResource TextMain}"
                                                            TextWrapping="Wrap"/>
-                                                <TextBlock Text="Список заполняется при полном сканировании. Подробности каждой сети — во вкладке «Сетевые связи»: двойной щелчок по строке там открывает все сеансы."
+                                                <TextBlock Text="Список запол��яется при полном сканировании. Подробности каждой сети — во вкладке «Сетевые связи»: двойной щелчок по строке там открывает все сеансы."
                                                            Foreground="{StaticResource TextMuted}"
                                                            TextWrapping="Wrap"
                                                            Margin="0,6,0,0"/>
@@ -788,7 +788,7 @@
                             <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampText}" Width="150"/>
                             <DataGridTextColumn Header="Тип действия" Binding="{Binding ActionKindText}" Width="150"/>
                             <DataGridTextColumn Header="Статус" Binding="{Binding AssessmentText}" Width="170"/>
-                            <DataGridTextColumn Header="Инициатор" Binding="{Binding InitiatorText}" Width="200"/>
+                            <DataGridTextColumn Header="Инициато��" Binding="{Binding InitiatorText}" Width="200"/>
                             <DataGridTextColumn Header="Инструмент" Binding="{Binding PossibleToolText}" Width="170"/>
                             <DataGridTextColumn Header="Уверенность" Binding="{Binding ConfidenceText}" Width="130"/>
                             <DataGridTextColumn Header="Риск" Binding="{Binding SeverityText}" Width="90"/>
@@ -942,13 +942,14 @@
             <TabItem Header="Отчет">
                 <Border Margin="4,14,4,4" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="14" Padding="22">
                     <StackPanel>
-                        <TextBlock Text="Полные отчёты содержат все данные для расследования. Сводные отчёты показывают ключевые цифры, инциденты и значимые устройства. Доступны PDF и Excel."
+                        <TextBlock Text="Полные отчёты содержат все данные для расследования. Сводные отчёты показывают ключевые цифры, инциденты и значимые устройства. Аналитическая записка — связный рассказ с общей хронологией событий. Доступны PDF и Excel."
                                    Foreground="{StaticResource TextMain}"
                                    FontSize="16"
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,14"/>
                         <WrapPanel>
                             <Button x:Name="PdfReportButton" Content="Полный PDF" Click="PdfReportButton_Click" IsEnabled="False" Background="#14532D" BorderBrush="#38D996"/>
+                            <Button x:Name="AnalystNotePdfReportButton" Content="Аналитическая записка (PDF)" Click="AnalystNotePdfReportButton_Click" IsEnabled="False" Background="#3B2A5A" BorderBrush="#A78BFA"/>
                             <Button x:Name="BriefPdfReportButton" Content="Сводный PDF" Click="BriefPdfReportButton_Click" IsEnabled="False" Background="#1E3A5F" BorderBrush="#38BDF8"/>
                             <Button x:Name="ExcelReportButton" Content="Полный Excel" Click="ExcelReportButton_Click" IsEnabled="False" Background="#14532D" BorderBrush="#38D996"/>
                             <Button x:Name="BriefExcelReportButton" Content="Сводный Excel" Click="BriefExcelReportButton_Click" IsEnabled="False" Background="#1E3A5F" BorderBrush="#38BDF8"/>
