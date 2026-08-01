@@ -77,6 +77,19 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isCapturingNetworkEnvironment;
 
+    /// <summary>
+    /// Показывать в списке соседей только чужие устройства, спрятав сетевую
+    /// инфраструктуру: саму машину, шлюз, серверы DHCP и DNS. Инфраструктура
+    /// известна заранее и в вопросе «кто ещё в сети» только мешает.
+    /// </summary>
+    [ObservableProperty]
+    private bool _showOnlyDeviceNeighbors = true;
+
+    /// <summary>Последний снимок обстановки — для перефильтрации списка соседей.</summary>
+    private NetworkEnvironmentSnapshot? _environmentSnapshot;
+
+    partial void OnShowOnlyDeviceNeighborsChanged(bool value) => RepopulateNeighbors();
+
     public AuditResult? LastResult { get; set; }
 
     public IReportService ReportService { get; }
@@ -143,13 +156,8 @@ public partial class MainViewModel : ObservableObject
             WirelessNetworks.Add(network);
         }
 
-        NetworkNeighbors.Clear();
-        foreach (var neighbor in snapshot.Neighbors
-                     .OrderBy(x => NeighborRole.Rank(x.Role))
-                     .ThenBy(x => x.IpAddress, StringComparer.Ordinal))
-        {
-            NetworkNeighbors.Add(neighbor);
-        }
+        _environmentSnapshot = snapshot;
+        RepopulateNeighbors();
 
         NetworkNeighborHistory.Clear();
         foreach (var history in snapshot.NeighborHistory
@@ -169,6 +177,28 @@ public partial class MainViewModel : ObservableObject
         NetworkEnvironmentSummary = snapshot.Describe();
     }
 
+    /// <summary>
+    /// Наполняет список соседей с учётом фильтра «Только устройства»:
+    /// инфраструктура (эта машина, шлюз, DHCP, DNS) при включённом фильтре
+    /// прячется, чтобы не заслонять чужие устройства.
+    /// </summary>
+    private void RepopulateNeighbors()
+    {
+        NetworkNeighbors.Clear();
+        if (_environmentSnapshot is null)
+        {
+            return;
+        }
+
+        foreach (var neighbor in _environmentSnapshot.Neighbors
+                     .Where(x => !ShowOnlyDeviceNeighbors || x.Role == NeighborRole.Neighbor)
+                     .OrderBy(x => NeighborRole.Rank(x.Role))
+                     .ThenBy(x => x.IpAddress, StringComparer.Ordinal))
+        {
+            NetworkNeighbors.Add(neighbor);
+        }
+    }
+
     public async Task CaptureNetworkEnvironmentAsync(
         bool activeProbe,
         IProgress<string>? progress = null,
@@ -182,8 +212,15 @@ public partial class MainViewModel : ObservableObject
                         .ConfigureAwait(false),
                 cancellationToken).ConfigureAwait(true);
 
+            // Молчащим устройствам имена достаются из полного аудита машины:
+            // телефон, сопряжённый по Bluetooth, известен по аппаратному адресу.
+            if (LastResult is not null)
+            {
+                NeighborAuditEnrichment.Enrich(snapshot.Neighbors, LastResult.Devices);
+            }
+
             // История активности устройств копится по повторным съёмкам за
-            // сессию: новый снимок дополняет прежнюю историю, а не стирает её.
+            // сесс��ю: новый снимок дополняет прежнюю историю, а не стирает её.
             var previousHistory = LastResult?.NetworkEnvironment.NeighborHistory ?? [];
             snapshot.NeighborHistory = NetworkNeighborHistoryAccumulator.Merge(
                 previousHistory,

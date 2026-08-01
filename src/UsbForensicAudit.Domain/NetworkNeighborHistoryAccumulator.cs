@@ -128,6 +128,7 @@ public static class NetworkNeighborHistoryAccumulator
         AddUnique(history.Networks, neighbor.Network);
         AddUnique(history.Names, neighbor.HostName);
         AddUnique(history.Names, neighbor.NetbiosName);
+        AddUnique(history.Names, neighbor.EnrichedName);
 
         history.Observations.Add(new NetworkNeighborObservation
         {
@@ -136,7 +137,11 @@ public static class NetworkNeighborHistoryAccumulator
             Discovery = neighbor.Discovery,
             State = neighbor.State,
             Network = neighbor.Network,
-            Name = neighbor.HostName.Length > 0 ? neighbor.HostName : neighbor.NetbiosName
+            Name = neighbor.HostName.Length > 0
+                ? neighbor.HostName
+                : neighbor.NetbiosName.Length > 0
+                    ? neighbor.NetbiosName
+                    : neighbor.EnrichedName
         });
     }
 
