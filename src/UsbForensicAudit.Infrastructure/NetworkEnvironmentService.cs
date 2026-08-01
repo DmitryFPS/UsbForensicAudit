@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Numerics;
@@ -9,6 +10,7 @@ namespace UsbForensicAudit;
 /// Снимает обстановку вокруг машины: сети Wi-Fi в эфире и устройства в текущей
 /// сети. Это состояние «сейчас», а не история подключений из реестра.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "живой опрос сети: WLAN, соседи, mDNS — требует реального адаптера")]
 public sealed class NetworkEnvironmentService : INetworkEnvironmentService
 {
     private const int MaxProbeHosts = 254;

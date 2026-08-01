@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
 namespace UsbForensicAudit;
@@ -5,6 +6,7 @@ namespace UsbForensicAudit;
 /// <summary>
 /// Таблица соседей Windows: кто с каким IP и MAC виден с этой машины.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "P/Invoke iphlpapi.dll — требует сетевого стека")]
 internal static class IpHelperApi
 {
     private const int Success = 0;
