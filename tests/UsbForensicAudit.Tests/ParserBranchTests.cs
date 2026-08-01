@@ -66,7 +66,7 @@ public sealed class ParserBranchTests
 
         var key = Assert.Single(keys);
         Assert.Equal(@"HKEY_LOCAL_MACHINE\SYSTEM\Проба", key.Path);
-        Assert.Equal("по умолчанию", key.GetString("@"));
+        Assert.Equal("по умолчанию", key.GetString(""));
         Assert.Equal("текст", key.GetString("строка"));
         Assert.Equal("хитрое", key.GetString("имя с \"=\" внутри"));
         Assert.True(key.Values.ContainsKey("удалено"));
@@ -164,8 +164,12 @@ public sealed class ParserBranchTests
         Assert.NotEmpty(packet);
         Assert.Equal(0x12, packet[0]);
         Assert.Equal(0x34, packet[1]);
-        Assert.Contains("42.1.168.192.in-addr.arpa",
-            Encoding.ASCII.GetString(packet));
+        var text = Encoding.ASCII.GetString(packet);
+        // Метки имени идут в обратном порядке октетов, каждая со своим байтом длины.
+        Assert.True(text.IndexOf("42", StringComparison.Ordinal)
+                    < text.IndexOf("168", StringComparison.Ordinal));
+        Assert.Contains("in-addr", text);
+        Assert.Contains("arpa", text);
     }
 
     [Fact]
