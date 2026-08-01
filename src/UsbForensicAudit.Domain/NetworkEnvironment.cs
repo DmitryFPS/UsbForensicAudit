@@ -142,6 +142,19 @@ public sealed class NetworkNeighborRecord
     /// <summary>Имя, которым устройство само называется по NetBIOS.</summary>
     public string NetbiosName { get; set; } = "";
 
+    /// <summary>
+    /// Имя из результатов полного аудита машины: например, имя телефона из
+    /// сопряжения Bluetooth. Сетевые вопросы устройство могло проигнорировать,
+    /// но машина уже знает его по другой линии.
+    /// </summary>
+    public string EnrichedName { get; set; } = "";
+
+    /// <summary>
+    /// Откуда взято имя: DNS, NetBIOS, mDNS или аудит машины. Без источника
+    /// имя в форензике ничего не стоит.
+    /// </summary>
+    public string NameSource { get; set; } = "";
+
     public string Role { get; set; } = NeighborRole.Neighbor;
 
     public string Discovery { get; set; } = NeighborDiscovery.NeighborTable;
@@ -186,9 +199,32 @@ public sealed class NetworkNeighborRecord
                 return HostName;
             }
 
-            return NetbiosName.Length > 0 ? NetbiosName : "Имя не отвечает";
+            if (NetbiosName.Length > 0)
+            {
+                return NetbiosName;
+            }
+
+            if (EnrichedName.Length > 0)
+            {
+                return EnrichedName;
+            }
+
+            // Имени нет ниоткуда — вместо пустого «не отвечает» подсказываем,
+            // чьё это железо: производитель по началу адреса сужает поиск.
+            var vendor = MacVendorCatalog.Lookup(MacAddress);
+            return vendor.Length > 0
+                ? $"Без имени — техника {vendor}"
+                : "Имя не отвечает";
         }
     }
+
+    /// <summary>Откуда взято имя устройства — словами для колонки таблицы.</summary>
+    [JsonIgnore]
+    public string NameSourceText => NameSource.Length > 0
+        ? NameSource
+        : HostName.Length > 0 || NetbiosName.Length > 0 || EnrichedName.Length > 0
+            ? "источник не записан"
+            : "имя не получено";
 
     [JsonIgnore]
     public string RoleText => NeighborRole.Describe(Role);
@@ -330,7 +366,8 @@ public sealed class NetworkEnvironmentSnapshot
 
         var connected = WirelessNetworks.Count(x => x.IsConnected);
         var known = WirelessNetworks.Count(x => x.HasSavedProfile);
-        var named = Neighbors.Count(x => x.HostName.Length > 0 || x.NetbiosName.Length > 0);
+        var named = Neighbors.Count(x =>
+            x.HostName.Length > 0 || x.NetbiosName.Length > 0 || x.EnrichedName.Length > 0);
 
         var wireless = WirelessNetworks.Count == 0
             ? "Сетей Wi-Fi в эфире не слышно (или в машине нет радиомодуля)."
