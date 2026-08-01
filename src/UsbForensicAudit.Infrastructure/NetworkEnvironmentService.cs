@@ -614,8 +614,12 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
         IProgress<string>? progress,
         CancellationToken cancellationToken)
     {
+        // Записи ARP «недостижима» — память о хосте, которого сейчас нет в
+        // сети: спрашивать у него имя бессмысленно, только тянет время.
         var targets = neighbors
-            .Where(x => x.Role != NeighborRole.ThisMachine && ShouldResolveName(x.IpAddress))
+            .Where(x => x.Role != NeighborRole.ThisMachine
+                        && x.State != "недостижима"
+                        && ShouldResolveName(x.IpAddress))
             .ToList();
         if (targets.Count == 0)
         {
@@ -624,7 +628,10 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
 
         progress?.Report($"Спрашиваю имена устройств: 0 из {targets.Count}...");
         var completed = 0;
-        var gate = new SemaphoreSlim(8);
+        // Опрос имени — три лёгких UDP/DNS-запроса, как и ping: держим ту же
+        // ширину, что и активный опрос сети, иначе имена собираются вчетверо
+        // дольше самого опроса.
+        var gate = new SemaphoreSlim(32);
         var tasks = targets.Select(async neighbor =>
         {
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -647,12 +654,47 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
     }
 
     /// <summary>
-    /// Имя устройства по цепочке: обратный DNS, затем NetBIOS (так отвечают
-    /// машины Windows и NAS), затем mDNS (так отвечают телефоны и принтеры).
-    /// Каждый следующий способ пробуется, только если предыдущий промолчал.
+    /// Имя устройства тремя способами сразу: обратный DNS, NetBIOS (так
+    /// отвечают машины Windows и NAS) и mDNS (так отвечают телефоны и
+    /// принтеры). Вопросы задаются одновременно, а не по очереди: молчащее
+    /// устройство — а таких большинство — иначе съедает три таймаута подряд.
+    /// При нескольких ответах предпочтение прежнее: DNS, NetBIOS, mDNS.
     /// </summary>
     private static async Task ResolveNameCascadeAsync(
         NetworkNeighborRecord neighbor, CancellationToken cancellationToken)
+    {
+        var dnsTask = TryReverseDnsAsync(neighbor.IpAddress, cancellationToken);
+        var netbiosTask = NeighborNameResolver.TryNetbiosAsync(neighbor.IpAddress, cancellationToken);
+        var mdnsTask = NeighborNameResolver.TryMdnsAsync(neighbor.IpAddress, cancellationToken);
+        await Task.WhenAll(dnsTask, netbiosTask, mdnsTask).ConfigureAwait(false);
+
+        var dns = dnsTask.Result;
+        if (dns.Length > 0)
+        {
+            neighbor.HostName = dns;
+            neighbor.NameSource = "обратный DNS";
+        }
+
+        var netbios = netbiosTask.Result;
+        if (netbios.Length > 0)
+        {
+            neighbor.NetbiosName = netbios;
+            if (neighbor.NameSource.Length == 0)
+            {
+                neighbor.NameSource = "NetBIOS";
+            }
+        }
+
+        var mdns = mdnsTask.Result;
+        if (mdns.Length > 0 && neighbor.NameSource.Length == 0)
+        {
+            neighbor.HostName = mdns;
+            neighbor.NameSource = "mDNS";
+        }
+    }
+
+    /// <summary>Имя по обратному DNS; молчание или отказ — пустая строка.</summary>
+    private static async Task<string> TryReverseDnsAsync(string ipAddress, CancellationToken cancellationToken)
     {
         try
         {
@@ -661,13 +703,11 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
             // журнал как Unobserved task exception — сотнями за один опрос.
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(DnsTimeoutMs);
-            var entry = await Dns.GetHostEntryAsync(neighbor.IpAddress, timeout.Token).ConfigureAwait(false);
+            var entry = await Dns.GetHostEntryAsync(ipAddress, timeout.Token).ConfigureAwait(false);
             var host = entry.HostName;
-            if (host.Length > 0 && !host.Equals(neighbor.IpAddress, StringComparison.OrdinalIgnoreCase))
+            if (host.Length > 0 && !host.Equals(ipAddress, StringComparison.OrdinalIgnoreCase))
             {
-                neighbor.HostName = host;
-                neighbor.NameSource = "обратный DNS";
-                return;
+                return host;
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -679,22 +719,7 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
             // Имя не ответило — норма для телефонов и IoT.
         }
 
-        var netbios = await NeighborNameResolver.TryNetbiosAsync(neighbor.IpAddress, cancellationToken)
-            .ConfigureAwait(false);
-        if (netbios.Length > 0)
-        {
-            neighbor.NetbiosName = netbios;
-            neighbor.NameSource = "NetBIOS";
-            return;
-        }
-
-        var mdns = await NeighborNameResolver.TryMdnsAsync(neighbor.IpAddress, cancellationToken)
-            .ConfigureAwait(false);
-        if (mdns.Length > 0)
-        {
-            neighbor.HostName = mdns;
-            neighbor.NameSource = "mDNS";
-        }
+        return "";
     }
 
     /// <summary>
