@@ -48,7 +48,27 @@ jobs:
             $coverage.coverage.'line-rate',
             [Globalization.CultureInfo]::InvariantCulture)
           Write-Host ("Line coverage: {0:P2}" -f $lineRate)
+          $classes = $coverage.SelectNodes("//class") | ForEach-Object {
+            [pscustomobject]@{
+              Name = $_.name
+              Rate = [double]::Parse($_.'line-rate', [Globalization.CultureInfo]::InvariantCulture)
+              Lines = $_.SelectNodes("lines/line").Count
+            }
+          } | Sort-Object Rate
+          Write-Host "=== Coverage by class (worst first) ==="
+          $classes | Where-Object { $_.Rate -lt 0.9 } | ForEach-Object {
+            Write-Host ("{0:P1}  lines={1}  {2}" -f $_.Rate, $_.Lines, $_.Name)
+          }
           if ($lineRate -lt 0.90) { throw "Line coverage is below 90%." }
+
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: TestResults/**/coverage.cobertura.xml
+          if-no-files-found: warn
 
       - name: Reject vulnerable dependencies
         shell: pwsh
