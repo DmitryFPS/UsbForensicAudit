@@ -12,6 +12,12 @@ public interface IReportService
 
     string CreateBriefPdf(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
 
+    /// <summary>
+    /// Аналитическая записка: сжатый рассказ с общей хронологией — устройства,
+    /// сеть, действия пользователя и очистка одной лентой времени.
+    /// </summary>
+    string CreateAnalystNotePdf(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
+
     string CreateExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
 
     string CreateBriefExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);

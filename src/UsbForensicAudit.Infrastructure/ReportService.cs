@@ -34,6 +34,15 @@ public sealed class ReportService : IReportService
         });
     }
 
+    public string CreateAnalystNotePdf(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null)
+    {
+        return CreateAtomically(directory, $"UsbForensicAudit_Zapiska_{ReportTimestamp()}.pdf", path =>
+        {
+            PdfFontHelper.EnsureRegistered();
+            AnalystNotePdfReport.Generate(path, ForensicReportContext.Create(result, externalUtilitySnapshot));
+        });
+    }
+
     public string CreateExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null)
     {
         return CreateAtomically(
