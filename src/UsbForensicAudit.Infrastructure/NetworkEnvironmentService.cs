@@ -354,21 +354,25 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
         {
             var targets = BuildProbeTargets(adapters).Take(MaxProbeHosts).ToList();
             snapshot.ProbedAddresses = targets.Count;
+            // Параллельные задачи только опрашивают и возвращают находки:
+            // общий словарь соседей — обычный Dictionary, и трогать его из
+            // нескольких потоков нельзя. Склейка идёт после Task.WhenAll,
+            // уже в одном потоке.
             var gate = new SemaphoreSlim(32);
             var tasks = targets.Select(async ip =>
             {
-                await gate.WaitAsync(cancellationToken);
+                await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
                 try
                 {
                     using var ping = new Ping();
-                    var reply = await ping.SendPingAsync(ip, ProbeTimeoutMs);
+                    var reply = await ping.SendPingAsync(ip, ProbeTimeoutMs).ConfigureAwait(false);
                     if (reply.Status != IPStatus.Success)
                     {
-                        return;
+                        return null;
                     }
 
                     var mac = IpHelperApi.TryResolveMac(ip) ?? "";
-                    AddNeighbor(neighbors, new NetworkNeighborRecord
+                    return new NetworkNeighborRecord
                     {
                         IpAddress = ip,
                         MacAddress = mac,
@@ -377,18 +381,26 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
                         State = "ответил на опрос",
                         Network = networkLabel,
                         SeenAtUtc = seenAt
-                    });
+                    };
                 }
                 catch (PingException)
                 {
                     // Молчащий хост — норма.
+                    return null;
                 }
                 finally
                 {
                     gate.Release();
                 }
             });
-            await Task.WhenAll(tasks).ConfigureAwait(false);
+            var probed = await Task.WhenAll(tasks).ConfigureAwait(false);
+            foreach (var record in probed)
+            {
+                if (record is not null)
+                {
+                    AddNeighbor(neighbors, record);
+                }
+            }
         }
 
         await ResolveNamesAsync(neighbors.Values, progress, cancellationToken).ConfigureAwait(false);
