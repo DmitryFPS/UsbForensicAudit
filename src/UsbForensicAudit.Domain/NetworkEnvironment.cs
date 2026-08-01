@@ -298,6 +298,14 @@ public sealed class NetworkEnvironmentSnapshot
 
     public List<NetworkAdapterRecord> Adapters { get; set; } = [];
 
+    /// <summary>
+    /// История активности устройств, накопленная из повторных снимков за
+    /// сессию аудита. Каждая новая съёмка добавляет наблюдения сюда, а не
+    /// перезатирает прошлые — только так можно увидеть, кто появлялся в сети
+    /// и когда, потому что сама Windows такого списка не хранит.
+    /// </summary>
+    public List<NetworkNeighborHistory> NeighborHistory { get; set; } = [];
+
     public List<string> Warnings { get; set; } = [];
 
     [JsonIgnore]
@@ -337,6 +345,15 @@ public sealed class NetworkEnvironmentSnapshot
             : $"Устройств в сети видно: {Neighbors.Count} — только те, с кем машина уже обменивалась данными. "
               + "Опрос сети не проводился, поэтому молчащие устройства сюда не попали.";
 
-        return $"Снято {TakenAtText}. {wireless} {neighbours}";
+        var history = "";
+        if (NeighborHistory.Count > 0)
+        {
+            var unreliable = NeighborHistory.Count(x => x.IsRandomizedMac);
+            history = $" В истории за сессию устройств: {NeighborHistory.Count}"
+                      + (unreliable > 0 ? $", из них с ненадёжным для опознания адресом — {unreliable}" : "")
+                      + ".";
+        }
+
+        return $"Снято {TakenAtText}. {wireless} {neighbours}{history}";
     }
 }
