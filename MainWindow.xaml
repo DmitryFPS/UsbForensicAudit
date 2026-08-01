@@ -675,7 +675,7 @@
                                                 <TextBlock Text="Реальная история подключений самой машины к сетям Wi-Fi — из реестра и журналов Windows, а не из эфира. В отличие от снимка обстановки, это следы прошлого: к этим сетям машина действительно подключалась."
                                                            Foreground="{StaticResource TextMain}"
                                                            TextWrapping="Wrap"/>
-                                                <TextBlock Text="Список запол����яется при полном сканировании. Подробности каждой сети — во вкладке «Сетевые связи»: двойной щелчок по строке там открывает все сеансы."
+                                                <TextBlock Text="Список заполняется при полном сканировании. Подробности каждой сети — во вкладке «Сетевые связи»: двойной щелчок по строке там открывает все сеансы."
                                                            Foreground="{StaticResource TextMuted}"
                                                            TextWrapping="Wrap"
                                                            Margin="0,6,0,0"/>
@@ -788,7 +788,7 @@
                             <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampText}" Width="150"/>
                             <DataGridTextColumn Header="Тип действия" Binding="{Binding ActionKindText}" Width="150"/>
                             <DataGridTextColumn Header="Статус" Binding="{Binding AssessmentText}" Width="170"/>
-                            <DataGridTextColumn Header="Инициа��о��" Binding="{Binding InitiatorText}" Width="200"/>
+                            <DataGridTextColumn Header="Инициатор" Binding="{Binding InitiatorText}" Width="200"/>
                             <DataGridTextColumn Header="Инструмент" Binding="{Binding PossibleToolText}" Width="170"/>
                             <DataGridTextColumn Header="Уверенность" Binding="{Binding ConfidenceText}" Width="130"/>
                             <DataGridTextColumn Header="Риск" Binding="{Binding SeverityText}" Width="90"/>

@@ -453,7 +453,7 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
                 MacAddress = IpHelperApi.TryResolveMac(ip) ?? "",
                 Role = NeighborRole.Gateway,
                 Discovery = NeighborDiscovery.Configuration,
-                State = "из настроек ада��тера",
+                State = "из настроек адаптера",
                 Adapter = adapter.Description,
                 Network = networkLabel,
                 SeenAtUtc = seenAt

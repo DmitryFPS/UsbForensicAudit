@@ -220,7 +220,7 @@ public partial class MainViewModel : ObservableObject
             }
 
             // История активности устройств копится по повторным съёмкам за
-            // сесс��ю: новый снимок дополняет прежнюю историю, а не стирает её.
+            // сессию: новый снимок дополняет прежнюю историю, а не стирает её.
             var previousHistory = LastResult?.NetworkEnvironment.NeighborHistory ?? [];
             snapshot.NeighborHistory = NetworkNeighborHistoryAccumulator.Merge(
                 previousHistory,
