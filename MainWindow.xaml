@@ -596,21 +596,29 @@
                                     </DataGrid>
                                 </TabItem>
                                 <TabItem Header="Устройства в сети">
-                                    <DataGrid ItemsSource="{Binding NetworkNeighbors}"
-                                              AutoGenerateColumns="False"
-                                              IsReadOnly="True"
-                                              CellStyle="{StaticResource ExplainedDataGridCellStyle}">
-                                        <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Роль" Binding="{Binding RoleText}" Width="220"/>
-                                            <DataGridTextColumn Header="IP-адрес" Binding="{Binding AddressText}" Width="140"/>
-                                            <DataGridTextColumn Header="MAC" Binding="{Binding MacText}" Width="160"/>
-                                            <DataGridTextColumn Header="Имя" Binding="{Binding NameText}" Width="220"/>
-                                            <DataGridTextColumn Header="Производитель" Binding="{Binding VendorText}" Width="160"/>
-                                            <DataGridTextColumn Header="Как найдено" Binding="{Binding DiscoveryText}" Width="280"/>
-                                            <DataGridTextColumn Header="Состояние" Binding="{Binding StateText}" Width="140"/>
-                                            <DataGridTextColumn Header="Сеть" Binding="{Binding NetworkText}" Width="180"/>
-                                        </DataGrid.Columns>
-                                    </DataGrid>
+                                    <DockPanel>
+                                        <CheckBox DockPanel.Dock="Top"
+                                                  Content="Только устройства (спрятать эту машину, шлюз, DHCP и DNS)"
+                                                  IsChecked="{Binding ShowOnlyDeviceNeighbors}"
+                                                  Foreground="{StaticResource TextMuted}"
+                                                  Margin="0,8,0,8"/>
+                                        <DataGrid ItemsSource="{Binding NetworkNeighbors}"
+                                                  AutoGenerateColumns="False"
+                                                  IsReadOnly="True"
+                                                  CellStyle="{StaticResource ExplainedDataGridCellStyle}">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Роль" Binding="{Binding RoleText}" Width="220"/>
+                                                <DataGridTextColumn Header="IP-адрес" Binding="{Binding AddressText}" Width="140"/>
+                                                <DataGridTextColumn Header="MAC" Binding="{Binding MacText}" Width="160"/>
+                                                <DataGridTextColumn Header="Имя" Binding="{Binding NameText}" Width="220"/>
+                                                <DataGridTextColumn Header="Откуда имя" Binding="{Binding NameSourceText}" Width="150"/>
+                                                <DataGridTextColumn Header="Производитель" Binding="{Binding VendorText}" Width="160"/>
+                                                <DataGridTextColumn Header="Как найдено" Binding="{Binding DiscoveryText}" Width="280"/>
+                                                <DataGridTextColumn Header="Состояние" Binding="{Binding StateText}" Width="180"/>
+                                                <DataGridTextColumn Header="Сеть" Binding="{Binding NetworkText}" Width="180"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </DockPanel>
                                 </TabItem>
                                 <TabItem Header="Адаптеры">
                                     <DataGrid ItemsSource="{Binding NetworkAdapters}"
