@@ -9,7 +9,7 @@
           <ThresholdType>line</ThresholdType>
           <ThresholdStat>total</ThresholdStat>
           <ExcludeByFile>
-            **/MainWindow.xaml.cs,
+            **/Views/MainWindow*.cs,
             **/CellExplanationToolTipConverter.cs,
             **/ActiveDevicesWindow*,
             **/App.xaml.cs,
