@@ -28,6 +28,12 @@ public sealed class CliOptions
     /// <summary>Целевая (новая) сессия для сравнения.</summary>
     public string? DiffTarget { get; private set; }
 
+    /// <summary>
+    /// Корень чужой системы для офлайн-анализа: смонтированный образ диска
+    /// или скопированный каталог Windows.
+    /// </summary>
+    public string? OfflineRoot { get; private set; }
+
     /// <summary>Показать справку и выйти.</summary>
     public bool ShowHelp { get; private set; }
 
@@ -67,6 +73,17 @@ public sealed class CliOptions
 
                     options.DiffBaseline = baseline;
                     options.DiffTarget = target;
+                    break;
+
+                case "--offline":
+                    if (!TryTakeValue(args, ref i, out var offlineRoot))
+                    {
+                        options.Error = "После --offline ожидается путь к корню чужой системы " +
+                                        "(диск с папкой Windows или сам каталог Windows).";
+                        return options;
+                    }
+
+                    options.OfflineRoot = offlineRoot;
                     break;
 
                 case "--json":
@@ -129,6 +146,12 @@ public sealed class CliOptions
             // Работа с уже сохранёнными сессиями и новое сканирование — разные
             // режимы: смешение флагов почти всегда означает опечатку в скрипте.
             options.Error = "--list-sessions и --diff несовместимы с --reports/--formats.";
+        }
+
+        if (options.OfflineRoot is not null &&
+            (options.ListSessions || options.DiffBaseline is not null))
+        {
+            options.Error = "--offline несовместим с --list-sessions и --diff.";
         }
 
         if (options.ReportDirectory is not null && options.ReportFormats.Count == 0)
