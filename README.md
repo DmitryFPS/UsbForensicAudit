@@ -21,6 +21,7 @@ GUI-first forensic-аудитор USB/Type-C устройств для **Windows
 - [Вспомогательные утилиты (`tools/`)](#вспомогательные-утилиты-tools)
 - [Расширение системы](#расширение-системы)
 - [Ограничения и интерпретация](#ограничения-и-интерпретация)
+- [Лицензия](#лицензия)
 
 ---
 
@@ -243,7 +244,7 @@ UsbForensicAudit/
 
 ## Конвейер сканирования
 
-Центральный use case — `AuditOrchestrator.RunFullScanAsync`. Выполняется в фоне (`Task.Run`), прогресс отдаётся в UI через `IProgress<string>`.
+Цен��ральный use case — `AuditOrchestrator.RunFullScanAsync`. Выполняется в фоне (`Task.Run`), прогресс отдаётся в UI через `IProgress<string>`.
 
 ```text
 1. UsbRegistryCollector              → Devices (USB, USBSTOR, SCSI, WPD, usbflags, все ControlSet)
@@ -458,6 +459,16 @@ Procmon на этапе сборки: `tools\Procmon64.exe` (в `.gitignore`; с
 - Prefetch/Amcache фиксируют **запуск** утилиты, но не доказывают очистку в конкретную секунду.
 - Offline-загрузка hive может не сработать для активного профиля; активные профили анализируются через загруженный `HKU`, ошибка попадает в warnings.
 - Разные сборки Windows 10/11 дают разную детализацию Event Log; каждый collector изолирован — сбой одного не останавливает весь аудит.
+
+---
+
+## Лицензия
+
+Проприетарная source-available лицензия: код открыт для просмотра и изучения,
+использование в других проектах без письменного разрешения запрещено.
+Подробности — в файле [LICENSE](LICENSE). Правила участия — в
+[CONTRIBUTING.md](CONTRIBUTING.md), сообщения об уязвимостях — в
+[SECURITY.md](SECURITY.md).
 
 ---
 
