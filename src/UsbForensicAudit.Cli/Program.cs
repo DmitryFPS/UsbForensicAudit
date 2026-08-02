@@ -48,18 +48,30 @@ internal static class Program
             .AddInfrastructureServices()
             .BuildServiceProvider();
 
-        var privilegeChecker = services.GetRequiredService<IPrivilegeChecker>();
-        if (!privilegeChecker.IsAdministrator())
-        {
-            Console.Error.WriteLine(
-                "Сканирование требует прав администратора: без них защищённые ветки реестра " +
-                "и журнал Security недоступны, а отчёт будет неполным. " +
-                "Запустите консоль от имени администратора и повторите.");
-            return ExitNotAdministrator;
-        }
-
         try
         {
+            // Просмотр и сравнение уже сохранённых сессий — операции только чтения
+            // локальной базы: админ-права и полный конвейер сканирования не нужны.
+            if (options.ListSessions)
+            {
+                return PrintSessions(services);
+            }
+
+            if (options is { DiffBaseline: not null, DiffTarget: not null })
+            {
+                return PrintDiff(services, options.DiffBaseline, options.DiffTarget, options.JsonPath);
+            }
+
+            var privilegeChecker = services.GetRequiredService<IPrivilegeChecker>();
+            if (!privilegeChecker.IsAdministrator())
+            {
+                Console.Error.WriteLine(
+                    "Сканирование требует прав администратора: без них защищённые ветки реестра " +
+                    "и журнал Security недоступны, а отчёт будет неполным. " +
+                    "Запустите консоль от имени администратора и повторите.");
+                return ExitNotAdministrator;
+            }
+
             return await RunAsync(services, options, cancellation.Token);
         }
         catch (OperationCanceledException)
@@ -109,6 +121,110 @@ internal static class Program
         }
 
         return ExitSuccess;
+    }
+
+    private static int PrintSessions(ServiceProvider services)
+    {
+        var storage = services.GetRequiredService<IAuditStorage>();
+        var sessions = storage.ListSessions();
+        if (sessions.Count == 0)
+        {
+            Console.WriteLine($"Сохранённых сессий нет. База: {storage.DatabasePath}");
+            return ExitSuccess;
+        }
+
+        Console.WriteLine($"{"Сессия",-34} {"Начало (UTC)",-21} {"Компьютер",-16} {"Устр.",6} {"Доказ.",7} {"Очистки",8}");
+        foreach (var session in sessions)
+        {
+            Console.WriteLine(
+                $"{session.SessionId,-34} {session.StartedAtUtc:yyyy-MM-dd HH:mm:ss}   " +
+                $"{session.ComputerName,-16} {session.DeviceCount,6} {session.EvidenceCount,7} {session.CleanupFindingCount,8}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine($"Всего сессий: {sessions.Count}. База: {storage.DatabasePath}");
+        return ExitSuccess;
+    }
+
+    private static int PrintDiff(ServiceProvider services, string baselineId, string targetId, string? jsonPath)
+    {
+        var storage = services.GetRequiredService<IAuditStorage>();
+        var baseline = storage.Load(baselineId);
+        if (baseline is null)
+        {
+            Console.Error.WriteLine($"Сессия не найдена: {baselineId}. Список сессий: --list-sessions.");
+            return ExitFailure;
+        }
+
+        var target = storage.Load(targetId);
+        if (target is null)
+        {
+            Console.Error.WriteLine($"Сессия не найдена: {targetId}. Список сессий: --list-sessions.");
+            return ExitFailure;
+        }
+
+        var diff = SessionDiffService.Compare(baseline, target);
+
+        Console.WriteLine("Сравнение сессий (базовая -> целевая):");
+        Console.WriteLine($"  Базовая: {diff.Baseline.SessionId} от {diff.Baseline.StartedAtUtc:yyyy-MM-dd HH:mm:ss} UTC");
+        Console.WriteLine($"  Целевая: {diff.Target.SessionId} от {diff.Target.StartedAtUtc:yyyy-MM-dd HH:mm:ss} UTC");
+        Console.WriteLine();
+        Console.WriteLine($"Новые устройства:            {diff.AddedDevices.Count}");
+        Console.WriteLine($"Исчезнувшие устройства:      {diff.RemovedDevices.Count}");
+        Console.WriteLine($"Новые доказательства:        {diff.AddedEvidence.Count}");
+        Console.WriteLine($"Исчезнувшие доказательства:  {diff.MissingEvidence.Count}");
+        Console.WriteLine($"Новые признаки очистки:      {diff.AddedCleanupFindings.Count}");
+        Console.WriteLine($"Новые сетевые связи:         {diff.AddedNetworkConnections.Count}");
+        Console.WriteLine($"Исчезнувшие сетевые связи:   {diff.RemovedNetworkConnections.Count}");
+
+        foreach (var device in diff.AddedDevices)
+        {
+            Console.WriteLine($"  + устройство: {Describe(device)}");
+        }
+
+        foreach (var device in diff.RemovedDevices)
+        {
+            Console.WriteLine($"  - устройство: {Describe(device)}");
+        }
+
+        if (diff.MissingEvidence.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine(
+                "Внимание: часть доказательств из базовой сессии не найдена в целевой. " +
+                "Артефакты не исчезают сами: проверьте ротацию журналов и признаки очистки следов.");
+        }
+
+        if (!diff.HasChanges)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Изменений между сессиями не обнаружено.");
+        }
+
+        if (jsonPath is not null)
+        {
+            var fullPath = Path.GetFullPath(jsonPath);
+            var directory = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(fullPath, JsonSerializer.Serialize(diff, JsonExportOptions), Encoding.UTF8);
+            Console.WriteLine();
+            Console.WriteLine($"JSON-экспорт diff:     {fullPath}");
+        }
+
+        return ExitSuccess;
+    }
+
+    private static string Describe(UsbDeviceRecord device)
+    {
+        var name = !string.IsNullOrWhiteSpace(device.FriendlyName) ? device.FriendlyName
+            : !string.IsNullOrWhiteSpace(device.Product) ? device.Product
+            : device.DeviceInstanceId;
+        var serial = string.IsNullOrWhiteSpace(device.Serial) ? "" : $" (S/N: {device.Serial})";
+        return $"{name}{serial}";
     }
 
     private static void PrintSummary(AuditOrchestrator orchestrator, AuditResult result)
@@ -182,10 +298,14 @@ internal static class Program
 
             Параметры:
               --json <файл>       сохранить полный результат сканирования в JSON
+                                  (с --diff сохраняет отчёт сравнения)
               --reports <каталог> сгенерировать отчёты в указанный каталог
               --formats <список>  форматы отчётов через запятую (по умолчанию: html,pdf)
                                   допустимые: html, pdf, brief-pdf, analyst-pdf,
                                   excel, brief-excel, analyst-excel
+              --list-sessions     показать сохранённые сессии и выйти (без сканирования)
+              --diff <баз> <цел>  сравнить две сохранённые сессии: что появилось
+                                  и что исчезло между сканированиями
               --quiet, -q         не печатать пошаговый прогресс
               --help, -h          показать эту справку
 

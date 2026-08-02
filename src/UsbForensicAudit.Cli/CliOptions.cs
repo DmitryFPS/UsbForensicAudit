@@ -19,6 +19,15 @@ public sealed class CliOptions
     /// <summary>Не печатать пошаговый прогресс сканирования.</summary>
     public bool Quiet { get; private set; }
 
+    /// <summary>Показать сохранённые сессии и выйти, не сканируя.</summary>
+    public bool ListSessions { get; private set; }
+
+    /// <summary>Базовая (старая) сессия для сравнения.</summary>
+    public string? DiffBaseline { get; private set; }
+
+    /// <summary>Целевая (новая) сессия для сравнения.</summary>
+    public string? DiffTarget { get; private set; }
+
     /// <summary>Показать справку и выйти.</summary>
     public bool ShowHelp { get; private set; }
 
@@ -42,6 +51,22 @@ public sealed class CliOptions
 
                 case "--quiet" or "-q":
                     options.Quiet = true;
+                    break;
+
+                case "--list-sessions":
+                    options.ListSessions = true;
+                    break;
+
+                case "--diff":
+                    if (!TryTakeValue(args, ref i, out var baseline) ||
+                        !TryTakeValue(args, ref i, out var target))
+                    {
+                        options.Error = "После --diff ожидаются два идентификатора сессий: базовая и целевая.";
+                        return options;
+                    }
+
+                    options.DiffBaseline = baseline;
+                    options.DiffTarget = target;
                     break;
 
                 case "--json":
@@ -96,6 +121,14 @@ public sealed class CliOptions
         if (options.ReportFormats.Count > 0 && options.ReportDirectory is null)
         {
             options.Error = "Флаг --formats требует указания каталога отчётов через --reports.";
+        }
+
+        if ((options.ListSessions || options.DiffBaseline is not null) &&
+            (options.ReportDirectory is not null || options.ReportFormats.Count > 0))
+        {
+            // Работа с уже сохранёнными сессиями и новое сканирование — разные
+            // режимы: смешение флагов почти всегда означает опечатку в скрипте.
+            options.Error = "--list-sessions и --diff несовместимы с --reports/--formats.";
         }
 
         if (options.ReportDirectory is not null && options.ReportFormats.Count == 0)
