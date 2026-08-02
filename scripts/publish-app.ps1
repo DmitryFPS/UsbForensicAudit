@@ -90,7 +90,13 @@ function Prepare-BuildEnvironment {
     if (-not $SkipRunningProcessCheck -and (Get-Process -Name UsbForensicAudit -ErrorAction SilentlyContinue)) {
         throw "UsbForensicAudit is running. Close it before creating the portable build."
     }
-    dotnet build-server shutdown 2>$null | Out-Null
+    # Гасим фоновые сборочные серверы предыдущего SDK, чтобы они не держали
+    # файлы. cmd /c с редиректом внутри cmd — потому что в Windows PowerShell 5.1
+    # конструкция `2>$null` на нативной команде при $ErrorActionPreference=Stop
+    # превращает любую строку stderr в терминирующую NativeCommandError.
+    cmd /c "dotnet build-server shutdown >nul 2>&1"
+    # Команда опциональна (её может не быть в старых SDK) — сбой не критичен.
+    $global:LASTEXITCODE = 0
 }
 
 function Test-EmbeddedProcmon {
