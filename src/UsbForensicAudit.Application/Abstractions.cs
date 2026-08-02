@@ -131,6 +131,21 @@ public interface IAuditStorage
 }
 
 /// <summary>
+/// Порт офлайн-аудита чужой системы: смонтированный образ диска или
+/// скопированный каталог Windows. Реализация не должна изменять исследуемые
+/// файлы — кусты реестра копируются перед загрузкой.
+/// </summary>
+public interface IOfflineWindowsAuditor
+{
+    /// <summary>
+    /// Анализирует корень чужой системы (диск с папкой Windows или сам каталог
+    /// Windows) и возвращает результат в том же формате, что и живое
+    /// сканирование, но помеченный как офлайн.
+    /// </summary>
+    AuditResult Audit(string root, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// Порт слияния результата сканирования с устройствами, подключёнными в момент аудита.
 /// </summary>
 public interface ILiveDeviceMerger

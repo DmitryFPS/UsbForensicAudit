@@ -72,6 +72,11 @@ internal static class Program
                 return ExitNotAdministrator;
             }
 
+            if (options.OfflineRoot is not null)
+            {
+                return RunOffline(services, options, cancellation.Token);
+            }
+
             return await RunAsync(services, options, cancellation.Token);
         }
         catch (OperationCanceledException)
@@ -109,6 +114,48 @@ internal static class Program
         var result = await orchestrator.RunFullScanAsync(progress, cancellationToken);
 
         PrintSummary(orchestrator, result);
+
+        if (options.JsonPath is not null)
+        {
+            ExportJson(result, options.JsonPath);
+        }
+
+        if (options.ReportDirectory is not null)
+        {
+            CreateReports(services, result, options.ReportDirectory, options.ReportFormats);
+        }
+
+        return ExitSuccess;
+    }
+
+    private static int RunOffline(ServiceProvider services, CliOptions options, CancellationToken cancellationToken)
+    {
+        var auditor = services.GetRequiredService<IOfflineWindowsAuditor>();
+        if (!options.Quiet)
+        {
+            Console.WriteLine($"Офлайн-анализ: {options.OfflineRoot}...");
+        }
+
+        var result = auditor.Audit(options.OfflineRoot!, cancellationToken);
+
+        var storage = services.GetRequiredService<IAuditStorage>();
+        storage.Save(result);
+
+        Console.WriteLine();
+        Console.WriteLine($"Сессия:               {result.SessionId}");
+        Console.WriteLine($"Исследуемая система:  {result.ComputerName} ({result.WindowsVersion})");
+        Console.WriteLine($"Устройств найдено:    {result.Devices.Count}");
+        Console.WriteLine($"Доказательств:        {result.Evidence.Count}");
+        Console.WriteLine($"Предупреждений:       {result.SourceWarnings.Count}");
+        Console.WriteLine($"База данных:          {storage.DatabasePath}");
+
+        if (!options.Quiet)
+        {
+            foreach (var warning in result.SourceWarnings)
+            {
+                Console.WriteLine($"  ! {warning}");
+            }
+        }
 
         if (options.JsonPath is not null)
         {
@@ -306,6 +353,10 @@ internal static class Program
               --list-sessions     показать сохранённые сессии и выйти (без сканирования)
               --diff <баз> <цел>  сравнить две сохранённые сессии: что появилось
                                   и что исчезло между сканированиями
+              --offline <корень>  офлайн-анализ чужой системы: смонтированный
+                                  образ диска (например, F:\) или скопированный
+                                  каталог Windows; анализируются только кусты
+                                  реестра, исследуемые файлы не изменяются
               --quiet, -q         не печатать пошаговый прогресс
               --help, -h          показать эту справку
 

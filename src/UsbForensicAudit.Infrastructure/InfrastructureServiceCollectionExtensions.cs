@@ -17,6 +17,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IAuditStorage, AuditStorage>();
         services.AddSingleton<ILiveDeviceMerger, LiveDeviceMerger>();
         services.AddSingleton<IUsbDeviceCollector, UsbRegistryCollector>();
+        services.AddSingleton<IOfflineWindowsAuditor, OfflineWindowsAuditor>();
         services.AddSingleton<IHistoricalArtifactCollector, HistoricalArtifactCollector>();
         services.AddSingleton<IFileSystemChangeCollector, FileChangeJournalCollector>();
 
