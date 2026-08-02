@@ -110,12 +110,12 @@ dotnet test tests\UsbForensicAudit.Tests\UsbForensicAudit.Tests.csproj -c Releas
 
 ```text
 bin\publish\UsbForensicAudit.exe
-bin\publish\UsbForensicAudit_Инженерное_руководство.pdf
+bin\publish\UsbForensicAudit_Инженерное_руководство.pdf   # при успешной генерации из HTML
 ```
 
 `UsbForensicAudit-Instrukciya.pdf` и `PORTABLE.txt` не создаются: правила запуска,
 переносимости, архитектура и порядок интерпретации результатов описаны в инженерном
-PDF-руководстве рядом с EXE.
+PDF-руководстве рядом с EXE (если PDF сгенерирован).
 
 ### Типовой сценарий работы
 
@@ -214,7 +214,10 @@ services.AddSingleton<MainWindow>();
 ```text
 UsbForensicAudit/
 ├── UsbForensicAudit.sln          # Domain, Application, Infrastructure, Presentation
-├── build-exe.ps1                 # Portable publish + инженерное руководство + проверка Procmon
+├── build-exe.ps1                 # Обёртка над scripts/publish-app.ps1 (portable exe)
+├── scripts/
+│   ├── publish-app.ps1           # Общий publish: local + CI
+│   └── generate-engineering-guide.ps1  # HTML → PDF для docs/
 ├── BUILD.md                      # Краткие команды сборки exe (copy-paste)
 ├── Assets/                       # Иконки, логотип, USBVendors.txt (embedded в Domain)
 ├── docs/                         # Проверенное инженерное PDF-руководство
@@ -230,7 +233,7 @@ UsbForensicAudit/
 │   ├── UsbForensicAudit.Application/      # Use cases, оркестратор, порты, аналитика
 │   └── UsbForensicAudit.Infrastructure/   # Коллекторы, SQLite, PDF, WMI, Win32, Procmon
 ├── tests/
-│   └── UsbForensicAudit.Tests/            # xUnit, coverlet (621 тест)
+│   └── UsbForensicAudit.Tests/            # xUnit, coverlet (1244 тестовых кейса)
 └── tools/
     ├── diagnostics/                       # Одноразовые .csx-скрипты для отладки
     ├── GenerateIcon/                      # PNG → ICO для сборки
@@ -426,7 +429,7 @@ dotnet test tests\UsbForensicAudit.Tests\UsbForensicAudit.Tests.csproj --collect
 
 Конфигурация coverlet: `tests/UsbForensicAudit.Tests/coverlet.runsettings`.
 
-**Стратегия покрытия:** unit-тесты на измеряемое ядро (парсеры, корреляции, хранилище, таймлайн, поиск очистки, Procmon CSV, ViewModel и DI) с обязательным порогом **≥ 90% line coverage**. Из метрики исключены только интерактивные Windows-границы: WPF code-behind, OS-коллекторы, PDF/PInvoke/WMI. GitHub Actions проверяет locked restore, сборку без предупреждений, 621 тест, coverage gate, уязвимые зависимости и self-contained publish. CodeQL и Dependabot включены отдельно.
+**Стратегия покрытия:** unit-тесты на измеряемое ядро (парсеры, корреляции, хранилище, таймлайн, поиск очистки, Procmon CSV, ViewModel и DI) с обязательным порогом **≥ 90% line coverage**. Из метрики исключены только интерактивные Windows-границы: WPF code-behind, OS-коллекторы, PDF/PInvoke/WMI. GitHub Actions проверяет locked restore, сборку без предупреждений, **1244** тестовых кейса, coverage gate, уязвимые зависимости и portable publish через `scripts/publish-app.ps1`. CodeQL и Dependabot включены отдельно.
 
 Примеры тестовых классов:
 
@@ -458,9 +461,12 @@ dotnet test tests\UsbForensicAudit.Tests\UsbForensicAudit.Tests.csproj --collect
 | `MergeUsbVendorDatabase` | слияние `Assets/USBVendors.txt` с загруженным `usb.ids` |
 | `ExternalUtilityHarness` | headless-тест захвата окон USBDeview/USBDetector |
 
-Проверенное инженерное руководство хранится в `docs\UsbForensicAudit_Инженерное_руководство.pdf`;
-`build-exe.ps1` проверяет его наличие и PDF-сигнатуру, затем помещает рядом с EXE.
-Procmon на этапе сборки: `tools\Procmon64.exe` (в `.gitignore`; скачивается `build-exe.ps1` или кладётся вручную).
+Проверенное инженерное руководство: исходник `docs\UsbForensicAudit_Инженерное_руководство.html`;
+PDF (`docs\UsbForensicAudit_Инженерное_руководство.pdf`) генерируется скриптом
+`scripts\generate-engineering-guide.ps1` (Edge/Chrome headless) и при сборке копируется
+рядом с EXE. Если PDF недоступен, publish продолжается с предупреждением
+(`-RequireEngineeringGuide` для жёсткой проверки).
+Procmon на этапе сборки: `tools\Procmon64.exe` (в `.gitignore`; скачивается publish-скриптом или кладётся вручную).
 
 ---
 
