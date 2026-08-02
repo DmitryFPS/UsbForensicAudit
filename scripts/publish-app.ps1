@@ -25,7 +25,7 @@ $procmonDir = Join-Path $repoRoot "tools"
 $procmonExe = Join-Path $procmonDir "Procmon64.exe"
 $procmonZip = Join-Path $procmonDir "ProcessMonitor.zip"
 $procmonExtract = Join-Path $procmonDir "pmextract"
-$infrastructureDll = Join-Path $repoRoot "src\UsbForensicAudit.Infrastructure\bin\$Configuration\net8.0-windows\$Runtime\UsbForensicAudit.Infrastructure.dll"
+$infrastructureDll = Join-Path $repoRoot "src\UsbForensicAudit.Infrastructure\bin\$Configuration\net10.0-windows\$Runtime\UsbForensicAudit.Infrastructure.dll"
 $engineeringGuideDirectory = Join-Path $repoRoot "docs"
 $generateGuideScript = Join-Path $PSScriptRoot "generate-engineering-guide.ps1"
 
