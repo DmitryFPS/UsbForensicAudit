@@ -54,23 +54,18 @@ jobs:
             throw "Vulnerable NuGet dependencies detected."
           }
 
-      - name: Publish self-contained application
-        run: >
-          dotnet publish src/UsbForensicAudit/UsbForensicAudit.csproj
-          -c Release -r win-x64 --self-contained true
-          -p:RestoreLockedMode=true
-          -p:Version=${{ steps.version.outputs.version }}
-          -p:AssemblyVersion=${{ steps.version.outputs.version }}.0
-          -p:FileVersion=${{ steps.version.outputs.version }}.0
-          -o artifacts/publish
+      - name: Build portable exe with embedded Procmon
+        shell: pwsh
+        run: |
+          ./build-exe.ps1 -Configuration Release -Runtime win-x64 -Version "${{ steps.version.outputs.version }}"
 
       - name: Package release archive
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.version }}"
           $archive = "UsbForensicAudit-$version-win-x64.zip"
-          New-Item -ItemType Directory -Path artifacts/release | Out-Null
-          Compress-Archive -Path artifacts/publish/* -DestinationPath "artifacts/release/$archive"
+          New-Item -ItemType Directory -Path artifacts/release -Force | Out-Null
+          Compress-Archive -Path bin/publish/* -DestinationPath "artifacts/release/$archive"
           Write-Host "Created archive: $archive"
 
       - name: Generate SHA-256 checksums
@@ -96,6 +91,8 @@ jobs:
             ## UsbForensicAudit ${{ steps.version.outputs.version }}
 
             Self-contained сборка для Windows x64. Установка .NET не требуется.
+            Procmon64.exe (Sysinternals, подпись Microsoft проверена при сборке)
+            встроен в исполняемый файл — работает офлайн.
 
             ### Проверка целостности артефакта
 

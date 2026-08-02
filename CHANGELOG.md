@@ -6,6 +6,10 @@
 ## [Unreleased]
 
 ### Added
+- CLI-режим (`src/UsbForensicAudit.Cli`): headless-сканирование тем же
+  конвейером `AuditOrchestrator`, экспорт результата в JSON (`--json`),
+  генерация отчётов без GUI (`--reports`, `--formats`), коды возврата
+  для скриптов и планировщика задач.
 - Release-workflow (`.github/workflows/release.yml`): по тегу `vX.Y.Z` —
   сборка, тесты, аудит уязвимостей, публикация self-contained `win-x64`,
   zip-архив, `SHA256SUMS.txt` и GitHub Release с автогенерацией release notes.
