@@ -242,7 +242,7 @@ UsbForensicAudit/
 
 ---
 
-## Конвейер сканирования
+## Конве��ер сканирования
 
 Цен��ральный use case — `AuditOrchestrator.RunFullScanAsync`. Выполняется в фоне (`Task.Run`), прогресс отдаётся в UI через `IProgress<string>`.
 
@@ -366,6 +366,25 @@ bin\Release\net8.0-windows\UsbForensicAudit.exe
 RID-сборка (`publish -r win-x64`) пишет промежуточные артефакты в `obj\rid-out\`, не затрагивая `bin\Release\` — это исключает конфликты блокировки DLL при параллельной работе IDE и скрипта.
 
 **Если publish падает с «файл заблокирован»:** закройте запущенный `UsbForensicAudit.exe`, остановите Debug в Rider/VS, выполните `dotnet build-server shutdown`, повторите скрипт.
+
+### Релизы
+
+Официальные сборки публикуются на странице
+[Releases](https://github.com/DmitryFPS/UsbForensicAudit/releases).
+Релиз создаётся автоматически при пуше тега `vX.Y.Z`:
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Workflow `release.yml` собирает self-contained `win-x64`, прогоняет тесты и
+аудит зависимостей, упаковывает zip и публикует его вместе с `SHA256SUMS.txt`.
+Перед использованием скачанного архива сверьте его SHA-256 с этим файлом:
+
+```powershell
+Get-FileHash -Algorithm SHA256 .\UsbForensicAudit-1.0.0-win-x64.zip
+```
 
 ---
 

@@ -1,0 +1,112 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
+
+      - name: Resolve version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart("v")
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Tag '$tag' does not match the expected format vX.Y.Z."
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Release version: $version"
+
+      - name: Restore locked dependencies
+        run: dotnet restore UsbForensicAudit.sln --locked-mode
+
+      - name: Build with warnings as errors
+        run: dotnet build UsbForensicAudit.sln -c Release --no-restore
+
+      - name: Run tests
+        run: >
+          dotnet test tests/UsbForensicAudit.Tests/UsbForensicAudit.Tests.csproj
+          -c Release --no-build --no-restore
+
+      - name: Reject vulnerable dependencies
+        shell: pwsh
+        run: |
+          $audit = dotnet list UsbForensicAudit.sln package --vulnerable --include-transitive 2>&1
+          $audit | Write-Host
+          if ($audit -match "following vulnerable packages") {
+            throw "Vulnerable NuGet dependencies detected."
+          }
+
+      - name: Publish self-contained application
+        run: >
+          dotnet publish src/UsbForensicAudit/UsbForensicAudit.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:RestoreLockedMode=true
+          -p:Version=${{ steps.version.outputs.version }}
+          -p:AssemblyVersion=${{ steps.version.outputs.version }}.0
+          -p:FileVersion=${{ steps.version.outputs.version }}.0
+          -o artifacts/publish
+
+      - name: Package release archive
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $archive = "UsbForensicAudit-$version-win-x64.zip"
+          New-Item -ItemType Directory -Path artifacts/release | Out-Null
+          Compress-Archive -Path artifacts/publish/* -DestinationPath "artifacts/release/$archive"
+          Write-Host "Created archive: $archive"
+
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $archive = "artifacts/release/UsbForensicAudit-$version-win-x64.zip"
+          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          $name = Split-Path $archive -Leaf
+          "$hash  $name" | Out-File -FilePath "artifacts/release/SHA256SUMS.txt" -Encoding utf8NoBOM
+          Get-Content "artifacts/release/SHA256SUMS.txt" | Write-Host
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "UsbForensicAudit ${{ steps.version.outputs.version }}"
+          draft: false
+          generate_release_notes: true
+          files: |
+            artifacts/release/UsbForensicAudit-${{ steps.version.outputs.version }}-win-x64.zip
+            artifacts/release/SHA256SUMS.txt
+          body: |
+            ## UsbForensicAudit ${{ steps.version.outputs.version }}
+
+            Self-contained сборка для Windows x64. Установка .NET не требуется.
+
+            ### Проверка целостности артефакта
+
+            Перед использованием сверьте контрольную сумму архива с файлом `SHA256SUMS.txt`:
+
+            ```powershell
+            Get-FileHash -Algorithm SHA256 .\UsbForensicAudit-${{ steps.version.outputs.version }}-win-x64.zip
+            ```
+
+            Полученный хеш должен совпадать со значением из `SHA256SUMS.txt`.
+
+            > Внимание: исполняемый файл не подписан (Authenticode). SmartScreen может
+            > показать предупреждение при первом запуске. Проверка SHA-256 — способ
+            > убедиться, что архив не был изменён после публикации.

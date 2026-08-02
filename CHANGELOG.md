@@ -6,6 +6,9 @@
 ## [Unreleased]
 
 ### Added
+- Release-workflow (`.github/workflows/release.yml`): по тегу `vX.Y.Z` —
+  сборка, тесты, аудит уязвимостей, публикация self-contained `win-x64`,
+  zip-архив, `SHA256SUMS.txt` и GitHub Release с автогенерацией release notes.
 - `LICENSE` — проприетарная source-available лицензия.
 - `.editorconfig` — единый стиль кода C# для всего репозитория.
 - `SECURITY.md` — политика сообщений об уязвимостях.
