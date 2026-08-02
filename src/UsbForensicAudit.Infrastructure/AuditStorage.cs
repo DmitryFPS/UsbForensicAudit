@@ -115,6 +115,43 @@ public sealed class AuditStorage : IAuditStorage
         return result;
     }
 
+    public IReadOnlyList<SessionSummary> ListSessions()
+    {
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        // Счётчики считаются коррелированными подзапросами, а не загрузкой
+        // записей: список сессий нужен для выбора пары к сравнению, и тянуть
+        // ради него тысячи строк доказательств было бы расточительно.
+        command.CommandText = """
+            SELECT s.session_id, s.started_at_utc, s.finished_at_utc, s.computer_name, s.user_name,
+                   (SELECT COUNT(*) FROM devices d WHERE d.session_id = s.session_id),
+                   (SELECT COUNT(*) FROM evidence e WHERE e.session_id = s.session_id),
+                   (SELECT COUNT(*) FROM cleanup_findings c WHERE c.session_id = s.session_id),
+                   (SELECT COUNT(*) FROM network_connections n WHERE n.session_id = s.session_id)
+            FROM audit_sessions s
+            ORDER BY s.started_at_utc DESC;
+            """;
+        var sessions = new List<SessionSummary>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            sessions.Add(new SessionSummary
+            {
+                SessionId = reader.GetString(0),
+                StartedAtUtc = ParseDate(reader.GetString(1)),
+                FinishedAtUtc = ParseDate(reader.GetString(2)),
+                ComputerName = reader.GetString(3),
+                UserName = reader.GetString(4),
+                DeviceCount = (int)reader.GetInt64(5),
+                EvidenceCount = (int)reader.GetInt64(6),
+                CleanupFindingCount = (int)reader.GetInt64(7),
+                NetworkConnectionCount = (int)reader.GetInt64(8)
+            });
+        }
+
+        return sessions;
+    }
+
     private void Initialize()
     {
         using var connection = Open();
