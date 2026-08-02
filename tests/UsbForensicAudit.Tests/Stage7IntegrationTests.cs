@@ -388,6 +388,11 @@ public sealed class Stage7IntegrationTests
 
         public IReadOnlyList<SessionSummary> ListSessions() =>
             Saved is null ? [] : [SessionDiffService.Summarize(Saved)];
+
+        public IReadOnlyList<KnownDeviceIdentity> ListKnownDeviceIdentities() =>
+            Saved?.Devices
+                .Select(d => new KnownDeviceIdentity(d.Vid, d.Pid, d.Serial, d.DeviceInstanceId))
+                .ToArray() ?? [];
     }
 
     private sealed class FakePrivilegeChecker : IPrivilegeChecker
