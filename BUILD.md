@@ -33,6 +33,6 @@ PDF генерируется из `docs\UsbForensicAudit_Инженерное_р
 Copy-Item bin\publish\UsbForensicAudit.exe, bin\publish\*.pdf -Destination "C:\путь\к\папке\" -Force
 ```
 
-Требования: .NET 8 SDK (версия зафиксирована в `global.json`), Windows 10/11 x64, Edge или Chrome для PDF. Перед сборкой требуется успешный `dotnet test` (**1244** тестовых кейса, line coverage ≥ 90%). Зависимости фиксируются `packages.lock.json`. Для portable-сборки нужен интернет при первом запуске (Procmon); загруженный Procmon принимается только при действительной подписи Microsoft.
+Требования: .NET 10 SDK (версия зафиксирована в `global.json`), Windows 10/11 x64, Edge или Chrome для PDF. Перед сборкой требуется успешный `dotnet test` (**1244** тестовых кейса, line coverage ≥ 90%). Зависимости фиксируются `packages.lock.json`. Для portable-сборки нужен интернет при первом запуске (Procmon); загруженный Procmon принимается только при действительной подписи Microsoft.
 
 CI использует тот же скрипт: `scripts\publish-app.ps1`.
