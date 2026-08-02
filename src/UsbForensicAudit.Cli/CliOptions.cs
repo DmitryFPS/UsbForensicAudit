@@ -34,6 +34,9 @@ public sealed class CliOptions
     /// </summary>
     public string? OfflineRoot { get; private set; }
 
+    /// <summary>Проверить целостность доказательной базы и выйти, не сканируя.</summary>
+    public bool Verify { get; private set; }
+
     /// <summary>Показать справку и выйти.</summary>
     public bool ShowHelp { get; private set; }
 
@@ -61,6 +64,10 @@ public sealed class CliOptions
 
                 case "--list-sessions":
                     options.ListSessions = true;
+                    break;
+
+                case "--verify":
+                    options.Verify = true;
                     break;
 
                 case "--diff":
@@ -152,6 +159,15 @@ public sealed class CliOptions
             (options.ListSessions || options.DiffBaseline is not null))
         {
             options.Error = "--offline несовместим с --list-sessions и --diff.";
+        }
+
+        if (options.Verify &&
+            (options.OfflineRoot is not null || options.DiffBaseline is not null ||
+             options.ListSessions || options.ReportDirectory is not null || options.ReportFormats.Count > 0))
+        {
+            // Верификация читает журнал и базу, ничего не записывая; смешение
+            // с режимами записи скрыло бы, какое именно действие выполнилось.
+            options.Error = "--verify несовместим с другими режимами.";
         }
 
         if (options.ReportDirectory is not null && options.ReportFormats.Count == 0)
