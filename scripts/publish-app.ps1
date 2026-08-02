@@ -148,16 +148,16 @@ if (-not $SkipProcmonDownload) {
 }
 Prepare-BuildEnvironment
 
+dotnet restore $solution --locked-mode -r $Runtime
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet restore --locked-mode failed with exit code $LASTEXITCODE"
+}
+
 if (-not $SkipClean) {
     dotnet clean $solution -c $Configuration --nologo -v q
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet clean failed with exit code $LASTEXITCODE"
     }
-}
-
-dotnet restore $solution --locked-mode -r $Runtime
-if ($LASTEXITCODE -ne 0) {
-    throw "dotnet restore --locked-mode failed with exit code $LASTEXITCODE"
 }
 
 if (-not $SkipIconGeneration) {
