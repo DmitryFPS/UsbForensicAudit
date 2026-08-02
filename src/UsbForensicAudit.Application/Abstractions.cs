@@ -122,6 +122,12 @@ public interface IAuditStorage
     void SaveNetworkEnvironment(string sessionId, NetworkEnvironmentSnapshot snapshot);
 
     AuditResult? Load(string sessionId);
+
+    /// <summary>
+    /// Карточки всех сохранённых сессий, отсортированные от новых к старым.
+    /// Нужны для выбора сессий при сравнении без загрузки каждой целиком.
+    /// </summary>
+    IReadOnlyList<SessionSummary> ListSessions();
 }
 
 /// <summary>
