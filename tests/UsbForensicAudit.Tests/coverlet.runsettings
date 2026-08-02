@@ -12,6 +12,7 @@
             **/Views/MainWindow*.cs,
             **/CellExplanationToolTipConverter.cs,
             **/ActiveDevicesWindow*,
+            **/UnknownDeviceAlertWindow*,
             **/App.xaml.cs,
             **/*Collector.cs,
             **/ReportService.cs,
