@@ -9,6 +9,6 @@
     <AssemblyName>ExternalUtilityHarness</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\UsbForensicAudit.csproj" />
+    <ProjectReference Include="..\..\src\UsbForensicAudit\UsbForensicAudit.csproj" />
   </ItemGroup>
 </Project>

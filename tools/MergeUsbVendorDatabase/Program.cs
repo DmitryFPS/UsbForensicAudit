@@ -46,7 +46,7 @@ static string LocateRepoRoot()
     var current = new DirectoryInfo(AppContext.BaseDirectory);
     for (var depth = 0; depth < 10 && current is not null; depth++)
     {
-        if (File.Exists(Path.Combine(current.FullName, "UsbForensicAudit.csproj")))
+        if (File.Exists(Path.Combine(current.FullName, "UsbForensicAudit.sln")))
         {
             return current.FullName;
         }

@@ -5,7 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $solution = Join-Path $PSScriptRoot "UsbForensicAudit.sln"
-$project = Join-Path $PSScriptRoot "UsbForensicAudit.csproj"
+$project = Join-Path $PSScriptRoot "src\UsbForensicAudit\UsbForensicAudit.csproj"
 $publishDir = Join-Path $PSScriptRoot "bin\publish"
 $procmonDir = Join-Path $PSScriptRoot "tools"
 $procmonExe = Join-Path $procmonDir "Procmon64.exe"
