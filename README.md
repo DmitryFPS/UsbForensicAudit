@@ -213,23 +213,24 @@ services.AddSingleton<MainWindow>();
 ```text
 UsbForensicAudit/
 ├── UsbForensicAudit.sln          # Domain, Application, Infrastructure, Presentation
-├── UsbForensicAudit.csproj       # WPF-приложение (Presentation)
-├── MainWindow.xaml(.cs)          # View: разметка + тонкий code-behind (Win32, clipboard, Procmon UI)
-├── MainViewModel.cs              # ViewModel: коллекции, состояние сканирования, порядок сортировки
-├── ActiveDevicesWindow.xaml(.cs)  # Окно live-мониторинга
-├── DeviceDetailsWindow.xaml(.cs)  # Модальное окно сведений об USB (двойной клик)
-├── App.xaml(.cs)                 # Generic Host, DI, проверка админа, глобальные обработчики ошибок
 ├── build-exe.ps1                 # Portable publish + инженерное руководство + проверка Procmon
 ├── BUILD.md                      # Краткие команды сборки exe (copy-paste)
 ├── Assets/                       # Иконки, логотип, USBVendors.txt (embedded в Domain)
 ├── docs/                         # Проверенное инженерное PDF-руководство
 ├── src/
+│   ├── UsbForensicAudit/                   # WPF-приложение (Presentation)
+│   │   ├── Views/                          # Окна (MainWindow, ActiveDevicesWindow, …)
+│   │   ├── ViewModels/                     # MainViewModel и прочие VM
+│   │   ├── Converters/                     # WPF-конвертеры привязок
+│   │   ├── Helpers/                        # UI-хелперы (DarkWindowChrome, DataGridAutoSize)
+│   │   └── App.xaml(.cs)                   # Generic Host, DI, проверка админа
 │   ├── UsbForensicAudit.Domain/           # Модели, справочники, форматтеры, парсеры
 │   ├── UsbForensicAudit.Application/      # Use cases, оркестратор, порты, аналитика
 │   └── UsbForensicAudit.Infrastructure/   # Коллекторы, SQLite, PDF, WMI, Win32, Procmon
 ├── tests/
 │   └── UsbForensicAudit.Tests/            # xUnit, coverlet (621 тест)
 └── tools/
+    ├── diagnostics/                       # Одноразовые .csx-скрипты для отладки
     ├── GenerateIcon/                      # PNG → ICO для сборки
     ├── GenerateManual/                  # Отдельная legacy-утилита, в portable-сборке не запускается
     ├── MergeUsbVendorDatabase/            # Слияние usb.ids с локальной базой VID/PID

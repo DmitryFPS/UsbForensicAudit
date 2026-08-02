@@ -106,15 +106,20 @@ public class DeviceExternalityPaletteTests
         DirectoryInfo? directory = new(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!);
         while (directory is not null)
         {
-            var candidate = Path.Combine(directory.FullName, fileName);
-            if (File.Exists(candidate))
+            if (File.Exists(Path.Combine(directory.FullName, "UsbForensicAudit.sln")))
             {
-                return candidate;
+                var matches = Directory.GetFiles(directory.FullName, fileName, SearchOption.AllDirectories);
+                if (matches.Length > 0)
+                {
+                    return matches[0];
+                }
+
+                break;
             }
 
             directory = directory.Parent;
         }
 
-        throw new FileNotFoundException($"Не найден файл {fileName} выше по дереву каталогов.");
+        throw new FileNotFoundException($"Не найден файл {fileName} в репозитории.");
     }
 }
