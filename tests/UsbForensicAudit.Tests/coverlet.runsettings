@@ -32,6 +32,7 @@
             **/LiveDeviceMetadataReader.cs,
             **/RunningExternalUtilityScanner.cs,
             **/OfflineHiveCollector.cs,
+            **/OfflineWindowsAuditor.cs,
             **/AdminHelper.cs,
             **/AppLog.cs,
             **/DarkWindowChrome.cs,
