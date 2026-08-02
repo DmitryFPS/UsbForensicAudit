@@ -61,12 +61,6 @@
         "resolved": "3.53.3",
         "contentHash": "ZXiSbBkrlw2Of/dBqny/qtQol7dlThrUD8zH/jkQicCFm2yn2BbhKsQW0+YHAzhANWz4ZJCz7gvo88BwluVhkA=="
       },
-      "System.Diagnostics.EventLog": {
-        "type": "Direct",
-        "requested": "[10.0.10, )",
-        "resolved": "10.0.10",
-        "contentHash": "OvGz3PrzuAI/Sj7LTcXcCe3FClRI1IyRMZjNONcZtFh+Ww7nAtSh4kh08r8KVe/xxkXJPjR0Y1jF7H+N42d4xQ=="
-      },
       "System.Management": {
         "type": "Direct",
         "requested": "[10.0.10, )",
@@ -406,6 +400,11 @@
         "resolved": "10.0.10",
         "contentHash": "lru5igKxs4OgWKfMeOpMAYpfB1tNSSXHk2zyiSDO/h0u8RVAhN6KqW9d3ANybDB+ePIHg6HM/NlE8HlpOk4k5A=="
       },
+      "System.Diagnostics.EventLog": {
+        "type": "Transitive",
+        "resolved": "10.0.10",
+        "contentHash": "OvGz3PrzuAI/Sj7LTcXcCe3FClRI1IyRMZjNONcZtFh+Ww7nAtSh4kh08r8KVe/xxkXJPjR0Y1jF7H+N42d4xQ=="
+      },
       "usbforensicaudit.application": {
         "type": "Project",
         "dependencies": {
@@ -424,7 +423,6 @@
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.10, )",
           "QuestPDF": "[2026.7.1, )",
           "SQLitePCLRaw.lib.e_sqlite3": "[3.53.3, )",
-          "System.Diagnostics.EventLog": "[10.0.10, )",
           "System.Management": "[10.0.10, )",
           "UsbForensicAudit.Application": "[1.0.0, )",
           "UsbForensicAudit.Domain": "[1.0.0, )"
@@ -444,12 +442,6 @@
         "resolved": "3.53.3",
         "contentHash": "ZXiSbBkrlw2Of/dBqny/qtQol7dlThrUD8zH/jkQicCFm2yn2BbhKsQW0+YHAzhANWz4ZJCz7gvo88BwluVhkA=="
       },
-      "System.Diagnostics.EventLog": {
-        "type": "Direct",
-        "requested": "[10.0.10, )",
-        "resolved": "10.0.10",
-        "contentHash": "OvGz3PrzuAI/Sj7LTcXcCe3FClRI1IyRMZjNONcZtFh+Ww7nAtSh4kh08r8KVe/xxkXJPjR0Y1jF7H+N42d4xQ=="
-      },
       "System.Management": {
         "type": "Direct",
         "requested": "[10.0.10, )",
@@ -458,6 +450,11 @@
         "dependencies": {
           "System.CodeDom": "10.0.10"
         }
+      },
+      "System.Diagnostics.EventLog": {
+        "type": "Transitive",
+        "resolved": "10.0.10",
+        "contentHash": "OvGz3PrzuAI/Sj7LTcXcCe3FClRI1IyRMZjNONcZtFh+Ww7nAtSh4kh08r8KVe/xxkXJPjR0Y1jF7H+N42d4xQ=="
       }
     }
   }
