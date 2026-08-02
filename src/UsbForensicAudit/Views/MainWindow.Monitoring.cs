@@ -9,12 +9,16 @@ namespace UsbForensicAudit;
 /// </summary>
 public partial class MainWindow
 {
+    private UnknownDeviceDetector? _unknownDeviceDetector;
+    private UnknownDeviceAlertWindow? _unknownDeviceAlertWindow;
+
     private void MonitorButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
             _deviceChangeNotifier.Start();
             _monitor.Start();
+            _ = InitializeUnknownDeviceDetectorAsync();
             ShowAndRefreshActiveDevicesWindow();
             MonitorButton.IsEnabled = false;
             StopMonitorButton.IsEnabled = true;
@@ -40,10 +44,94 @@ public partial class MainWindow
     {
         _deviceChangeNotifier.Stop();
         _monitor.Stop();
+        _unknownDeviceDetector = null;
         MonitorButton.IsEnabled = true;
         StopMonitorButton.IsEnabled = false;
         ShowActiveDevicesButton.IsEnabled = false;
         AppendLog("Live-мониторинг остановлен.");
+    }
+
+    /// <summary>
+    /// Загружает базовую линию известных устройств из доказательной базы и
+    /// помечает уже подключённые известные устройства как увиденные. Если
+    /// в момент старта уже воткнуто неизвестное устройство — алерт придёт
+    /// сразу, не дожидаясь переподключения.
+    /// </summary>
+    private async Task InitializeUnknownDeviceDetectorAsync()
+    {
+        try
+        {
+            var detector = await Task.Run(() =>
+            {
+                var baseline = _vm.Storage.ListKnownDeviceIdentities();
+                return new UnknownDeviceDetector(baseline);
+            }, _lifetimeCancellation.Token);
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _unknownDeviceDetector = detector;
+                AppendLog(detector.BaselineSize == 0
+                    ? "База известных устройств пуста: выполните полное сканирование, чтобы алерты о неизвестных устройствах заработали."
+                    : "Контроль неизвестных устройств включён: база загружена из прошлых сканирований.");
+            });
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+            // Ожидаемое завершение при закрытии окна.
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error(ex, "Unknown device baseline load failed");
+            await Dispatcher.InvokeAsync(() =>
+                AppendLog($"Не удалось загрузить базу известных устройств: {ex.Message}"));
+        }
+    }
+
+    /// <summary>
+    /// Сверяет свежий снимок live-устройств с базовой линией и поднимает
+    /// алерт по неизвестным. Вызывается из обновления окна активных устройств —
+    /// отдельного опроса WMI не требуется.
+    /// </summary>
+    private void CheckForUnknownDevices(IReadOnlyList<LiveUsbDevice> devices)
+    {
+        var detector = _unknownDeviceDetector;
+        if (detector is null || detector.BaselineSize == 0)
+        {
+            return;
+        }
+
+        var unknown = detector.DetectNew(devices);
+        if (unknown.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var device in unknown)
+        {
+            AppendLog($"ВНИМАНИЕ: подключено неизвестное устройство — {device.DeviceName} ({device.DeviceId}). В доказательной базе оно не встречалось.");
+        }
+
+        if (_unknownDeviceAlertWindow is not { IsVisible: true })
+        {
+            _unknownDeviceAlertWindow = new UnknownDeviceAlertWindow
+            {
+                Owner = this
+            };
+            _unknownDeviceAlertWindow.Closed += UnknownDeviceAlertWindow_Closed;
+            _unknownDeviceAlertWindow.Show();
+        }
+
+        _unknownDeviceAlertWindow.AppendDevices(unknown);
+    }
+
+    private void UnknownDeviceAlertWindow_Closed(object? sender, EventArgs e)
+    {
+        if (sender is UnknownDeviceAlertWindow window)
+        {
+            window.Closed -= UnknownDeviceAlertWindow_Closed;
+        }
+
+        _unknownDeviceAlertWindow = null;
     }
 
     private void ShowActiveDevicesButton_Click(object sender, RoutedEventArgs e)
@@ -128,8 +216,10 @@ public partial class MainWindow
 
     private async Task RefreshActiveDevicesWindowAsync()
     {
-        var shouldRefresh = await Dispatcher.InvokeAsync(
-            () => StopMonitorButton.IsEnabled && IsActiveDevicesWindowOpen());
+        // Снимок берётся, пока идёт мониторинг, даже если окно активных
+        // устройств закрыто: алерт о неизвестном устройстве должен сработать
+        // в любом случае.
+        var shouldRefresh = await Dispatcher.InvokeAsync(() => StopMonitorButton.IsEnabled);
         if (!shouldRefresh)
         {
             return;
@@ -151,6 +241,8 @@ public partial class MainWindow
                 {
                     _activeDevicesWindow!.UpdateDevices(devices);
                 }
+
+                CheckForUnknownDevices(devices);
             });
         }
         catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)

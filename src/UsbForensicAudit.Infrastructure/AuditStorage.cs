@@ -150,6 +150,32 @@ public sealed class AuditStorage : IAuditStorage
         return sessions;
     }
 
+    public IReadOnlyList<KnownDeviceIdentity> ListKnownDeviceIdentities()
+    {
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        // DISTINCT по четырём полям идентичности: одна и та же флешка из десятка
+        // сессий схлопывается в одну строку, и базовая линия остаётся маленькой
+        // даже на машине с годами истории сканирований.
+        command.CommandText = """
+            SELECT DISTINCT COALESCE(vid, ''), COALESCE(pid, ''),
+                   COALESCE(serial, ''), COALESCE(device_instance_id, '')
+            FROM devices;
+            """;
+        var identities = new List<KnownDeviceIdentity>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            identities.Add(new KnownDeviceIdentity(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetString(3)));
+        }
+
+        return identities;
+    }
+
     private void Initialize()
     {
         using var connection = Open();

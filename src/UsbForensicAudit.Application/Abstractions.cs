@@ -128,6 +128,13 @@ public interface IAuditStorage
     /// Нужны для выбора сессий при сравнении без загрузки каждой целиком.
     /// </summary>
     IReadOnlyList<SessionSummary> ListSessions();
+
+    /// <summary>
+    /// Идентичности всех устройств из всех прошлых сканирований — базовая
+    /// линия для резидентного мониторинга. Лёгкий запрос без загрузки
+    /// полных сессий.
+    /// </summary>
+    IReadOnlyList<KnownDeviceIdentity> ListKnownDeviceIdentities();
 }
 
 /// <summary>

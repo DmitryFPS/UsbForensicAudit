@@ -227,6 +227,8 @@ public sealed class EvidenceIntegrityVerifierTests
         public AuditResult? Load(string sessionId) => throw new NotSupportedException();
 
         public IReadOnlyList<SessionSummary> ListSessions() => throw new NotSupportedException();
+
+        public IReadOnlyList<KnownDeviceIdentity> ListKnownDeviceIdentities() => throw new NotSupportedException();
     }
 
     /// <summary>Строит корректный журнал тем же алгоритмом, что боевой код.</summary>
