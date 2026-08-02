@@ -36,7 +36,8 @@ public sealed class OfflineWindowsAuditor : IOfflineWindowsAuditor
         };
         result.SourceWarnings.Add(
             $"Офлайн-анализ: {windowsDirectory}. Журналы событий, WMI и работающие процессы " +
-            "чужой машины недоступны — отчёт построен только по кустам реестра.");
+            "чужой машины недоступны — отчёт построен по кустам реестра и файловым " +
+            "артефактам профилей (LNK, Jump Lists).");
 
         var warnings = result.SourceWarnings;
         using (var system = MountedHive.Load(
@@ -60,6 +61,8 @@ public sealed class OfflineWindowsAuditor : IOfflineWindowsAuditor
         }
 
         CollectFromUserHives(windowsDirectory, result, warnings, cancellationToken);
+        OfflineUserFileArtifactCollector.Collect(
+            ResolveUsersDirectory(windowsDirectory), result, warnings, cancellationToken);
 
         foreach (var device in result.Devices)
         {
@@ -290,12 +293,16 @@ public sealed class OfflineWindowsAuditor : IOfflineWindowsAuditor
         }
     }
 
+    /// <summary>Каталог Users рядом с каталогом Windows исследуемого образа.</summary>
+    internal static string ResolveUsersDirectory(string windowsDirectory) =>
+        Path.Combine(
+            Path.GetDirectoryName(windowsDirectory.TrimEnd(Path.DirectorySeparatorChar)) ?? windowsDirectory,
+            "Users");
+
     private static void CollectFromUserHives(
         string windowsDirectory, AuditResult result, List<string> warnings, CancellationToken cancellationToken)
     {
-        var usersDirectory = Path.Combine(
-            Path.GetDirectoryName(windowsDirectory.TrimEnd(Path.DirectorySeparatorChar)) ?? windowsDirectory,
-            "Users");
+        var usersDirectory = ResolveUsersDirectory(windowsDirectory);
         if (!Directory.Exists(usersDirectory))
         {
             warnings.Add(
