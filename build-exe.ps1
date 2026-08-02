@@ -1,7 +1,12 @@
 param(
     [string]$Configuration = "Release",
-    [string]$Runtime = "win-x64"
+    [string]$Runtime = "win-x64",
+    [string]$Version = ""
 )
+
+if ($Version -and $Version -notmatch '^\d+\.\d+\.\d+$') {
+    throw "Version must match the X.Y.Z format, got: $Version"
+}
 
 $ErrorActionPreference = "Stop"
 $solution = Join-Path $PSScriptRoot "UsbForensicAudit.sln"
@@ -111,6 +116,16 @@ foreach ($pattern in @("*.dll", "*.pdb")) {
 Remove-Item (Join-Path $publishDir "LatoFont") -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item (Join-Path $publishDir "Assets") -Recurse -Force -ErrorAction SilentlyContinue
 
+$versionArgs = @()
+if ($Version) {
+    $versionArgs = @(
+        "-p:Version=$Version",
+        "-p:AssemblyVersion=$Version.0",
+        "-p:FileVersion=$Version.0"
+    )
+    Write-Host "Publishing with version: $Version"
+}
+
 dotnet publish $project `
     -c $Configuration `
     -r $Runtime `
@@ -121,6 +136,7 @@ dotnet publish $project `
     -p:IncludeAllContentForSelfExtract=true `
     -p:EnableCompressionInSingleFile=true `
     -p:DebugType=none `
+    @versionArgs `
     -o $publishDir
 
 if ($LASTEXITCODE -ne 0) {

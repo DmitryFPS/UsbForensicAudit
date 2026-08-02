@@ -21,6 +21,7 @@ GUI-first forensic-аудитор USB/Type-C устройств для **Windows
 - [Вспомогательные утилиты (`tools/`)](#вспомогательные-утилиты-tools)
 - [Расширение системы](#расширение-системы)
 - [Ограничения и интерпретация](#ограничения-и-интерпретация)
+- [Лицензия](#лицензия)
 
 ---
 
@@ -60,7 +61,7 @@ GUI-first forensic-аудитор USB/Type-C устройств для **Windows
 - Live-мониторинг USB/Type-C по **событиям PnP Windows** (без постоянного опроса каждые 2 секунды).
 - Вкладка **«Сетевые подключения»**: Wi-Fi, проводные сети, VPN, мобильный интернет, Bluetooth, сетевые папки, удалённый рабочий стол и сайты из истории браузеров. По каждой связи — сеансы «подключение — отключение» и список обращений (какие папки на серверах открывали, какие пути вводили вручную, какие страницы и загрузки были). Наличие оборудования NFC проверяется по реестру и фиксируется отдельной записью доказательств.
 - Вкладка **«Сторонние утилиты»**: захват таблиц USBDetector/USBDeview, разбор строк, Procmon-трассировка реестра.
-- Отчёты **HTML**, **PDF** и **Excel** (полный и сводный) на русском языке с корректной кириллицей. **Область отчёта — только USB/Type-C**; ОЗУ и внутренние SATA/NVMe исключены.
+- Отчёты **HTML**, **PDF** и **Excel** (полный и сводный) на русском яз��ке с корректной кириллицей. **Область отчёта — только USB/Type-C**; ОЗУ и внутренние SATA/NVMe исключены.
 
 ### Portable-режим
 
@@ -224,6 +225,7 @@ UsbForensicAudit/
 │   │   ├── Converters/                     # WPF-конвертеры привязок
 │   │   ├── Helpers/                        # UI-хелперы (DarkWindowChrome, DataGridAutoSize)
 │   │   └── App.xaml(.cs)                   # Generic Host, DI, проверка админа
+│   ├── UsbForensicAudit.Cli/              # Headless CLI поверх того же конвейера
 │   ├── UsbForensicAudit.Domain/           # Модели, справочники, форматтеры, парсеры
 │   ├── UsbForensicAudit.Application/      # Use cases, оркестратор, порты, аналитика
 │   └── UsbForensicAudit.Infrastructure/   # Коллекторы, SQLite, PDF, WMI, Win32, Procmon
@@ -241,9 +243,9 @@ UsbForensicAudit/
 
 ---
 
-## Конвейер сканирования
+## Конве����ер сканирования
 
-Центральный use case — `AuditOrchestrator.RunFullScanAsync`. Выполняется в фоне (`Task.Run`), прогресс отдаётся в UI через `IProgress<string>`.
+Цен��ральный use case — `AuditOrchestrator.RunFullScanAsync`. Выполняется в фоне (`Task.Run`), прогресс отдаётся в UI через `IProgress<string>`.
 
 ```text
 1. UsbRegistryCollector              → Devices (USB, USBSTOR, SCSI, WPD, usbflags, все ControlSet)
@@ -366,6 +368,48 @@ RID-сборка (`publish -r win-x64`) пишет промежуточные а
 
 **Если publish падает с «файл заблокирован»:** закройте запущенный `UsbForensicAudit.exe`, остановите Debug в Rider/VS, выполните `dotnet build-server shutdown`, повторите скрипт.
 
+### CLI-режим (headless)
+
+Для массового аудита и запуска из скриптов есть консольная версия —
+`UsbForensicAudit.Cli`. Она использует тот же конвейер сканирования и то же
+хранилище (`data\audit.sqlite` + `evidence.jsonl` с hash-chain), что и GUI:
+
+```powershell
+# Полное сканирование с JSON-экспортом и отчётами
+UsbForensicAudit.Cli.exe --json result.json --reports .\reports --formats html,pdf,analyst-pdf
+
+# Тихий режим для планировщика задач / SCCM
+UsbForensicAudit.Cli.exe -q --json \\server\audit\%COMPUTERNAME%.json
+```
+
+Коды возврата: `0` — успех, `1` — ошибка, `2` — нет прав администратора,
+`3` — прервано (Ctrl+C), `64` — неверные аргументы. Справка: `--help`.
+
+Сборка:
+
+```powershell
+dotnet publish src\UsbForensicAudit.Cli\UsbForensicAudit.Cli.csproj -c Release -r win-x64 --self-contained
+```
+
+### Релизы
+
+Официальные сборки публикуются на странице
+[Releases](https://github.com/DmitryFPS/UsbForensicAudit/releases).
+Релиз создаётся автоматически при пуше тега `vX.Y.Z`:
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Workflow `release.yml` собирает self-contained `win-x64`, прогоняет тесты и
+аудит зависимостей, упаковывает zip и публикует его вместе с `SHA256SUMS.txt`.
+Перед использованием скачанного архива сверьте его SHA-256 с этим файлом:
+
+```powershell
+Get-FileHash -Algorithm SHA256 .\UsbForensicAudit-1.0.0-win-x64.zip
+```
+
 ---
 
 ## Тестирование
@@ -458,6 +502,16 @@ Procmon на этапе сборки: `tools\Procmon64.exe` (в `.gitignore`; с
 - Prefetch/Amcache фиксируют **запуск** утилиты, но не доказывают очистку в конкретную секунду.
 - Offline-загрузка hive может не сработать для активного профиля; активные профили анализируются через загруженный `HKU`, ошибка попадает в warnings.
 - Разные сборки Windows 10/11 дают разную детализацию Event Log; каждый collector изолирован — сбой одного не останавливает весь аудит.
+
+---
+
+## Лицензия
+
+Проприетарная source-available лицензия: код открыт для просмотра и изучения,
+использование в других проектах без письменного разрешения запрещено.
+Подробности — в файле [LICENSE](LICENSE). Правила участия — в
+[CONTRIBUTING.md](CONTRIBUTING.md), сообщения об уязвимостях — в
+[SECURITY.md](SECURITY.md).
 
 ---
 
