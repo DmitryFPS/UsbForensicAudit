@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--
+    Английский перевод строк CLI. Ключи обязаны зеркалировать Strings.resx:
+    отсутствующий ключ прозрачно откатывается на русскую базовую культуру.
+  -->
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <data name="ErrDiffArgs" xml:space="preserve">
+    <value>--diff expects two session identifiers: baseline and target.</value>
+  </data>
+  <data name="ErrOfflineArg" xml:space="preserve">
+    <value>--offline expects a path to the root of the examined system (a drive containing a Windows folder, or the Windows folder itself).</value>
+  </data>
+  <data name="ErrJsonArg" xml:space="preserve">
+    <value>--json expects a file path.</value>
+  </data>
+  <data name="ErrReportsArg" xml:space="preserve">
+    <value>--reports expects a directory path.</value>
+  </data>
+  <data name="ErrFormatsArg" xml:space="preserve">
+    <value>--formats expects a comma-separated list of formats.</value>
+  </data>
+  <data name="ErrLangArg" xml:space="preserve">
+    <value>--lang expects a language code: ru or en.</value>
+  </data>
+  <data name="ErrUnknownFormat" xml:space="preserve">
+    <value>Unknown report format: {0}. Allowed: {1}.</value>
+  </data>
+  <data name="ErrUnknownArg" xml:space="preserve">
+    <value>Unknown argument: {0}. Run with --help for usage.</value>
+  </data>
+  <data name="ErrFormatsWithoutReports" xml:space="preserve">
+    <value>--formats requires a report directory specified via --reports.</value>
+  </data>
+  <data name="ErrListDiffMix" xml:space="preserve">
+    <value>--list-sessions and --diff are incompatible with --reports/--formats.</value>
+  </data>
+  <data name="ErrOfflineMix" xml:space="preserve">
+    <value>--offline is incompatible with --list-sessions and --diff.</value>
+  </data>
+  <data name="ErrVerifyMix" xml:space="preserve">
+    <value>--verify is incompatible with other modes.</value>
+  </data>
+
+  <data name="AdminRequired" xml:space="preserve">
+    <value>Scanning requires administrator privileges: without them protected registry branches and the Security event log are inaccessible and the report will be incomplete. Restart the console as administrator and try again.</value>
+  </data>
+  <data name="Cancelled" xml:space="preserve">
+    <value>Scan cancelled by the user.</value>
+  </data>
+  <data name="ErrorPrefix" xml:space="preserve">
+    <value>Scan error: {0}</value>
+  </data>
+  <data name="ScanStarting" xml:space="preserve">
+    <value>Starting full scan...</value>
+  </data>
+
+  <data name="IntegrityJournalMissing" xml:space="preserve">
+    <value>Evidence journal is missing: no scans have been performed yet.</value>
+  </data>
+  <data name="IntegrityDataDirectory" xml:space="preserve">
+    <value>Data directory: {0}</value>
+  </data>
+  <data name="IntegrityTotalRecords" xml:space="preserve">
+    <value>Journal records:      {0}</value>
+  </data>
+  <data name="IntegrityChainBreaks" xml:space="preserve">
+    <value>Hash-chain breaks:    {0}</value>
+  </data>
+  <data name="IntegritySeals" xml:space="preserve">
+    <value>Session seals:        {0} matched, {1} mismatched, {2} not sealed</value>
+  </data>
+  <data name="IntegrityBreakLine" xml:space="preserve">
+    <value>  ! line {0}: {1}</value>
+  </data>
+  <data name="IntegritySealMismatch" xml:space="preserve">
+    <value>  ! session {0}: the seal in the database does not match the journal.</value>
+  </data>
+  <data name="IntegrityIntact" xml:space="preserve">
+    <value>Integrity confirmed: the evidence base has not been modified.</value>
+  </data>
+  <data name="IntegrityViolated" xml:space="preserve">
+    <value>INTEGRITY VIOLATED: records were modified after being saved.</value>
+  </data>
+
+  <data name="OfflineStarting" xml:space="preserve">
+    <value>Offline analysis: {0}...</value>
+  </data>
+  <data name="OfflineSession" xml:space="preserve">
+    <value>Session:              {0}</value>
+  </data>
+  <data name="OfflineSystem" xml:space="preserve">
+    <value>Examined system:      {0} ({1})</value>
+  </data>
+  <data name="OfflineDevices" xml:space="preserve">
+    <value>Devices found:        {0}</value>
+  </data>
+  <data name="OfflineEvidence" xml:space="preserve">
+    <value>Evidence records:     {0}</value>
+  </data>
+  <data name="OfflineWarnings" xml:space="preserve">
+    <value>Warnings:             {0}</value>
+  </data>
+  <data name="OfflineDatabase" xml:space="preserve">
+    <value>Database:             {0}</value>
+  </data>
+  <data name="WarningLine" xml:space="preserve">
+    <value>  ! {0}</value>
+  </data>
+
+  <data name="SessionsEmpty" xml:space="preserve">
+    <value>No saved sessions. Database: {0}</value>
+  </data>
+  <data name="SessionsColSession" xml:space="preserve">
+    <value>Session</value>
+  </data>
+  <data name="SessionsColStarted" xml:space="preserve">
+    <value>Started (UTC)</value>
+  </data>
+  <data name="SessionsColComputer" xml:space="preserve">
+    <value>Computer</value>
+  </data>
+  <data name="SessionsColDevices" xml:space="preserve">
+    <value>Dev.</value>
+  </data>
+  <data name="SessionsColEvidence" xml:space="preserve">
+    <value>Evid.</value>
+  </data>
+  <data name="SessionsColCleanup" xml:space="preserve">
+    <value>Cleanup</value>
+  </data>
+  <data name="SessionsTotal" xml:space="preserve">
+    <value>Total sessions: {0}. Database: {1}</value>
+  </data>
+
+  <data name="DiffSessionNotFound" xml:space="preserve">
+    <value>Session not found: {0}. List sessions with --list-sessions.</value>
+  </data>
+  <data name="DiffHeader" xml:space="preserve">
+    <value>Session comparison (baseline -&gt; target):</value>
+  </data>
+  <data name="DiffBaselineLine" xml:space="preserve">
+    <value>  Baseline: {0} at {1:yyyy-MM-dd HH:mm:ss} UTC</value>
+  </data>
+  <data name="DiffTargetLine" xml:space="preserve">
+    <value>  Target:   {0} at {1:yyyy-MM-dd HH:mm:ss} UTC</value>
+  </data>
+  <data name="DiffAddedDevices" xml:space="preserve">
+    <value>New devices:                 {0}</value>
+  </data>
+  <data name="DiffRemovedDevices" xml:space="preserve">
+    <value>Disappeared devices:         {0}</value>
+  </data>
+  <data name="DiffAddedEvidence" xml:space="preserve">
+    <value>New evidence:                {0}</value>
+  </data>
+  <data name="DiffMissingEvidence" xml:space="preserve">
+    <value>Disappeared evidence:        {0}</value>
+  </data>
+  <data name="DiffAddedCleanup" xml:space="preserve">
+    <value>New cleanup findings:        {0}</value>
+  </data>
+  <data name="DiffAddedNetwork" xml:space="preserve">
+    <value>New network connections:     {0}</value>
+  </data>
+  <data name="DiffRemovedNetwork" xml:space="preserve">
+    <value>Removed network connections: {0}</value>
+  </data>
+  <data name="DiffDeviceAdded" xml:space="preserve">
+    <value>  + device: {0}</value>
+  </data>
+  <data name="DiffDeviceRemoved" xml:space="preserve">
+    <value>  - device: {0}</value>
+  </data>
+  <data name="DiffMissingWarning" xml:space="preserve">
+    <value>Warning: some evidence from the baseline session was not found in the target. Artifacts do not disappear on their own: check log rotation and trace-cleanup findings.</value>
+  </data>
+  <data name="DiffNoChanges" xml:space="preserve">
+    <value>No changes detected between the sessions.</value>
+  </data>
+  <data name="DiffJsonExport" xml:space="preserve">
+    <value>Diff JSON export:      {0}</value>
+  </data>
+  <data name="SerialSuffix" xml:space="preserve">
+    <value> (S/N: {0})</value>
+  </data>
+
+  <data name="SummarySession" xml:space="preserve">
+    <value>Session:               {0}</value>
+  </data>
+  <data name="SummaryDevices" xml:space="preserve">
+    <value>Devices:               {0}</value>
+  </data>
+  <data name="SummaryEvidence" xml:space="preserve">
+    <value>Evidence records:      {0}</value>
+  </data>
+  <data name="SummaryCleanup" xml:space="preserve">
+    <value>Cleanup findings:      {0}</value>
+  </data>
+  <data name="SummaryNetwork" xml:space="preserve">
+    <value>Network connections:   {0}</value>
+  </data>
+  <data name="SummaryWarnings" xml:space="preserve">
+    <value>Warnings:              {0}</value>
+  </data>
+  <data name="SummaryDatabase" xml:space="preserve">
+    <value>Results database:      {0}</value>
+  </data>
+
+  <data name="JsonExport" xml:space="preserve">
+    <value>JSON export:           {0}</value>
+  </data>
+  <data name="ReportLine" xml:space="preserve">
+    <value>Report ({0,-13}): {1}</value>
+  </data>
+
+  <data name="Usage" xml:space="preserve">
+    <value>UsbForensicAudit.Cli — headless USB artifact scanning.
+
+Usage:
+  UsbForensicAudit.Cli.exe [options]
+
+Options:
+  --json &lt;file&gt;       save the full scan result as JSON
+                      (with --diff saves the comparison report)
+  --reports &lt;dir&gt;     generate reports into the given directory
+  --formats &lt;list&gt;    comma-separated report formats (default: html,pdf)
+                      allowed: html, pdf, brief-pdf, analyst-pdf,
+                      excel, brief-excel, analyst-excel
+  --list-sessions     list saved sessions and exit (no scanning)
+  --diff &lt;base&gt; &lt;tgt&gt; compare two saved sessions: what appeared
+                      and what disappeared between scans
+  --offline &lt;root&gt;    offline analysis of another system: a mounted
+                      disk image (e.g. F:\) or a copied Windows
+                      folder; only registry hives are analyzed,
+                      examined files are never modified
+  --verify            verify evidence base integrity: recompute the
+                      journal hash-chain and check session seals
+                      against the database (with --json saves the
+                      verification report)
+  --lang &lt;ru|en&gt;      message language (default: system language)
+  --quiet, -q         do not print step-by-step progress
+  --help, -h          show this help
+
+Exit codes:
+  0  scan completed successfully
+  1  execution error
+  2  administrator privileges missing
+  3  cancelled by the user (Ctrl+C)
+  4  verification found integrity violations
+  64 invalid arguments
+
+The result is always saved to the data\audit.sqlite database next to
+the executable — the same one used by the GUI application.</value>
+  </data>
+</root>

@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--
+    Базовая культура приложения — русская (NeutralResourcesLanguage("ru")).
+    Английский перевод лежит рядом в Strings.en.resx и собирается в
+    satellite-сборку en\UsbForensicAudit.Cli.resources.dll автоматически.
+    Конвенция: новые пользовательские строки CLI добавляются сюда и в en-файл,
+    ключи группируются префиксами (Err*, Scan*, Integrity*, Diff*, Sessions*).
+  -->
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <data name="ErrDiffArgs" xml:space="preserve">
+    <value>После --diff ожидаются два идентификатора сессий: базовая и целевая.</value>
+  </data>
+  <data name="ErrOfflineArg" xml:space="preserve">
+    <value>После --offline ожидается путь к корню чужой системы (диск с папкой Windows или сам каталог Windows).</value>
+  </data>
+  <data name="ErrJsonArg" xml:space="preserve">
+    <value>После --json ожидается путь к файлу.</value>
+  </data>
+  <data name="ErrReportsArg" xml:space="preserve">
+    <value>После --reports ожидается путь к каталогу.</value>
+  </data>
+  <data name="ErrFormatsArg" xml:space="preserve">
+    <value>После --formats ожидается список форматов через запятую.</value>
+  </data>
+  <data name="ErrLangArg" xml:space="preserve">
+    <value>После --lang ожидается код языка: ru или en.</value>
+  </data>
+  <data name="ErrUnknownFormat" xml:space="preserve">
+    <value>Неизвестный формат отчёта: {0}. Допустимые: {1}.</value>
+  </data>
+  <data name="ErrUnknownArg" xml:space="preserve">
+    <value>Неизвестный аргумент: {0}. Запустите с --help для справки.</value>
+  </data>
+  <data name="ErrFormatsWithoutReports" xml:space="preserve">
+    <value>Флаг --formats требует указания каталога отчётов через --reports.</value>
+  </data>
+  <data name="ErrListDiffMix" xml:space="preserve">
+    <value>--list-sessions и --diff несовместимы с --reports/--formats.</value>
+  </data>
+  <data name="ErrOfflineMix" xml:space="preserve">
+    <value>--offline несовместим с --list-sessions и --diff.</value>
+  </data>
+  <data name="ErrVerifyMix" xml:space="preserve">
+    <value>--verify несовместим с другими режимами.</value>
+  </data>
+
+  <data name="AdminRequired" xml:space="preserve">
+    <value>Сканирование требует прав администратора: без них защищённые ветки реестра и журнал Security недоступны, а отчёт будет неполным. Запустите консоль от имени администратора и повторите.</value>
+  </data>
+  <data name="Cancelled" xml:space="preserve">
+    <value>Сканирование прервано пользователем.</value>
+  </data>
+  <data name="ErrorPrefix" xml:space="preserve">
+    <value>Ошибка сканирования: {0}</value>
+  </data>
+  <data name="ScanStarting" xml:space="preserve">
+    <value>Запуск полного сканирования...</value>
+  </data>
+
+  <data name="IntegrityJournalMissing" xml:space="preserve">
+    <value>Журнал доказательств отсутствует: сканирований ещё не было.</value>
+  </data>
+  <data name="IntegrityDataDirectory" xml:space="preserve">
+    <value>Каталог данных: {0}</value>
+  </data>
+  <data name="IntegrityTotalRecords" xml:space="preserve">
+    <value>Записей в журнале:    {0}</value>
+  </data>
+  <data name="IntegrityChainBreaks" xml:space="preserve">
+    <value>Разрывов hash-chain:  {0}</value>
+  </data>
+  <data name="IntegritySeals" xml:space="preserve">
+    <value>Печати сессий:        {0} совпало, {1} расхождений, {2} без печати</value>
+  </data>
+  <data name="IntegrityBreakLine" xml:space="preserve">
+    <value>  ! строка {0}: {1}</value>
+  </data>
+  <data name="IntegritySealMismatch" xml:space="preserve">
+    <value>  ! сессия {0}: печать в базе не совпадает с журналом.</value>
+  </data>
+  <data name="IntegrityIntact" xml:space="preserve">
+    <value>Целостность подтверждена: доказательная база не изменялась.</value>
+  </data>
+  <data name="IntegrityViolated" xml:space="preserve">
+    <value>ЦЕЛОСТНОСТЬ НАРУШЕНА: записи изменялись после сохранения.</value>
+  </data>
+
+  <data name="OfflineStarting" xml:space="preserve">
+    <value>Офлайн-анализ: {0}...</value>
+  </data>
+  <data name="OfflineSession" xml:space="preserve">
+    <value>Сессия:               {0}</value>
+  </data>
+  <data name="OfflineSystem" xml:space="preserve">
+    <value>Исследуемая система:  {0} ({1})</value>
+  </data>
+  <data name="OfflineDevices" xml:space="preserve">
+    <value>Устройств найдено:    {0}</value>
+  </data>
+  <data name="OfflineEvidence" xml:space="preserve">
+    <value>Доказательств:        {0}</value>
+  </data>
+  <data name="OfflineWarnings" xml:space="preserve">
+    <value>Предупреждений:       {0}</value>
+  </data>
+  <data name="OfflineDatabase" xml:space="preserve">
+    <value>База данных:          {0}</value>
+  </data>
+  <data name="WarningLine" xml:space="preserve">
+    <value>  ! {0}</value>
+  </data>
+
+  <data name="SessionsEmpty" xml:space="preserve">
+    <value>Сохранённых сессий нет. База: {0}</value>
+  </data>
+  <data name="SessionsColSession" xml:space="preserve">
+    <value>Сессия</value>
+  </data>
+  <data name="SessionsColStarted" xml:space="preserve">
+    <value>Начало (UTC)</value>
+  </data>
+  <data name="SessionsColComputer" xml:space="preserve">
+    <value>Компьютер</value>
+  </data>
+  <data name="SessionsColDevices" xml:space="preserve">
+    <value>Устр.</value>
+  </data>
+  <data name="SessionsColEvidence" xml:space="preserve">
+    <value>Доказ.</value>
+  </data>
+  <data name="SessionsColCleanup" xml:space="preserve">
+    <value>Очистки</value>
+  </data>
+  <data name="SessionsTotal" xml:space="preserve">
+    <value>Всего сессий: {0}. База: {1}</value>
+  </data>
+
+  <data name="DiffSessionNotFound" xml:space="preserve">
+    <value>Сессия не найдена: {0}. Список сессий: --list-sessions.</value>
+  </data>
+  <data name="DiffHeader" xml:space="preserve">
+    <value>Сравнение сессий (базовая -&gt; целевая):</value>
+  </data>
+  <data name="DiffBaselineLine" xml:space="preserve">
+    <value>  Базовая: {0} от {1:yyyy-MM-dd HH:mm:ss} UTC</value>
+  </data>
+  <data name="DiffTargetLine" xml:space="preserve">
+    <value>  Целевая: {0} от {1:yyyy-MM-dd HH:mm:ss} UTC</value>
+  </data>
+  <data name="DiffAddedDevices" xml:space="preserve">
+    <value>Новые устройства:            {0}</value>
+  </data>
+  <data name="DiffRemovedDevices" xml:space="preserve">
+    <value>Исчезнувшие устройства:      {0}</value>
+  </data>
+  <data name="DiffAddedEvidence" xml:space="preserve">
+    <value>Новые доказательства:        {0}</value>
+  </data>
+  <data name="DiffMissingEvidence" xml:space="preserve">
+    <value>Исчезнувшие доказательства:  {0}</value>
+  </data>
+  <data name="DiffAddedCleanup" xml:space="preserve">
+    <value>Новые признаки очистки:      {0}</value>
+  </data>
+  <data name="DiffAddedNetwork" xml:space="preserve">
+    <value>Новые сетевые связи:         {0}</value>
+  </data>
+  <data name="DiffRemovedNetwork" xml:space="preserve">
+    <value>Исчезнувшие сетевые связи:   {0}</value>
+  </data>
+  <data name="DiffDeviceAdded" xml:space="preserve">
+    <value>  + устройство: {0}</value>
+  </data>
+  <data name="DiffDeviceRemoved" xml:space="preserve">
+    <value>  - устройство: {0}</value>
+  </data>
+  <data name="DiffMissingWarning" xml:space="preserve">
+    <value>Внимание: часть доказательств из базовой сессии не найдена в целевой. Артефакты не исчезают сами: проверьте ротацию журналов и признаки очистки следов.</value>
+  </data>
+  <data name="DiffNoChanges" xml:space="preserve">
+    <value>Изменений между сессиями не обнаружено.</value>
+  </data>
+  <data name="DiffJsonExport" xml:space="preserve">
+    <value>JSON-экспорт diff:     {0}</value>
+  </data>
+  <data name="SerialSuffix" xml:space="preserve">
+    <value> (S/N: {0})</value>
+  </data>
+
+  <data name="SummarySession" xml:space="preserve">
+    <value>Сессия:                {0}</value>
+  </data>
+  <data name="SummaryDevices" xml:space="preserve">
+    <value>Устройств:             {0}</value>
+  </data>
+  <data name="SummaryEvidence" xml:space="preserve">
+    <value>Доказательств:         {0}</value>
+  </data>
+  <data name="SummaryCleanup" xml:space="preserve">
+    <value>Признаков очистки:     {0}</value>
+  </data>
+  <data name="SummaryNetwork" xml:space="preserve">
+    <value>Сетевых связей:        {0}</value>
+  </data>
+  <data name="SummaryWarnings" xml:space="preserve">
+    <value>Предупреждений:        {0}</value>
+  </data>
+  <data name="SummaryDatabase" xml:space="preserve">
+    <value>База результатов:      {0}</value>
+  </data>
+
+  <data name="JsonExport" xml:space="preserve">
+    <value>JSON-экспорт:          {0}</value>
+  </data>
+  <data name="ReportLine" xml:space="preserve">
+    <value>Отчёт ({0,-13}): {1}</value>
+  </data>
+
+  <data name="Usage" xml:space="preserve">
+    <value>UsbForensicAudit.Cli — headless-сканирование USB-артефактов.
+
+Использование:
+  UsbForensicAudit.Cli.exe [параметры]
+
+Параметры:
+  --json &lt;файл&gt;       сохранить полный результат сканирования в JSON
+                      (с --diff сохраняет отчёт сравнения)
+  --reports &lt;каталог&gt; сгенерировать отчёты в указанный каталог
+  --formats &lt;список&gt;  форматы отчётов через запятую (по умолчанию: html,pdf)
+                      допустимые: html, pdf, brief-pdf, analyst-pdf,
+                      excel, brief-excel, analyst-excel
+  --list-sessions     показать сохранённые сессии и выйти (без сканирования)
+  --diff &lt;баз&gt; &lt;цел&gt;  сравнить две сохранённые сессии: что появилось
+                      и что исчезло между сканированиями
+  --offline &lt;корень&gt;  офлайн-анализ чужой системы: смонтированный
+                      образ диска (например, F:\) или скопированный
+                      каталог Windows; анализируются только кусты
+                      реестра, исследуемые файлы не изменяются
+  --verify            проверить целостность доказательной базы:
+                      пересчитать hash-chain журнала и сверить
+                      печати сессий с базой (с --json сохраняет
+                      отчёт верификации)
+  --lang &lt;ru|en&gt;      язык сообщений (по умолчанию: язык системы)
+  --quiet, -q         не печатать пошаговый прогресс
+  --help, -h          показать эту справку
+
+Коды возврата:
+  0  сканирование завершено успешно
+  1  ошибка выполнения
+  2  нет прав администратора
+  3  прервано пользователем (Ctrl+C)
+  4  верификация нашла нарушения целостности
+  64 неверные аргументы
+
+Результат всегда сохраняется в базу data\audit.sqlite рядом с exe —
+той же, что использует GUI-приложение.</value>
+  </data>
+</root>
