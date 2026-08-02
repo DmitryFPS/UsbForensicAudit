@@ -61,7 +61,7 @@ GUI-first forensic-аудитор USB/Type-C устройств для **Windows
 - Live-мониторинг USB/Type-C по **событиям PnP Windows** (без постоянного опроса каждые 2 секунды).
 - Вкладка **«Сетевые подключения»**: Wi-Fi, проводные сети, VPN, мобильный интернет, Bluetooth, сетевые папки, удалённый рабочий стол и сайты из истории браузеров. По каждой связи — сеансы «подключение — отключение» и список обращений (какие папки на серверах открывали, какие пути вводили вручную, какие страницы и загрузки были). Наличие оборудования NFC проверяется по реестру и фиксируется отдельной записью доказательств.
 - Вкладка **«Сторонние утилиты»**: захват таблиц USBDetector/USBDeview, разбор строк, Procmon-трассировка реестра.
-- Отчёты **HTML**, **PDF** и **Excel** (полный и сводный) на русском языке с корректной кириллицей. **Область отчёта — только USB/Type-C**; ОЗУ и внутренние SATA/NVMe исключены.
+- Отчёты **HTML**, **PDF** и **Excel** (полный и сводный) на русском яз��ке с корректной кириллицей. **Область отчёта — только USB/Type-C**; ОЗУ и внутренние SATA/NVMe исключены.
 
 ### Portable-режим
 
@@ -225,6 +225,7 @@ UsbForensicAudit/
 │   │   ├── Converters/                     # WPF-конвертеры привязок
 │   │   ├── Helpers/                        # UI-хелперы (DarkWindowChrome, DataGridAutoSize)
 │   │   └── App.xaml(.cs)                   # Generic Host, DI, проверка админа
+│   ├── UsbForensicAudit.Cli/              # Headless CLI поверх того же конвейера
 │   ├── UsbForensicAudit.Domain/           # Модели, справочники, форматтеры, парсеры
 │   ├── UsbForensicAudit.Application/      # Use cases, оркестратор, порты, аналитика
 │   └── UsbForensicAudit.Infrastructure/   # Коллекторы, SQLite, PDF, WMI, Win32, Procmon
@@ -242,7 +243,7 @@ UsbForensicAudit/
 
 ---
 
-## Конве��ер сканирования
+## Конве����ер сканирования
 
 Цен��ральный use case — `AuditOrchestrator.RunFullScanAsync`. Выполняется в фоне (`Task.Run`), прогресс отдаётся в UI через `IProgress<string>`.
 
@@ -366,6 +367,29 @@ bin\Release\net8.0-windows\UsbForensicAudit.exe
 RID-сборка (`publish -r win-x64`) пишет промежуточные артефакты в `obj\rid-out\`, не затрагивая `bin\Release\` — это исключает конфликты блокировки DLL при параллельной работе IDE и скрипта.
 
 **Если publish падает с «файл заблокирован»:** закройте запущенный `UsbForensicAudit.exe`, остановите Debug в Rider/VS, выполните `dotnet build-server shutdown`, повторите скрипт.
+
+### CLI-режим (headless)
+
+Для массового аудита и запуска из скриптов есть консольная версия —
+`UsbForensicAudit.Cli`. Она использует тот же конвейер сканирования и то же
+хранилище (`data\audit.sqlite` + `evidence.jsonl` с hash-chain), что и GUI:
+
+```powershell
+# Полное сканирование с JSON-экспортом и отчётами
+UsbForensicAudit.Cli.exe --json result.json --reports .\reports --formats html,pdf,analyst-pdf
+
+# Тихий режим для планировщика задач / SCCM
+UsbForensicAudit.Cli.exe -q --json \\server\audit\%COMPUTERNAME%.json
+```
+
+Коды возврата: `0` — успех, `1` — ошибка, `2` — нет прав администратора,
+`3` — прервано (Ctrl+C), `64` — неверные аргументы. Справка: `--help`.
+
+Сборка:
+
+```powershell
+dotnet publish src\UsbForensicAudit.Cli\UsbForensicAudit.Cli.csproj -c Release -r win-x64 --self-contained
+```
 
 ### Релизы
 
