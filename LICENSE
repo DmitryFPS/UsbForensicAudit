@@ -1,0 +1,55 @@
+Copyright (c) 2026 Орлов Дмитрий Владимирович (DmitryFPS). All rights reserved.
+Все права защищены.
+
+ПРОПРИЕТАРНАЯ ЛИЦЕНЗИЯ / PROPRIETARY LICENSE
+
+RU
+--
+Исходный код проекта UsbForensicAudit опубликован исключительно в
+ознакомительных целях ("source-available").
+
+Без предварительного письменного разрешения правообладателя ЗАПРЕЩАЕТСЯ:
+
+1. Использование кода или его частей в любых продуктах и проектах,
+   как коммерческих, так и некоммерческих.
+2. Копирование, изменение, слияние, публикация и распространение кода
+   или производных от него работ.
+3. Сублицензирование и продажа копий кода.
+
+РАЗРЕШАЕТСЯ:
+
+1. Просмотр и изучение исходного кода.
+2. Клонирование репозитория для локального ознакомления.
+3. Создание issue и pull request в оригинальный репозиторий
+   (отправляя pull request, вы передаёте правообладателю неисключительное
+   бессрочное право использовать предложенные изменения).
+
+ПРОГРАММНОЕ ОБЕСПЕЧЕНИЕ ПРЕДОСТАВЛЯЕТСЯ «КАК ЕСТЬ», БЕЗ КАКИХ-ЛИБО ГАРАНТИЙ,
+ЯВНЫХ ИЛИ ПОДРАЗУМЕВАЕМЫХ. ПРАВООБЛАДАТЕЛЬ НЕ НЕСЁТ ОТВЕТСТВЕННОСТИ ЗА ЛЮБОЙ
+УЩЕРБ, ВОЗНИКШИЙ В РЕЗУЛЬТАТЕ ИСПОЛЬЗОВАНИЯ ДАННОГО ПРОГРАММНОГО ОБЕСПЕЧЕНИЯ.
+
+EN
+--
+The source code of UsbForensicAudit is published for reference purposes
+only ("source-available").
+
+Without prior written permission of the copyright holder, you MAY NOT:
+
+1. Use the code or any part of it in any product or project,
+   commercial or non-commercial.
+2. Copy, modify, merge, publish, or distribute the code or derivative works.
+3. Sublicense or sell copies of the code.
+
+You MAY:
+
+1. View and study the source code.
+2. Clone the repository for local review.
+3. Open issues and submit pull requests to the original repository
+   (by submitting a pull request you grant the copyright holder a
+   non-exclusive, perpetual right to use the proposed changes).
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY ARISING FROM THE USE OF THIS SOFTWARE.
+
+Контакт / Contact: https://github.com/DmitryFPS
