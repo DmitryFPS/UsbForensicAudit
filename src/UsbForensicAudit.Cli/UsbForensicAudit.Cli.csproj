@@ -9,6 +9,8 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>UsbForensicAudit.Cli</AssemblyName>
     <RootNamespace>UsbForensicAudit</RootNamespace>
+    <!-- Базовая культура строк — русская: Strings.resx без суффикса содержит ru. -->
+    <NeutralLanguage>ru</NeutralLanguage>
     <Version>1.0.0</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
