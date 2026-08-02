@@ -9,7 +9,9 @@ namespace UsbForensicAudit;
 /// Headless-запуск полного forensic-сканирования поверх того же конвейера
 /// <see cref="AuditOrchestrator"/>, что и GUI. Результат сохраняется в то же
 /// хранилище (SQLite + JSONL с hash-chain), дополнительно доступны экспорт в
-/// JSON и генерация отчётов без открытия окна.
+/// JSON и генерация отчётов без открытия окна. Все пользовательские сообщения
+/// берутся из ресурсов <see cref="CliStrings"/> (ru — базовая культура, en —
+/// satellite): язык выбирается системой или флагом --lang.
 /// </summary>
 internal static class Program
 {
@@ -28,7 +30,7 @@ internal static class Program
         var options = CliOptions.Parse(args);
         if (options.ShowHelp)
         {
-            PrintUsage();
+            Console.WriteLine(CliStrings.Get("Usage"));
             return ExitSuccess;
         }
 
@@ -74,10 +76,7 @@ internal static class Program
             var privilegeChecker = services.GetRequiredService<IPrivilegeChecker>();
             if (!privilegeChecker.IsAdministrator())
             {
-                Console.Error.WriteLine(
-                    "Сканирование требует прав администратора: без них защищённые ветки реестра " +
-                    "и журнал Security недоступны, а отчёт будет неполным. " +
-                    "Запустите консоль от имени администратора и повторите.");
+                Console.Error.WriteLine(CliStrings.Get("AdminRequired"));
                 return ExitNotAdministrator;
             }
 
@@ -90,7 +89,7 @@ internal static class Program
         }
         catch (OperationCanceledException)
         {
-            Console.Error.WriteLine("Сканирование прервано пользователем.");
+            Console.Error.WriteLine(CliStrings.Get("Cancelled"));
             return ExitCancelled;
         }
         catch (Exception exception)
@@ -98,7 +97,7 @@ internal static class Program
             // Последний рубеж процесса: любое необработанное исключение должно
             // превратиться в понятное сообщение и ненулевой код возврата, а не
             // в необъяснимое падение при запуске из скрипта.
-            Console.Error.WriteLine($"Ошибка сканирования: {exception.Message}");
+            Console.Error.WriteLine(CliStrings.Format("ErrorPrefix", exception.Message));
             Console.Error.WriteLine(exception.ToString());
             return ExitFailure;
         }
@@ -117,7 +116,7 @@ internal static class Program
 
         if (!options.Quiet)
         {
-            Console.WriteLine("Запуск полного сканирования...");
+            Console.WriteLine(CliStrings.Get("ScanStarting"));
         }
 
         var result = await orchestrator.RunFullScanAsync(progress, cancellationToken);
@@ -145,32 +144,30 @@ internal static class Program
 
         if (report.JournalMissing)
         {
-            Console.WriteLine("Журнал доказательств отсутствует: сканирований ещё не было.");
-            Console.WriteLine($"Каталог данных: {storage.DataDirectory}");
+            Console.WriteLine(CliStrings.Get("IntegrityJournalMissing"));
+            Console.WriteLine(CliStrings.Format("IntegrityDataDirectory", storage.DataDirectory));
             return ExitSuccess;
         }
 
-        Console.WriteLine($"Записей в журнале:    {report.TotalRecords}");
-        Console.WriteLine($"Разрывов hash-chain:  {report.ChainBreaks.Count}");
+        Console.WriteLine(CliStrings.Format("IntegrityTotalRecords", report.TotalRecords));
+        Console.WriteLine(CliStrings.Format("IntegrityChainBreaks", report.ChainBreaks.Count));
         var matched = report.SealChecks.Count(static c => c.Status == SealStatus.Match);
         var mismatched = report.SealChecks.Count(static c => c.Status == SealStatus.Mismatch);
         var unsealed = report.SealChecks.Count(static c => c.Status == SealStatus.NotSealed);
-        Console.WriteLine($"Печати сессий:        {matched} совпало, {mismatched} расхождений, {unsealed} без печати");
+        Console.WriteLine(CliStrings.Format("IntegritySeals", matched, mismatched, unsealed));
 
         foreach (var chainBreak in report.ChainBreaks)
         {
-            Console.WriteLine($"  ! строка {chainBreak.LineNumber}: {chainBreak.Reason}");
+            Console.WriteLine(CliStrings.Format("IntegrityBreakLine", chainBreak.LineNumber, chainBreak.Reason));
         }
 
         foreach (var check in report.SealChecks.Where(static c => c.Status == SealStatus.Mismatch))
         {
-            Console.WriteLine($"  ! сессия {check.SessionId}: печать в базе не совпадает с журналом.");
+            Console.WriteLine(CliStrings.Format("IntegritySealMismatch", check.SessionId));
         }
 
         Console.WriteLine();
-        Console.WriteLine(report.IsIntact
-            ? "Целостность подтверждена: доказательная база не изменялась."
-            : "ЦЕЛОСТНОСТЬ НАРУШЕНА: записи изменялись после сохранения.");
+        Console.WriteLine(CliStrings.Get(report.IsIntact ? "IntegrityIntact" : "IntegrityViolated"));
 
         if (jsonPath is not null)
         {
@@ -185,7 +182,7 @@ internal static class Program
         var auditor = services.GetRequiredService<IOfflineWindowsAuditor>();
         if (!options.Quiet)
         {
-            Console.WriteLine($"Офлайн-анализ: {options.OfflineRoot}...");
+            Console.WriteLine(CliStrings.Format("OfflineStarting", options.OfflineRoot));
         }
 
         var result = auditor.Audit(options.OfflineRoot!, cancellationToken);
@@ -194,18 +191,18 @@ internal static class Program
         storage.Save(result);
 
         Console.WriteLine();
-        Console.WriteLine($"Сессия:               {result.SessionId}");
-        Console.WriteLine($"Исследуемая система:  {result.ComputerName} ({result.WindowsVersion})");
-        Console.WriteLine($"Устройств найдено:    {result.Devices.Count}");
-        Console.WriteLine($"Доказательств:        {result.Evidence.Count}");
-        Console.WriteLine($"Предупреждений:       {result.SourceWarnings.Count}");
-        Console.WriteLine($"База данных:          {storage.DatabasePath}");
+        Console.WriteLine(CliStrings.Format("OfflineSession", result.SessionId));
+        Console.WriteLine(CliStrings.Format("OfflineSystem", result.ComputerName, result.WindowsVersion));
+        Console.WriteLine(CliStrings.Format("OfflineDevices", result.Devices.Count));
+        Console.WriteLine(CliStrings.Format("OfflineEvidence", result.Evidence.Count));
+        Console.WriteLine(CliStrings.Format("OfflineWarnings", result.SourceWarnings.Count));
+        Console.WriteLine(CliStrings.Format("OfflineDatabase", storage.DatabasePath));
 
         if (!options.Quiet)
         {
             foreach (var warning in result.SourceWarnings)
             {
-                Console.WriteLine($"  ! {warning}");
+                Console.WriteLine(CliStrings.Format("WarningLine", warning));
             }
         }
 
@@ -228,11 +225,14 @@ internal static class Program
         var sessions = storage.ListSessions();
         if (sessions.Count == 0)
         {
-            Console.WriteLine($"Сохранённых сессий нет. База: {storage.DatabasePath}");
+            Console.WriteLine(CliStrings.Format("SessionsEmpty", storage.DatabasePath));
             return ExitSuccess;
         }
 
-        Console.WriteLine($"{"Сессия",-34} {"Начало (UTC)",-21} {"Компьютер",-16} {"Устр.",6} {"Доказ.",7} {"Очистки",8}");
+        Console.WriteLine(
+            $"{CliStrings.Get("SessionsColSession"),-34} {CliStrings.Get("SessionsColStarted"),-21} " +
+            $"{CliStrings.Get("SessionsColComputer"),-16} {CliStrings.Get("SessionsColDevices"),6} " +
+            $"{CliStrings.Get("SessionsColEvidence"),7} {CliStrings.Get("SessionsColCleanup"),8}");
         foreach (var session in sessions)
         {
             Console.WriteLine(
@@ -241,7 +241,7 @@ internal static class Program
         }
 
         Console.WriteLine();
-        Console.WriteLine($"Всего сессий: {sessions.Count}. База: {storage.DatabasePath}");
+        Console.WriteLine(CliStrings.Format("SessionsTotal", sessions.Count, storage.DatabasePath));
         return ExitSuccess;
     }
 
@@ -251,53 +251,51 @@ internal static class Program
         var baseline = storage.Load(baselineId);
         if (baseline is null)
         {
-            Console.Error.WriteLine($"Сессия не найдена: {baselineId}. Список сессий: --list-sessions.");
+            Console.Error.WriteLine(CliStrings.Format("DiffSessionNotFound", baselineId));
             return ExitFailure;
         }
 
         var target = storage.Load(targetId);
         if (target is null)
         {
-            Console.Error.WriteLine($"Сессия не найдена: {targetId}. Список сессий: --list-sessions.");
+            Console.Error.WriteLine(CliStrings.Format("DiffSessionNotFound", targetId));
             return ExitFailure;
         }
 
         var diff = SessionDiffService.Compare(baseline, target);
 
-        Console.WriteLine("Сравнение сессий (базовая -> целевая):");
-        Console.WriteLine($"  Базовая: {diff.Baseline.SessionId} от {diff.Baseline.StartedAtUtc:yyyy-MM-dd HH:mm:ss} UTC");
-        Console.WriteLine($"  Целевая: {diff.Target.SessionId} от {diff.Target.StartedAtUtc:yyyy-MM-dd HH:mm:ss} UTC");
+        Console.WriteLine(CliStrings.Get("DiffHeader"));
+        Console.WriteLine(CliStrings.Format("DiffBaselineLine", diff.Baseline.SessionId, diff.Baseline.StartedAtUtc));
+        Console.WriteLine(CliStrings.Format("DiffTargetLine", diff.Target.SessionId, diff.Target.StartedAtUtc));
         Console.WriteLine();
-        Console.WriteLine($"Новые устройства:            {diff.AddedDevices.Count}");
-        Console.WriteLine($"Исчезнувшие устройства:      {diff.RemovedDevices.Count}");
-        Console.WriteLine($"Новые доказательства:        {diff.AddedEvidence.Count}");
-        Console.WriteLine($"Исчезнувшие доказательства:  {diff.MissingEvidence.Count}");
-        Console.WriteLine($"Новые признаки очистки:      {diff.AddedCleanupFindings.Count}");
-        Console.WriteLine($"Новые сетевые связи:         {diff.AddedNetworkConnections.Count}");
-        Console.WriteLine($"Исчезнувшие сетевые связи:   {diff.RemovedNetworkConnections.Count}");
+        Console.WriteLine(CliStrings.Format("DiffAddedDevices", diff.AddedDevices.Count));
+        Console.WriteLine(CliStrings.Format("DiffRemovedDevices", diff.RemovedDevices.Count));
+        Console.WriteLine(CliStrings.Format("DiffAddedEvidence", diff.AddedEvidence.Count));
+        Console.WriteLine(CliStrings.Format("DiffMissingEvidence", diff.MissingEvidence.Count));
+        Console.WriteLine(CliStrings.Format("DiffAddedCleanup", diff.AddedCleanupFindings.Count));
+        Console.WriteLine(CliStrings.Format("DiffAddedNetwork", diff.AddedNetworkConnections.Count));
+        Console.WriteLine(CliStrings.Format("DiffRemovedNetwork", diff.RemovedNetworkConnections.Count));
 
         foreach (var device in diff.AddedDevices)
         {
-            Console.WriteLine($"  + устройство: {Describe(device)}");
+            Console.WriteLine(CliStrings.Format("DiffDeviceAdded", Describe(device)));
         }
 
         foreach (var device in diff.RemovedDevices)
         {
-            Console.WriteLine($"  - устройство: {Describe(device)}");
+            Console.WriteLine(CliStrings.Format("DiffDeviceRemoved", Describe(device)));
         }
 
         if (diff.MissingEvidence.Count > 0)
         {
             Console.WriteLine();
-            Console.WriteLine(
-                "Внимание: часть доказательств из базовой сессии не найдена в целевой. " +
-                "Артефакты не исчезают сами: проверьте ротацию журналов и признаки очистки следов.");
+            Console.WriteLine(CliStrings.Get("DiffMissingWarning"));
         }
 
         if (!diff.HasChanges)
         {
             Console.WriteLine();
-            Console.WriteLine("Изменений между сессиями не обнаружено.");
+            Console.WriteLine(CliStrings.Get("DiffNoChanges"));
         }
 
         if (jsonPath is not null)
@@ -311,7 +309,7 @@ internal static class Program
 
             File.WriteAllText(fullPath, JsonSerializer.Serialize(diff, JsonExportOptions), Encoding.UTF8);
             Console.WriteLine();
-            Console.WriteLine($"JSON-экспорт diff:     {fullPath}");
+            Console.WriteLine(CliStrings.Format("DiffJsonExport", fullPath));
         }
 
         return ExitSuccess;
@@ -322,20 +320,22 @@ internal static class Program
         var name = !string.IsNullOrWhiteSpace(device.FriendlyName) ? device.FriendlyName
             : !string.IsNullOrWhiteSpace(device.Product) ? device.Product
             : device.DeviceInstanceId;
-        var serial = string.IsNullOrWhiteSpace(device.Serial) ? "" : $" (S/N: {device.Serial})";
+        var serial = string.IsNullOrWhiteSpace(device.Serial)
+            ? ""
+            : CliStrings.Format("SerialSuffix", device.Serial);
         return $"{name}{serial}";
     }
 
     private static void PrintSummary(AuditOrchestrator orchestrator, AuditResult result)
     {
         Console.WriteLine();
-        Console.WriteLine($"Сессия:                {result.SessionId}");
-        Console.WriteLine($"Устройств:             {result.Devices.Count}");
-        Console.WriteLine($"Доказательств:         {result.Evidence.Count}");
-        Console.WriteLine($"Признаков очистки:     {result.CleanupFindings.Count}");
-        Console.WriteLine($"Сетевых связей:        {result.NetworkConnections.Count}");
-        Console.WriteLine($"Предупреждений:        {result.SourceWarnings.Count}");
-        Console.WriteLine($"База результатов:      {orchestrator.Storage.DatabasePath}");
+        Console.WriteLine(CliStrings.Format("SummarySession", result.SessionId));
+        Console.WriteLine(CliStrings.Format("SummaryDevices", result.Devices.Count));
+        Console.WriteLine(CliStrings.Format("SummaryEvidence", result.Evidence.Count));
+        Console.WriteLine(CliStrings.Format("SummaryCleanup", result.CleanupFindings.Count));
+        Console.WriteLine(CliStrings.Format("SummaryNetwork", result.NetworkConnections.Count));
+        Console.WriteLine(CliStrings.Format("SummaryWarnings", result.SourceWarnings.Count));
+        Console.WriteLine(CliStrings.Format("SummaryDatabase", orchestrator.Storage.DatabasePath));
     }
 
     private static void ExportJson<T>(T result, string jsonPath)
@@ -349,7 +349,7 @@ internal static class Program
 
         var json = JsonSerializer.Serialize(result, JsonExportOptions);
         File.WriteAllText(fullPath, json, Encoding.UTF8);
-        Console.WriteLine($"JSON-экспорт:          {fullPath}");
+        Console.WriteLine(CliStrings.Format("JsonExport", fullPath));
     }
 
     private static readonly JsonSerializerOptions JsonExportOptions = new()
@@ -382,50 +382,7 @@ internal static class Program
                 _ => throw new InvalidOperationException($"Unknown report format: {format}"),
             };
 
-            Console.WriteLine($"Отчёт ({format,-13}): {path}");
+            Console.WriteLine(CliStrings.Format("ReportLine", format, path));
         }
-    }
-
-    private static void PrintUsage()
-    {
-        Console.WriteLine(
-            """
-            UsbForensicAudit.Cli — headless-сканирование USB-артефактов.
-
-            Использование:
-              UsbForensicAudit.Cli.exe [параметры]
-
-            Параметры:
-              --json <файл>       сохранить полный результат сканирования в JSON
-                                  (с --diff сохраняет отчёт сравнения)
-              --reports <каталог> сгенерировать отчёты в указанный каталог
-              --formats <список>  форматы отчётов через запятую (по умолчанию: html,pdf)
-                                  допустимые: html, pdf, brief-pdf, analyst-pdf,
-                                  excel, brief-excel, analyst-excel
-              --list-sessions     показать сохранённые сессии и выйти (без сканирования)
-              --diff <баз> <цел>  сравнить две сохранённые сессии: что появилось
-                                  и что исчезло между сканированиями
-              --offline <корень>  офлайн-анализ чужой системы: смонтированный
-                                  образ диска (например, F:\) или скопированный
-                                  каталог Windows; анализируются только кусты
-                                  рее��тра, исследуемые файлы не изменяются
-              --verify            проверить целостность доказательной базы:
-                                  пересчитать hash-chain журнала и сверить
-                                  печати сессий с базой (с --json сохраняет
-                                  отчёт верификации)
-              --quiet, -q         не печатать пошаговый прогресс
-              --help, -h          показать эту справку
-
-            Коды возврата:
-              0  сканирование завершено успешно
-              1  ошибка выполнения
-              2  нет прав администратора
-              3  прервано пользователем (Ctrl+C)
-              4  верификация нашла нарушения целостности
-              64 неверные аргументы
-
-            Результат всегда сохраняется в базу data\audit.sqlite рядом с exe —
-            той же, что использует GUI-приложение.
-            """);
     }
 }

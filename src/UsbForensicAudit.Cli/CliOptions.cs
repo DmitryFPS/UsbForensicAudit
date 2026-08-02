@@ -50,6 +50,21 @@ public sealed class CliOptions
     {
         var options = new CliOptions();
 
+        // Язык применяется до разбора остальных аргументов: даже сообщения об
+        // ошибках парсинга должны печататься на явно выбранном языке.
+        var languageIndex = Array.IndexOf(args, "--lang");
+        if (languageIndex >= 0)
+        {
+            if (languageIndex + 1 >= args.Length ||
+                args[languageIndex + 1] is not ("ru" or "en"))
+            {
+                options.Error = CliStrings.Get("ErrLangArg");
+                return options;
+            }
+
+            CliStrings.ApplyLanguage(args[languageIndex + 1]);
+        }
+
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -57,6 +72,10 @@ public sealed class CliOptions
                 case "--help" or "-h" or "/?":
                     options.ShowHelp = true;
                     return options;
+
+                case "--lang":
+                    i++; // Значение уже применено до цикла.
+                    break;
 
                 case "--quiet" or "-q":
                     options.Quiet = true;
@@ -74,7 +93,7 @@ public sealed class CliOptions
                     if (!TryTakeValue(args, ref i, out var baseline) ||
                         !TryTakeValue(args, ref i, out var target))
                     {
-                        options.Error = "После --diff ожидаются два идентификатора сессий: базовая и целевая.";
+                        options.Error = CliStrings.Get("ErrDiffArgs");
                         return options;
                     }
 
@@ -85,8 +104,7 @@ public sealed class CliOptions
                 case "--offline":
                     if (!TryTakeValue(args, ref i, out var offlineRoot))
                     {
-                        options.Error = "После --offline ожидается путь к корню чужой системы " +
-                                        "(диск с папкой Windows или сам каталог Windows).";
+                        options.Error = CliStrings.Get("ErrOfflineArg");
                         return options;
                     }
 
@@ -96,7 +114,7 @@ public sealed class CliOptions
                 case "--json":
                     if (!TryTakeValue(args, ref i, out var jsonPath))
                     {
-                        options.Error = "После --json ожидается путь к файлу.";
+                        options.Error = CliStrings.Get("ErrJsonArg");
                         return options;
                     }
 
@@ -106,7 +124,7 @@ public sealed class CliOptions
                 case "--reports":
                     if (!TryTakeValue(args, ref i, out var reportDirectory))
                     {
-                        options.Error = "После --reports ожидается путь к каталогу.";
+                        options.Error = CliStrings.Get("ErrReportsArg");
                         return options;
                     }
 
@@ -116,7 +134,7 @@ public sealed class CliOptions
                 case "--formats":
                     if (!TryTakeValue(args, ref i, out var formatsRaw))
                     {
-                        options.Error = "После --formats ожидается список форматов через запятую.";
+                        options.Error = CliStrings.Get("ErrFormatsArg");
                         return options;
                     }
 
@@ -129,7 +147,7 @@ public sealed class CliOptions
                     if (unknown is not null)
                     {
                         options.Error =
-                            $"Неизвестный формат отчёта: {unknown}. Допустимые: {string.Join(", ", KnownFormats)}.";
+                            CliStrings.Format("ErrUnknownFormat", unknown, string.Join(", ", KnownFormats));
                         return options;
                     }
 
@@ -137,14 +155,14 @@ public sealed class CliOptions
                     break;
 
                 default:
-                    options.Error = $"Неизвестный аргумент: {args[i]}. Запустите с --help для справки.";
+                    options.Error = CliStrings.Format("ErrUnknownArg", args[i]);
                     return options;
             }
         }
 
         if (options.ReportFormats.Count > 0 && options.ReportDirectory is null)
         {
-            options.Error = "Флаг --formats требует указания каталога отчётов через --reports.";
+            options.Error = CliStrings.Get("ErrFormatsWithoutReports");
         }
 
         if ((options.ListSessions || options.DiffBaseline is not null) &&
@@ -152,13 +170,13 @@ public sealed class CliOptions
         {
             // Работа с уже сохранёнными сессиями и новое сканирование — разные
             // режимы: смешение флагов почти всегда означает опечатку в скрипте.
-            options.Error = "--list-sessions и --diff несовместимы с --reports/--formats.";
+            options.Error = CliStrings.Get("ErrListDiffMix");
         }
 
         if (options.OfflineRoot is not null &&
             (options.ListSessions || options.DiffBaseline is not null))
         {
-            options.Error = "--offline несовместим с --list-sessions и --diff.";
+            options.Error = CliStrings.Get("ErrOfflineMix");
         }
 
         if (options.Verify &&
@@ -167,7 +185,7 @@ public sealed class CliOptions
         {
             // Верификация читает журнал и базу, ничего не записывая; смешение
             // с режимами записи скрыло бы, какое именно действие выполнилось.
-            options.Error = "--verify несовместим с другими режимами.";
+            options.Error = CliStrings.Get("ErrVerifyMix");
         }
 
         if (options.ReportDirectory is not null && options.ReportFormats.Count == 0)
