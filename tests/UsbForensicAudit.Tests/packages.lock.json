@@ -498,7 +498,6 @@
           "Microsoft.Extensions.Hosting": "[10.0.10, )",
           "QuestPDF": "[2026.7.1, )",
           "SQLitePCLRaw.lib.e_sqlite3": "[3.53.3, )",
-          "System.Diagnostics.EventLog": "[10.0.10, )",
           "System.Management": "[10.0.10, )",
           "UsbForensicAudit.Application": "[1.0.0, )",
           "UsbForensicAudit.Domain": "[1.0.0, )",
@@ -523,7 +522,6 @@
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.10, )",
           "QuestPDF": "[2026.7.1, )",
           "SQLitePCLRaw.lib.e_sqlite3": "[3.53.3, )",
-          "System.Diagnostics.EventLog": "[10.0.10, )",
           "System.Management": "[10.0.10, )",
           "UsbForensicAudit.Application": "[1.0.0, )",
           "UsbForensicAudit.Domain": "[1.0.0, )"
