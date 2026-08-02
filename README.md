@@ -94,7 +94,7 @@ dotnet build UsbForensicAudit.sln -c Release
 Запуск:
 
 ```text
-bin\Release\net8.0-windows\UsbForensicAudit.exe
+bin\Release\net10.0-windows\UsbForensicAudit.exe
 ```
 
 ### Portable single-file exe
@@ -350,7 +350,7 @@ dotnet build UsbForensicAudit.sln -c Release
 Выход:
 
 ```text
-bin\Release\net8.0-windows\UsbForensicAudit.exe
+bin\Release\net10.0-windows\UsbForensicAudit.exe
 ```
 
 ### Portable publish
