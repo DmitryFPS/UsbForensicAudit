@@ -385,6 +385,9 @@ public sealed class Stage7IntegrationTests
         }
 
         public AuditResult? Load(string sessionId) => Saved?.SessionId == sessionId ? Saved : null;
+
+        public IReadOnlyList<SessionSummary> ListSessions() =>
+            Saved is null ? [] : [SessionDiffService.Summarize(Saved)];
     }
 
     private sealed class FakePrivilegeChecker : IPrivilegeChecker
