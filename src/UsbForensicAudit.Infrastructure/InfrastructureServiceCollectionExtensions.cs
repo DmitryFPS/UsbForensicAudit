@@ -15,6 +15,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IPrivilegeChecker, WindowsPrivilegeChecker>();
         services.AddSingleton<IReferenceImageDetector, WindowsReferenceImageDetector>();
         services.AddSingleton<IAuditStorage, AuditStorage>();
+        services.AddSingleton<IEvidenceIntegrityVerifier, EvidenceIntegrityVerifier>();
         services.AddSingleton<ILiveDeviceMerger, LiveDeviceMerger>();
         services.AddSingleton<IUsbDeviceCollector, UsbRegistryCollector>();
         services.AddSingleton<IOfflineWindowsAuditor, OfflineWindowsAuditor>();

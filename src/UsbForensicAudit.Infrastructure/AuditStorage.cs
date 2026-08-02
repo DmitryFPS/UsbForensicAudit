@@ -41,17 +41,15 @@ public sealed class AuditStorage : IAuditStorage
             var inserted = SaveSqlite(result);
             if (inserted)
             {
-                AppendJsonl(result);
-                MarkJsonlAppended(result.SessionId);
+                var seal = AppendJsonl(result);
+                MarkJsonlAppended(result.SessionId, seal);
             }
             else if (!WasJsonlAppended(result.SessionId))
             {
-                if (!WasSessionCompletedInJsonl(result.SessionId))
-                {
-                    AppendJsonl(result);
-                }
-
-                MarkJsonlAppended(result.SessionId);
+                // Печать обновляется только вместе с реальной дозаписью журнала:
+                // если сессия уже завершена в jsonl, её итоговый хеш не меняется.
+                var seal = WasSessionCompletedInJsonl(result.SessionId) ? null : AppendJsonl(result);
+                MarkJsonlAppended(result.SessionId, seal);
             }
         });
     }
@@ -244,7 +242,8 @@ public sealed class AuditStorage : IAuditStorage
             """);
         EnsureColumns(connection, "audit_sessions", new Dictionary<string, string>
         {
-            ["network_environment_json"] = "TEXT"
+            ["network_environment_json"] = "TEXT",
+            ["seal_hash"] = "TEXT"
         });
         Execute(connection, "CREATE UNIQUE INDEX IF NOT EXISTS ux_network_session_record ON network_connections(session_id, record_key) WHERE session_id IS NOT NULL;");
         Execute(connection, "CREATE UNIQUE INDEX IF NOT EXISTS ux_devices_session_record ON devices(session_id, record_key) WHERE session_id IS NOT NULL;");
@@ -404,7 +403,12 @@ public sealed class AuditStorage : IAuditStorage
         cmd.ExecuteNonQuery();
     }
 
-    private void AppendJsonl(AuditResult result)
+    /// <summary>
+    /// Дозаписывает сессию в журнал и возвращает её печать — хеш финальной
+    /// записи AuditSessionComplete. Печать сохраняется в audit_sessions и
+    /// позволяет верификатору доказать неизменность результатов.
+    /// </summary>
+    private string AppendJsonl(AuditResult result)
     {
         var previousHash = ReadLastHash();
         using var stream = new FileStream(JsonlPath, FileMode.Append, FileAccess.Write, FileShare.Read);
@@ -439,6 +443,7 @@ public sealed class AuditStorage : IAuditStorage
         }
         writer.Flush();
         stream.Flush(flushToDisk: true);
+        return previousHash;
     }
 
     private string ReadLastHash()
@@ -459,12 +464,19 @@ public sealed class AuditStorage : IAuditStorage
         }
     }
 
-    private void MarkJsonlAppended(string sessionId)
+    private void MarkJsonlAppended(string sessionId, string? sealHash)
     {
         using var connection = Open();
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "UPDATE audit_sessions SET jsonl_appended=1 WHERE session_id=$id;";
+        cmd.CommandText = sealHash is null
+            ? "UPDATE audit_sessions SET jsonl_appended=1 WHERE session_id=$id;"
+            : "UPDATE audit_sessions SET jsonl_appended=1, seal_hash=$seal WHERE session_id=$id;";
         cmd.Parameters.AddWithValue("$id", sessionId);
+        if (sealHash is not null)
+        {
+            cmd.Parameters.AddWithValue("$seal", sealHash);
+        }
+
         cmd.ExecuteNonQuery();
     }
 

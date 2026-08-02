@@ -17,6 +17,10 @@ internal static class Program
     private const int ExitFailure = 1;
     private const int ExitNotAdministrator = 2;
     private const int ExitCancelled = 3;
+
+    /// <summary>Верификация нашла разрывы hash-chain или расхождения печатей.</summary>
+    private const int ExitIntegrityViolation = 4;
+
     private const int ExitUsage = 64;
 
     private static async Task<int> Main(string[] args)
@@ -60,6 +64,11 @@ internal static class Program
             if (options is { DiffBaseline: not null, DiffTarget: not null })
             {
                 return PrintDiff(services, options.DiffBaseline, options.DiffTarget, options.JsonPath);
+            }
+
+            if (options.Verify)
+            {
+                return PrintIntegrity(services, options.JsonPath);
             }
 
             var privilegeChecker = services.GetRequiredService<IPrivilegeChecker>();
@@ -126,6 +135,49 @@ internal static class Program
         }
 
         return ExitSuccess;
+    }
+
+    private static int PrintIntegrity(ServiceProvider services, string? jsonPath)
+    {
+        var verifier = services.GetRequiredService<IEvidenceIntegrityVerifier>();
+        var storage = services.GetRequiredService<IAuditStorage>();
+        var report = verifier.Verify();
+
+        if (report.JournalMissing)
+        {
+            Console.WriteLine("Журнал доказательств отсутствует: сканирований ещё не было.");
+            Console.WriteLine($"Каталог данных: {storage.DataDirectory}");
+            return ExitSuccess;
+        }
+
+        Console.WriteLine($"Записей в журнале:    {report.TotalRecords}");
+        Console.WriteLine($"Разрывов hash-chain:  {report.ChainBreaks.Count}");
+        var matched = report.SealChecks.Count(static c => c.Status == SealStatus.Match);
+        var mismatched = report.SealChecks.Count(static c => c.Status == SealStatus.Mismatch);
+        var unsealed = report.SealChecks.Count(static c => c.Status == SealStatus.NotSealed);
+        Console.WriteLine($"Печати сессий:        {matched} совпало, {mismatched} расхождений, {unsealed} без печати");
+
+        foreach (var chainBreak in report.ChainBreaks)
+        {
+            Console.WriteLine($"  ! строка {chainBreak.LineNumber}: {chainBreak.Reason}");
+        }
+
+        foreach (var check in report.SealChecks.Where(static c => c.Status == SealStatus.Mismatch))
+        {
+            Console.WriteLine($"  ! сессия {check.SessionId}: печать в базе не совпадает с журналом.");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine(report.IsIntact
+            ? "Целостность подтверждена: доказательная база не изменялась."
+            : "ЦЕЛОСТНОСТЬ НАРУШЕНА: записи изменялись после сохранения.");
+
+        if (jsonPath is not null)
+        {
+            ExportJson(report, jsonPath);
+        }
+
+        return report.IsIntact ? ExitSuccess : ExitIntegrityViolation;
     }
 
     private static int RunOffline(ServiceProvider services, CliOptions options, CancellationToken cancellationToken)
@@ -286,7 +338,7 @@ internal static class Program
         Console.WriteLine($"База результатов:      {orchestrator.Storage.DatabasePath}");
     }
 
-    private static void ExportJson(AuditResult result, string jsonPath)
+    private static void ExportJson<T>(T result, string jsonPath)
     {
         var fullPath = Path.GetFullPath(jsonPath);
         var directory = Path.GetDirectoryName(fullPath);
@@ -356,7 +408,11 @@ internal static class Program
               --offline <корень>  офлайн-анализ чужой системы: смонтированный
                                   образ диска (например, F:\) или скопированный
                                   каталог Windows; анализируются только кусты
-                                  реестра, исследуемые файлы не изменяются
+                                  рее��тра, исследуемые файлы не изменяются
+              --verify            проверить целостность доказательной базы:
+                                  пересчитать hash-chain журнала и сверить
+                                  печати сессий с базой (с --json сохраняет
+                                  отчёт верификации)
               --quiet, -q         не печатать пошаговый прогресс
               --help, -h          показать эту справку
 
@@ -365,6 +421,7 @@ internal static class Program
               1  ошибка выполнения
               2  нет прав администратора
               3  прервано пользователем (Ctrl+C)
+              4  верификация нашла нарушения целостности
               64 неверные аргументы
 
             Результат всегда сохраняется в базу data\audit.sqlite рядом с exe —
