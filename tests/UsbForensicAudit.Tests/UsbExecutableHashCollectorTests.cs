@@ -84,4 +84,26 @@ public sealed class UsbExecutableHashCollectorTests
         var missing = records.First(x => x.Path.EndsWith("gone.exe", StringComparison.Ordinal));
         Assert.Equal(FileHashStatus.NotFound, missing.Status);
     }
+
+    [Fact]
+    public void Describe_empty_says_nothing_found()
+    {
+        Assert.Contains("не обнаружено", UsbExecutableHashCollector.Describe([]));
+    }
+
+    [Fact]
+    public void Describe_counts_hashed_missing_and_failed()
+    {
+        var text = UsbExecutableHashCollector.Describe(
+        [
+            FileHashRecord.Ok(@"E:\a.exe", "AA", 1),
+            FileHashRecord.NotFoundAt(@"E:\b.exe"),
+            FileHashRecord.Failed(@"E:\c.exe", "denied")
+        ]);
+
+        Assert.Contains("3", text);
+        Assert.Contains("хеши посчитаны: 1", text);
+        Assert.Contains("файлы уже недоступны: 1", text);
+        Assert.Contains("ошибки чтения: 1", text);
+    }
 }

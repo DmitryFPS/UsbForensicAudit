@@ -90,6 +90,7 @@ internal static class ForensicReportBuilder
         AppendSummarySection(html, ctx);
         AppendIncidentSection(html, ctx);
         AppendExfiltrationSection(html, ctx);
+        AppendUsbExecutableHashesSection(html, ctx);
         AppendMitreSection(html, ctx);
         AppendPolicySection(html, ctx);
         AppendCleanupSection(html, ctx);
@@ -128,6 +129,7 @@ internal static class ForensicReportBuilder
         html.AppendLine($"<span class=\"muted\">{E(ctx.ActivityVerdict())}</span><br>");
         html.AppendLine($"<span class=\"muted\">{E(ctx.TransferVerdict())}</span><br>");
         html.AppendLine($"<span class=\"muted\">{E(ctx.Exfiltration.Verdict())}</span><br>");
+        html.AppendLine($"<span class=\"muted\">{E(UsbExecutableHashCollector.Describe(ctx.UsbExecutableHashes))}</span><br>");
         html.AppendLine($"<span class=\"muted\">{E(ctx.Mitre.Verdict())}</span><br>");
         if (ctx.PolicySummary.PolicyDefined)
         {
@@ -234,6 +236,29 @@ internal static class ForensicReportBuilder
             html.AppendLine(
                 $"<tr class=\"{rowClass}\"><td>{E(item.FileName)}</td><td>{E(item.DeviceDisplayName)}</td>" +
                 $"<td>{E(item.WhenText)}</td><td>{E(item.ConfidenceText)}</td><td>{E(item.Basis)}</td></tr>");
+        }
+        html.AppendLine("</table>");
+    }
+
+    private static void AppendUsbExecutableHashesSection(StringBuilder html, ForensicReportContext ctx)
+    {
+        var records = ctx.UsbExecutableHashes;
+        html.AppendLine("<h2 id=\"usb-exec-hashes\">Хеши исполняемых файлов со съёмных носителей</h2>");
+        html.AppendLine($"<p class=\"note\">{E(UsbExecutableHashCollector.Describe(records))}</p>");
+        if (records.Count == 0)
+        {
+            return;
+        }
+
+        html.AppendLine("<p>SHA-256 позволяет сверить, что именно запускали с носителя, с известными образцами. "
+                        + "Если носитель извлечён, файл недоступен — фиксируется сам факт запуска без хеша.</p>");
+        html.AppendLine("<table><tr><th>Файл</th><th>Статус</th><th>SHA-256</th><th>Размер, байт</th></tr>");
+        foreach (var record in records)
+        {
+            var rowClass = record.Status == FileHashStatus.Hashed ? "" : "suspicious";
+            html.AppendLine(
+                $"<tr class=\"{rowClass}\"><td>{E(record.Path)}</td><td>{E(record.StatusText)}</td>" +
+                $"<td>{E(record.Sha256 ?? "—")}</td><td>{record.SizeBytes?.ToString() ?? "—"}</td></tr>");
         }
         html.AppendLine("</table>");
     }

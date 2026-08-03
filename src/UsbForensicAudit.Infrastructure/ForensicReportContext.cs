@@ -2,7 +2,7 @@ namespace UsbForensicAudit;
 
 internal sealed class ForensicReportContext
 {
-    public ForensicReportContext(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null, DevicePolicy? policy = null, CaseMetadata? caseMetadata = null)
+    public ForensicReportContext(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null, DevicePolicy? policy = null, CaseMetadata? caseMetadata = null, IReadOnlyList<FileHashRecord>? usbExecutableHashes = null)
     {
         Result = result;
         ExternalUtilitySnapshot = externalUtilitySnapshot;
@@ -58,6 +58,12 @@ internal sealed class ForensicReportContext
         PolicySummary = DevicePolicyEvaluator.Evaluate(result, policy ?? DevicePolicyProvider.LoadDefault());
         Case = caseMetadata ?? CaseMetadataProvider.LoadDefault();
         Mitre = MitreMapper.Map(result);
+        // usbExecutableHashes == null на реальном прогоне: хеши считаются по
+        // живой файловой системе. Тесты передают готовый список и на диск не ходят.
+        UsbExecutableHashes = usbExecutableHashes
+                              ?? UsbExecutableHashCollector.Collect(
+                                  UsbExecutableHashCollector.ExtractRemovableExePaths(result),
+                                  new Sha256FileHasher());
     }
 
     public AuditResult Result { get; }
@@ -113,6 +119,12 @@ internal sealed class ForensicReportContext
     /// <summary>Сопоставление находок с техниками MITRE ATT&CK.</summary>
     public MitreAssessment Mitre { get; }
 
+    /// <summary>
+    /// SHA-256 исполняемых файлов, чьи следы запуска указывают на съёмный
+    /// носитель. Для извлечённого носителя файл недоступен — это тоже фиксируется.
+    /// </summary>
+    public IReadOnlyList<FileHashRecord> UsbExecutableHashes { get; }
+
     /// <summary>Снимок Wi-Fi в эфире и соседей по сети на момент съёмки.</summary>
     public NetworkEnvironmentSnapshot NetworkEnvironment { get; }
 
@@ -166,8 +178,8 @@ internal sealed class ForensicReportContext
         }
     }
 
-    public static ForensicReportContext Create(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null, DevicePolicy? policy = null, CaseMetadata? caseMetadata = null) =>
-        new(result, externalUtilitySnapshot, policy, caseMetadata);
+    public static ForensicReportContext Create(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null, DevicePolicy? policy = null, CaseMetadata? caseMetadata = null, IReadOnlyList<FileHashRecord>? usbExecutableHashes = null) =>
+        new(result, externalUtilitySnapshot, policy, caseMetadata, usbExecutableHashes);
 
     private readonly Dictionary<string, DeviceActivityHistory> _activityCache = new(StringComparer.OrdinalIgnoreCase);
 

@@ -75,6 +75,37 @@ public static partial class UsbExecutableHashCollector
         return paths.Select(hasher.Hash).ToArray();
     }
 
+    /// <summary>
+    /// Одна фраза-вердикт для сводок отчётов: сколько исполняемых со съёмных
+    /// носителей найдено и для скольких удалось посчитать хеш.
+    /// </summary>
+    public static string Describe(IReadOnlyList<FileHashRecord> records)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+
+        if (records.Count == 0)
+        {
+            return "Запусков исполняемых файлов со съёмных носителей не обнаружено.";
+        }
+
+        var hashed = records.Count(x => x.Status == FileHashStatus.Hashed);
+        var missing = records.Count(x => x.Status == FileHashStatus.NotFound);
+        var failed = records.Count - hashed - missing;
+
+        var parts = new List<string> { $"хеши посчитаны: {hashed}" };
+        if (missing > 0)
+        {
+            parts.Add($"файлы уже недоступны: {missing}");
+        }
+
+        if (failed > 0)
+        {
+            parts.Add($"ошибки чтения: {failed}");
+        }
+
+        return $"Исполняемых файлов, запускавшихся со съёмных носителей: {records.Count} ({string.Join(", ", parts)}).";
+    }
+
     private static bool IsExecutionSource(string? source) =>
         !string.IsNullOrEmpty(source)
         && (source.Contains("Prefetch", StringComparison.OrdinalIgnoreCase)
