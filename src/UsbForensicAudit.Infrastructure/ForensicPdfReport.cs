@@ -42,6 +42,11 @@ internal static class ForensicPdfReport
                         row.RelativeItem().Column(left =>
                         {
                             left.Item().Text(T(ForensicReportBuilder.ReportTitle)).SemiBold().FontSize(14);
+                            if (!ctx.Case.IsEmpty)
+                            {
+                                left.Item().Text(T(string.Join("  |  ", ctx.Case.DisplayFields().Select(f => $"{f.Label}: {f.Value}"))))
+                                    .FontSize(8).FontColor(Colors.Blue.Darken2);
+                            }
                             left.Item().Text(T(
                                     $"Компьютер: {result.ComputerName}  |  Пользователь: {result.UserName}  |  " +
                                     $"Сканирование: {DateDisplay.FormatMoscow(result.StartedAtUtc)}"))

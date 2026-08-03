@@ -2,7 +2,7 @@ namespace UsbForensicAudit;
 
 internal sealed class ForensicReportContext
 {
-    public ForensicReportContext(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null, DevicePolicy? policy = null)
+    public ForensicReportContext(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null, DevicePolicy? policy = null, CaseMetadata? caseMetadata = null)
     {
         Result = result;
         ExternalUtilitySnapshot = externalUtilitySnapshot;
@@ -56,6 +56,7 @@ internal sealed class ForensicReportContext
         // policy == null на реальном прогоне: политику берём из файла рядом с
         // программой. Тесты передают политику явно и на диск не ходят.
         PolicySummary = DevicePolicyEvaluator.Evaluate(result, policy ?? DevicePolicyProvider.LoadDefault());
+        Case = caseMetadata ?? CaseMetadataProvider.LoadDefault();
     }
 
     public AuditResult Result { get; }
@@ -104,6 +105,9 @@ internal sealed class ForensicReportContext
 
     /// <summary>Соответствие политике допустимых устройств (device-policy.json).</summary>
     public DevicePolicySummary PolicySummary { get; }
+
+    /// <summary>Карточка дела (chain of custody) из case.json.</summary>
+    public CaseMetadata Case { get; }
 
     /// <summary>Снимок Wi-Fi в эфире и соседей по сети на момент съёмки.</summary>
     public NetworkEnvironmentSnapshot NetworkEnvironment { get; }
@@ -158,8 +162,8 @@ internal sealed class ForensicReportContext
         }
     }
 
-    public static ForensicReportContext Create(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null, DevicePolicy? policy = null) =>
-        new(result, externalUtilitySnapshot, policy);
+    public static ForensicReportContext Create(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null, DevicePolicy? policy = null, CaseMetadata? caseMetadata = null) =>
+        new(result, externalUtilitySnapshot, policy, caseMetadata);
 
     private readonly Dictionary<string, DeviceActivityHistory> _activityCache = new(StringComparer.OrdinalIgnoreCase);
 

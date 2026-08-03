@@ -14,9 +14,9 @@ internal static class ForensicReportBuilder
 
     public const string ReportTitle = "Аудит USB — полный отчёт для расследования";
 
-    public static string BuildHtml(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null, DevicePolicy? policy = null)
+    public static string BuildHtml(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null, DevicePolicy? policy = null, CaseMetadata? caseMetadata = null)
     {
-        var ctx = ForensicReportContext.Create(result, externalUtilitySnapshot, policy);
+        var ctx = ForensicReportContext.Create(result, externalUtilitySnapshot, policy, caseMetadata);
         var html = new StringBuilder();
         html.AppendLine("<!doctype html><html lang=\"ru\"><head><meta charset=\"utf-8\">");
         html.AppendLine($"<title>{E(ReportTitle)}</title>");
@@ -49,6 +49,11 @@ internal static class ForensicReportBuilder
 
         html.AppendLine($"<h1>{E(ReportTitle)}</h1>");
         html.AppendLine("<div class=\"meta\">");
+        foreach (var (label, value) in ctx.Case.DisplayFields())
+        {
+            html.AppendLine($"<b>{E(label)}:</b> {E(value)}<br>");
+        }
+
         html.AppendLine($"<b>Компьютер:</b> {E(result.ComputerName)}<br>");
         html.AppendLine($"<b>Пользователь:</b> {E(result.UserName)}<br>");
         html.AppendLine($"<b>Windows:</b> {E(result.WindowsVersion)}<br>");
