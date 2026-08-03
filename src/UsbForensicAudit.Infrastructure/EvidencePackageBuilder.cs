@@ -59,13 +59,26 @@ public static class EvidencePackageBuilder
                     }
 
                     var entryName = Path.GetFileName(file);
-                    archive.CreateEntryFromFile(file, entryName);
+                    // Не CreateEntryFromFile: базу audit.sqlite держит открытой сам
+                    // процесс (пул соединений), поэтому читаем с FileShare.ReadWrite.
+                    // Хеш считается в том же проходе, что и копирование: манифест
+                    // описывает ровно те байты, которые легли в архив.
+                    var entry = archive.CreateEntry(entryName);
+                    entry.LastWriteTime = File.GetLastWriteTime(file);
+                    string sha256;
+                    long sizeBytes;
+                    using (var source = OpenShared(file))
+                    using (var target = entry.Open())
+                    {
+                        (sha256, sizeBytes) = CopyAndHash(source, target);
+                    }
+
                     included.Add(file);
                     manifestEntries.Add(new ManifestEntry
                     {
                         File = entryName,
-                        Sha256 = ComputeSha256(file),
-                        SizeBytes = new FileInfo(file).Length
+                        Sha256 = sha256,
+                        SizeBytes = sizeBytes
                     });
                 }
 
@@ -102,11 +115,25 @@ public static class EvidencePackageBuilder
         };
     }
 
-    private static string ComputeSha256(string path)
+    private static (string Sha256, long SizeBytes) CopyAndHash(Stream source, Stream target)
     {
-        using var stream = File.OpenRead(path);
-        return Convert.ToHexString(SHA256.HashData(stream));
+        using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[81920];
+        long total = 0;
+        int read;
+        while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            target.Write(buffer, 0, read);
+            sha.AppendData(buffer, 0, read);
+            total += read;
+        }
+
+        return (Convert.ToHexString(sha.GetHashAndReset()), total);
     }
+
+    /// <summary>Чтение, не конфликтующее с файлами, открытыми процессом на запись.</summary>
+    private static FileStream OpenShared(string path) =>
+        new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
 
     private static readonly JsonSerializerOptions ManifestJsonOptions = new()
     {

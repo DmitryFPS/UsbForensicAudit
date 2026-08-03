@@ -945,7 +945,7 @@
             <TabItem Header="Отчет">
                 <Border Margin="4,14,4,4" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="14" Padding="22">
                     <StackPanel>
-                        <TextBlock Text="Полные отчёты содержат все данные для расследования. Сводные отчёты показывают ключевые цифры, инциденты и значимые устройства. Аналитическая записка — связный рассказ с общей хронологией событий. Доступны PDF и Excel."
+                        <TextBlock Text="Полные отчёты содержат все данные для расследования. Сводные отчёты показывают ключевые цифры, инциденты и значимые устройства. Аналитическая записка — связный рассказ с общей хронологией событий. Доступны PDF и Excel. Таймлайн (CSV) открывается в Timeline Explorer и Excel. Пакет доказательств — ZIP с отчётами, сырьём и манифестом SHA-256 для передачи."
                                    Foreground="{StaticResource TextMain}"
                                    FontSize="16"
                                    TextWrapping="Wrap"
@@ -957,6 +957,8 @@
                             <Button x:Name="ExcelReportButton" Content="Полный Excel" Click="ExcelReportButton_Click" IsEnabled="False" Background="#14532D" BorderBrush="{StaticResource Accent}"/>
                             <Button x:Name="BriefExcelReportButton" Content="Сводный Excel" Click="BriefExcelReportButton_Click" IsEnabled="False" Background="#1E3A5F" BorderBrush="{StaticResource Accent2}"/>
                             <Button x:Name="AnalystNoteExcelReportButton" Content="Аналитическая записка (Excel)" Click="AnalystNoteExcelReportButton_Click" IsEnabled="False" Background="#3B2A5A" BorderBrush="#A78BFA"/>
+                            <Button x:Name="TimelineCsvButton" Content="Таймлайн (CSV)" Click="TimelineCsvButton_Click" IsEnabled="False" Background="#4A3B12" BorderBrush="#F5D98A"/>
+                            <Button x:Name="EvidencePackageButton" Content="Пакет доказательств (ZIP)" Click="EvidencePackageButton_Click" IsEnabled="False" Background="#4A1D1D" BorderBrush="#F87171"/>
                             <Button Content="Открыть папку данных" Click="OpenDataFolderButton_Click"/>
                         </WrapPanel>
                         <TextBlock x:Name="ReportStatusText" Foreground="{StaticResource TextMuted}" Margin="0,16,0,0" TextWrapping="Wrap"/>

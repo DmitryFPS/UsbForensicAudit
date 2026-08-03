@@ -267,6 +267,8 @@ public partial class MainWindow : Window
             ExcelReportButton.IsEnabled = true;
             BriefExcelReportButton.IsEnabled = true;
             AnalystNoteExcelReportButton.IsEnabled = true;
+            TimelineCsvButton.IsEnabled = true;
+            EvidencePackageButton.IsEnabled = true;
             AppendLog($"Дата установки Windows: {result.OsInstalledAtText}.");
             var suspiciousCount = result.CleanupFindings.Count(x => x.IsSuspicious);
             AppendLog($"Готово: устройств {result.Devices.Count}, доказательств {result.Evidence.Count}, записей об очистке {result.CleanupFindings.Count} (подозрительных {suspiciousCount}).");
@@ -400,6 +402,8 @@ public partial class MainWindow : Window
         ExcelReportButton.IsEnabled = !busy && _vm.LastResult is not null;
         BriefExcelReportButton.IsEnabled = !busy && _vm.LastResult is not null;
         AnalystNoteExcelReportButton.IsEnabled = !busy && _vm.LastResult is not null;
+        TimelineCsvButton.IsEnabled = !busy && _vm.LastResult is not null;
+        EvidencePackageButton.IsEnabled = !busy && _vm.LastResult is not null;
         UpdateExternalUtilityControls();
         if (busy)
         {

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 
 namespace UsbForensicAudit;
@@ -105,6 +106,63 @@ public partial class MainWindow
             "Аналитическая записка (Excel) создана",
             "Analyst note Excel creation failed",
             "Ошибка Excel");
+    }
+
+    private async void TimelineCsvButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.LastResult is null)
+        {
+            return;
+        }
+
+        var result = _vm.LastResult;
+        await RunReportAsync(
+            () => _vm.ReportService.CreateTimelineCsv(result, _vm.Storage.DataDirectory),
+            "Таймлайн (CSV) создан",
+            "Timeline CSV creation failed",
+            "Ошибка CSV");
+    }
+
+    private async void EvidencePackageButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.LastResult is null)
+        {
+            return;
+        }
+
+        var result = _vm.LastResult;
+        var snapshot = GetExternalUtilitySnapshotForReport();
+        await RunReportAsync(
+            () => BuildEvidencePackage(result, snapshot),
+            "Пакет доказательств собран",
+            "Evidence package creation failed",
+            "Ошибка сборки пакета");
+    }
+
+    /// <summary>
+    /// Полный передаваемый пакет: свежие HTML/PDF/CSV-отчёты, база сессий и
+    /// журнал доказательств, манифест SHA-256. Оператор и номер дела берутся
+    /// из карточки дела (case.json), если она заполнена.
+    /// </summary>
+    private string BuildEvidencePackage(AuditResult result, ExternalUtilityReportSnapshot? snapshot)
+    {
+        var directory = _vm.Storage.DataDirectory;
+        var html = _vm.ReportService.CreateHtml(result, directory, snapshot);
+        var pdf = _vm.ReportService.CreatePdf(result, directory, snapshot);
+        var csv = _vm.ReportService.CreateTimelineCsv(result, directory);
+
+        var caseMetadata = CaseMetadataProvider.LoadDefault();
+        var archivePath = Path.Combine(
+            directory,
+            $"UsbForensicAudit_Paket_{DateDisplay.ToMoscow(DateTimeOffset.UtcNow):yyyyMMdd_HHmmss}.zip");
+
+        var package = EvidencePackageBuilder.Build(
+            archivePath,
+            [html, pdf, csv, _vm.Storage.DatabasePath, Path.Combine(directory, "evidence.jsonl")],
+            caseMetadata.Examiner,
+            caseMetadata.CaseNumber);
+
+        return package.ArchivePath;
     }
 
     private async Task RunReportAsync(
