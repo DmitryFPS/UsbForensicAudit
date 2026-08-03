@@ -1,0 +1,10 @@
+{
+  // Настройки доставки алертов фонового мониторинга (--monitor).
+  // Скопируйте файл как monitor-config.json рядом с UsbForensicAudit.Cli.exe.
+
+  // POST JSON-алерта на этот URL (SIEM, чат-бот, свой сервис). null — выключено.
+  "webhookUrl": null,
+
+  // Писать ли алерты в журнал приложений Windows (источник UsbForensicAudit, ID 776).
+  "writeWindowsEventLog": true
+}

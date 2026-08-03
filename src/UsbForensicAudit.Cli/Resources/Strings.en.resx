@@ -250,6 +250,10 @@ Options:
                       several machines and show removable media seen
                       on more than one computer (with --json saves
                       the summary to a file)
+  --monitor           background USB monitoring without a window:
+                      unknown-device and policy-violation alerts go to
+                      the console, alerts.jsonl, Windows application log
+                      and the monitor-config.json webhook; stop with Ctrl+C
   --verify            verify evidence base integrity: recompute the
                       journal hash-chain and check session seals
                       against the database (with --json saves the
@@ -292,5 +296,26 @@ the executable — the same one used by the GUI application.</value>
   </data>
   <data name="FleetJsonSaved" xml:space="preserve">
     <value>Fleet summary saved: {0}</value>
+  </data>
+  <data name="ErrMonitorMix" xml:space="preserve">
+    <value>--monitor cannot be combined with other modes</value>
+  </data>
+  <data name="MonitorStarted" xml:space="preserve">
+    <value>Background USB monitoring started. Stop with Ctrl+C.</value>
+  </data>
+  <data name="MonitorBaselineEmpty" xml:space="preserve">
+    <value>Known-device baseline is empty: run a full scan to enable unknown-device alerts.</value>
+  </data>
+  <data name="MonitorPolicyMissing" xml:space="preserve">
+    <value>Device policy is not defined (device-policy.json): allow/block checks are skipped.</value>
+  </data>
+  <data name="MonitorPollingFallback" xml:space="preserve">
+    <value>WMI events unavailable: falling back to polling USB every 5 seconds.</value>
+  </data>
+  <data name="MonitorAlertLine" xml:space="preserve">
+    <value>[{0}] {1}: {2} — {3}</value>
+  </data>
+  <data name="MonitorStopped" xml:space="preserve">
+    <value>Background monitoring stopped.</value>
   </data>
 </root>

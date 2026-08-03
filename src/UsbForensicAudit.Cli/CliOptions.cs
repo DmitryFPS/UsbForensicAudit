@@ -43,6 +43,9 @@ public sealed class CliOptions
     /// </summary>
     public string? FleetDirectory { get; private set; }
 
+    /// <summary>Фоновый мониторинг USB без окна: алерты в консоль, журнал Windows, файл и вебхук.</summary>
+    public bool Monitor { get; private set; }
+
     /// <summary>Показать справку и выйти.</summary>
     public bool ShowHelp { get; private set; }
 
@@ -105,6 +108,10 @@ public sealed class CliOptions
 
                     options.DiffBaseline = baseline;
                     options.DiffTarget = target;
+                    break;
+
+                case "--monitor":
+                    options.Monitor = true;
                     break;
 
                 case "--fleet":
@@ -193,6 +200,16 @@ public sealed class CliOptions
             (options.ListSessions || options.DiffBaseline is not null))
         {
             options.Error = CliStrings.Get("ErrOfflineMix");
+        }
+
+        if (options.Monitor &&
+            (options.OfflineRoot is not null || options.DiffBaseline is not null ||
+             options.ListSessions || options.Verify || options.FleetDirectory is not null ||
+             options.JsonPath is not null || options.ReportDirectory is not null || options.ReportFormats.Count > 0))
+        {
+            // Мониторинг — резидентный режим: смешение с разовыми операциями
+            // сделало бы непонятным, что именно выполняется.
+            options.Error = CliStrings.Get("ErrMonitorMix");
         }
 
         if (options.FleetDirectory is not null &&

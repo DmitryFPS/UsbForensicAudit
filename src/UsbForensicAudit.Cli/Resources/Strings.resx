@@ -253,6 +253,10 @@
                       сканирований разных машин из каталога и показать
                       носители, засветившиеся на нескольких компьютерах
                       (с --json сохраняет сводку в файл)
+  --monitor           фоновый мониторинг USB без окна: алерты о
+                      неизвестных устройствах и нарушениях политики —
+                      в консоль, alerts.jsonl, журнал приложений Windows
+                      и вебхук из monitor-config.json; остановка Ctrl+C
   --verify            проверить целостность доказательной базы:
                       пересчитать hash-chain журнала и сверить
                       печати сессий с базой (с --json сохраняет
@@ -295,5 +299,26 @@
   </data>
   <data name="FleetJsonSaved" xml:space="preserve">
     <value>Сводка по флоту сохранена: {0}</value>
+  </data>
+  <data name="ErrMonitorMix" xml:space="preserve">
+    <value>--monitor нельзя сочетать с другими режимами</value>
+  </data>
+  <data name="MonitorStarted" xml:space="preserve">
+    <value>Фоновый мониторинг USB запущен. Остановка: Ctrl+C.</value>
+  </data>
+  <data name="MonitorBaselineEmpty" xml:space="preserve">
+    <value>База известных устройств пуста: выполните полное сканирование, чтобы заработали алерты о неизвестных устройствах.</value>
+  </data>
+  <data name="MonitorPolicyMissing" xml:space="preserve">
+    <value>Политика устройств не задана (device-policy.json): контроль «свой/чужой» пропускается.</value>
+  </data>
+  <data name="MonitorPollingFallback" xml:space="preserve">
+    <value>WMI-события недоступны: включён резервный опрос USB каждые 5 секунд.</value>
+  </data>
+  <data name="MonitorAlertLine" xml:space="preserve">
+    <value>[{0}] {1}: {2} — {3}</value>
+  </data>
+  <data name="MonitorStopped" xml:space="preserve">
+    <value>Фоновый мониторинг остановлен.</value>
   </data>
 </root>

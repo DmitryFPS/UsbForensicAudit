@@ -92,6 +92,11 @@ internal static class Program
                 return RunOffline(services, options, cancellation.Token);
             }
 
+            if (options.Monitor)
+            {
+                return RunMonitor(services, cancellation.Token);
+            }
+
             return await RunAsync(services, options, cancellation.Token);
         }
         catch (OperationCanceledException)
@@ -357,6 +362,81 @@ internal static class Program
         var json = JsonSerializer.Serialize(result, JsonExportOptions);
         File.WriteAllText(fullPath, json, Encoding.UTF8);
         Console.WriteLine(CliStrings.Format("JsonExport", fullPath));
+    }
+
+    /// <summary>
+    /// Фоновый мониторинг USB без окна: события WMI (или резервный опрос),
+    /// сверка с базой известных устройств и политикой «свой/чужой». Алерты
+    /// уходят в консоль, alerts.jsonl, журнал приложений Windows и вебхук из
+    /// monitor-config.json. Работает до Ctrl+C — подходит для планировщика
+    /// задач и автозапуска.
+    /// </summary>
+    private static int RunMonitor(ServiceProvider services, CancellationToken cancellationToken)
+    {
+        var storage = services.GetRequiredService<IAuditStorage>();
+        var baseline = storage.ListKnownDeviceIdentities();
+        var detector = new UnknownDeviceDetector(baseline);
+        var policy = DevicePolicyProvider.LoadDefault();
+        var alertOptions = MonitorAlertOptions.LoadDefault();
+        var snapshotService = new LiveUsbSnapshotService();
+        var alerted = new HashSet<string>(StringComparer.Ordinal);
+        var evaluationLock = new object();
+
+        Console.WriteLine(CliStrings.Get("MonitorStarted"));
+        if (baseline.Count == 0)
+        {
+            Console.WriteLine(CliStrings.Get("MonitorBaselineEmpty"));
+        }
+
+        if (policy.IsEmpty)
+        {
+            Console.WriteLine(CliStrings.Get("MonitorPolicyMissing"));
+        }
+
+        void Evaluate()
+        {
+            lock (evaluationLock)
+            {
+                try
+                {
+                    var snapshot = snapshotService.GetCurrentDevices();
+                    IReadOnlyList<LiveUsbDevice> unknown = detector.BaselineSize > 0
+                        ? detector.DetectNew(snapshot)
+                        : [];
+                    foreach (var alert in LiveMonitorRules.Evaluate(snapshot, unknown, policy, alerted))
+                    {
+                        Console.WriteLine(CliStrings.Format("MonitorAlertLine",
+                            DateDisplay.ToMoscow(alert.WhenUtc).ToString("yyyy-MM-dd HH:mm:ss"),
+                            alert.KindText,
+                            alert.Title,
+                            alert.Details));
+                        MonitorAlertDelivery.Deliver(alert, alertOptions, storage.DataDirectory, Console.Error.WriteLine);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    Console.Error.WriteLine(CliStrings.Format("ErrorPrefix", exception.Message));
+                }
+            }
+        }
+
+        using var monitor = new WmiUsbMonitor();
+        monitor.DeviceChanged += (_, _) => Evaluate();
+        monitor.RefreshRequested += (_, _) => Evaluate();
+        monitor.Start();
+        if (monitor.UsesPollingFallback)
+        {
+            Console.WriteLine(CliStrings.Get("MonitorPollingFallback"));
+        }
+
+        // Первичная сверка: если чужое устройство уже воткнуто на момент
+        // старта, алерт должен прийти сразу, а не после переподключения.
+        Evaluate();
+
+        cancellationToken.WaitHandle.WaitOne();
+        monitor.Stop();
+        Console.WriteLine(CliStrings.Get("MonitorStopped"));
+        return ExitSuccess;
     }
 
     /// <summary>
