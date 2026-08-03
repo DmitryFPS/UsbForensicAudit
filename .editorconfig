@@ -87,14 +87,10 @@ dotnet_naming_symbols.interface_symbols.applicable_kinds = interface
 dotnet_naming_style.i_prefix_style.required_prefix = I
 dotnet_naming_style.i_prefix_style.capitalization = pascal_case
 
-# --- Именование: приватные поля с _ ---
-dotnet_naming_rule.private_fields_underscore.severity = warning
-dotnet_naming_rule.private_fields_underscore.symbols = private_fields
-dotnet_naming_rule.private_fields_underscore.style = underscore_camel_case
-dotnet_naming_symbols.private_fields.applicable_kinds = field
-dotnet_naming_symbols.private_fields.applicable_accessibilities = private
-dotnet_naming_style.underscore_camel_case.required_prefix = _
-dotnet_naming_style.underscore_camel_case.capitalization = camel_case
+# Порядок правил важен: Roslyn применяет первое совпавшее. Константы и
+# static readonly должны стоять ВЫШЕ общего правила про _, иначе они
+# ошибочно попадают под требование подчёркивания (конвенция кодовой базы —
+# PascalCase для const и static readonly, _camelCase для остальных приватных полей).
 
 # --- Именование: константы PascalCase ---
 dotnet_naming_rule.constants_pascal_case.severity = warning
@@ -103,6 +99,23 @@ dotnet_naming_rule.constants_pascal_case.style = pascal_case_style
 dotnet_naming_symbols.constant_fields.applicable_kinds = field
 dotnet_naming_symbols.constant_fields.required_modifiers = const
 dotnet_naming_style.pascal_case_style.capitalization = pascal_case
+
+# --- Именование: static readonly поля PascalCase ---
+dotnet_naming_rule.static_readonly_pascal_case.severity = warning
+dotnet_naming_rule.static_readonly_pascal_case.symbols = static_readonly_fields
+dotnet_naming_rule.static_readonly_pascal_case.style = pascal_case_style
+dotnet_naming_symbols.static_readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_fields.applicable_accessibilities = *
+dotnet_naming_symbols.static_readonly_fields.required_modifiers = static, readonly
+
+# --- Именование: приватные поля с _ ---
+dotnet_naming_rule.private_fields_underscore.severity = warning
+dotnet_naming_rule.private_fields_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore.style = underscore_camel_case
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel_case.required_prefix = _
+dotnet_naming_style.underscore_camel_case.capitalization = camel_case
 
 # --- Тестовые проекты: послабления ---
 [tests/**/*.cs]
