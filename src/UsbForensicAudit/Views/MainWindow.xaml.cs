@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private readonly WmiUsbMonitor _monitor;
     private readonly DeviceChangeNotifier _deviceChangeNotifier;
     private readonly LiveUsbSnapshotService _liveUsbSnapshotService;
+    private readonly IOsInfoProvider _osInfoProvider;
     private ObservableCollection<UsbDeviceRecord> _devices => _vm.Devices;
     private ObservableCollection<EvidenceRecord> _evidence => _vm.Evidence;
     private ObservableCollection<CleanupFinding> _cleanupFindings => _vm.CleanupFindings;
@@ -45,11 +46,13 @@ public partial class MainWindow : Window
     public MainWindow(
         MainViewModel viewModel,
         WmiUsbMonitor monitor,
-        LiveUsbSnapshotService liveUsbSnapshotService)
+        LiveUsbSnapshotService liveUsbSnapshotService,
+        IOsInfoProvider osInfoProvider)
     {
         _vm = viewModel;
         _monitor = monitor;
         _liveUsbSnapshotService = liveUsbSnapshotService;
+        _osInfoProvider = osInfoProvider;
         InitializeComponent();
         ApplyHeaderLogo();
         TrySetWindowIconInstance();
@@ -360,7 +363,7 @@ public partial class MainWindow : Window
 
     private void UpdateOsInstallDisplay(AuditResult? result)
     {
-        var installAtUtc = result?.OsInstalledAtUtc ?? OsInstallInfo.GetInstalledAtUtc();
+        var installAtUtc = result?.OsInstalledAtUtc ?? _osInfoProvider.GetInstalledAtUtc();
         var scanAtUtc = result?.StartedAtUtc ?? DateTimeOffset.UtcNow;
         var installText = OsInstallInfo.FormatInstallDate(installAtUtc);
         var graceText = OsInstallInfo.GracePeriodExplanation(installAtUtc, scanAtUtc);

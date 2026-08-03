@@ -19,6 +19,7 @@ public sealed class AuditOrchestrator
     private readonly IReferenceImageDetector _referenceImageDetector;
     private readonly IFileSystemChangeCollector _fileSystemChangeCollector;
     private readonly IReadOnlyList<INetworkArtifactCollector> _networkCollectors;
+    private readonly IOsInfoProvider _osInfoProvider;
 
     public AuditOrchestrator(
         IUsbDeviceCollector deviceCollector,
@@ -32,8 +33,10 @@ public sealed class AuditOrchestrator
         IPrivilegeChecker privilegeChecker,
         IReferenceImageDetector? referenceImageDetector = null,
         IFileSystemChangeCollector? fileSystemChangeCollector = null,
-        IEnumerable<INetworkArtifactCollector>? networkCollectors = null)
+        IEnumerable<INetworkArtifactCollector>? networkCollectors = null,
+        IOsInfoProvider? osInfoProvider = null)
     {
+        _osInfoProvider = osInfoProvider ?? new NullOsInfoProvider();
         _referenceImageDetector = referenceImageDetector ?? new NoReferenceImageDetector();
         _fileSystemChangeCollector = fileSystemChangeCollector ?? new NoFileSystemChangeCollector();
         _networkCollectors = networkCollectors?.ToList() ?? [];
@@ -60,7 +63,7 @@ public sealed class AuditOrchestrator
             var result = new AuditResult
             {
                 StartedAtUtc = DateTimeOffset.UtcNow,
-                OsInstalledAtUtc = OsInstallInfo.GetInstalledAtUtc(),
+                OsInstalledAtUtc = _osInfoProvider.GetInstalledAtUtc(),
                 IsAdministrator = privileges.IsAdministrator,
                 Privileges = privileges
             };

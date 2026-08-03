@@ -1,30 +1,15 @@
-using Microsoft.Win32;
-
 namespace UsbForensicAudit;
 
+/// <summary>
+/// Чистая доменная логика «льготного окна» после установки Windows: константы,
+/// проверки и форматирование. Чтение самой даты установки из реестра — за портом
+/// <see cref="IOsInfoProvider"/> (реализация в Infrastructure).
+/// </summary>
 public static class OsInstallInfo
 {
     public const int PostInstallGraceHours = 3;
 
     public static TimeSpan PostInstallGracePeriod { get; } = TimeSpan.FromHours(PostInstallGraceHours);
-
-    public static DateTimeOffset? GetInstalledAtUtc()
-    {
-        try
-        {
-            using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
-            if (key?.GetValue("InstallDate") is int unixSeconds && unixSeconds > 0)
-            {
-                return DateTimeOffset.FromUnixTimeSeconds(unixSeconds);
-            }
-        }
-        catch
-        {
-            // InstallDate недоступен — продолжаем без даты установки.
-        }
-
-        return null;
-    }
 
     public static bool IsWithinPostInstallGrace(DateTimeOffset moment, DateTimeOffset installAtUtc)
     {
