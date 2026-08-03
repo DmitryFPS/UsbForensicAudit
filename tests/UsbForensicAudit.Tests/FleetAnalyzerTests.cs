@@ -23,7 +23,7 @@ public sealed class FleetAnalyzerTests
         Vid = "0951",
         Pid = "1666",
         Serial = serial,
-        Externality = DeviceExternality.ExternalMedia
+        DeviceKind = DeviceKindResolver.Storage
     };
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class FleetAnalyzerTests
     [Fact]
     public void Falls_back_to_vidpid_when_no_serial()
     {
-        var noSerial = new UsbDeviceRecord { Vid = "AAAA", Pid = "BBBB", Externality = DeviceExternality.ExternalPeripheral };
+        var noSerial = new UsbDeviceRecord { Vid = "AAAA", Pid = "BBBB", DeviceKind = DeviceKindResolver.Storage };
         var summary = FleetAnalyzer.Analyze(
         [
             Machine("PC-1", noSerial),

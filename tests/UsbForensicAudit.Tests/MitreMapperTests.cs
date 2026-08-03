@@ -33,7 +33,7 @@ public sealed class MitreMapperTests
     public void Removable_media_maps_T1091()
     {
         var result = new AuditResult();
-        result.Devices.Add(new UsbDeviceRecord { Externality = DeviceExternality.ExternalMedia });
+        result.Devices.Add(new UsbDeviceRecord { DeviceKind = DeviceKindResolver.Storage });
 
         var ids = MitreMapper.Map(result).Findings.Select(x => x.Technique.Id).ToArray();
 
@@ -44,7 +44,7 @@ public sealed class MitreMapperTests
     public void Outbound_files_map_T1052_001()
     {
         var result = new AuditResult();
-        var device = new UsbDeviceRecord { Externality = DeviceExternality.ExternalMedia };
+        var device = new UsbDeviceRecord { DeviceKind = DeviceKindResolver.Storage };
         device.CopyIndications.Add(new CopyIndication
         {
             FileName = "plan.docx",
@@ -90,7 +90,7 @@ public sealed class MitreMapperTests
             StartedAtUtc = DateTimeOffset.Parse("2026-01-01T10:00:00Z"),
             FinishedAtUtc = DateTimeOffset.Parse("2026-01-01T10:05:00Z")
         };
-        result.Devices.Add(new UsbDeviceRecord { Externality = DeviceExternality.ExternalMedia });
+        result.Devices.Add(new UsbDeviceRecord { DeviceKind = DeviceKindResolver.Storage });
 
         var html = ForensicReportBuilder.BuildHtml(result);
 

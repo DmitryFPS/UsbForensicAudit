@@ -27,7 +27,7 @@ public sealed class UsbExecutableHashCollectorTests
         var result = new AuditResult();
         result.Devices.Add(new UsbDeviceRecord
         {
-            Externality = DeviceExternality.ExternalMedia,
+            DeviceKind = DeviceKindResolver.Storage,
             DriveLetters = "E"
         });
         result.Evidence.Add(new EvidenceRecord
@@ -60,7 +60,7 @@ public sealed class UsbExecutableHashCollectorTests
     public void Non_execution_source_is_ignored()
     {
         var result = new AuditResult();
-        result.Devices.Add(new UsbDeviceRecord { Externality = DeviceExternality.ExternalMedia, DriveLetters = "E" });
+        result.Devices.Add(new UsbDeviceRecord { DeviceKind = DeviceKindResolver.Storage, DriveLetters = "E" });
         result.Evidence.Add(new EvidenceRecord { Source = "Реестр", RawText = @"E:\x.exe" });
 
         Assert.Empty(UsbExecutableHashCollector.ExtractRemovableExePaths(result));

@@ -14,7 +14,7 @@ public sealed class DevicePolicyTests
         Vid = vid,
         Pid = pid,
         Serial = serial,
-        Externality = DeviceExternality.ExternalMedia,
+        DeviceKind = DeviceKindResolver.Storage,
         DeviceInstanceId = $@"USBSTOR\Disk&Ven\{serial}"
     };
 
