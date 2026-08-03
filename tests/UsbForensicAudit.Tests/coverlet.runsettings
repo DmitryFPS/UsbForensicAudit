@@ -30,6 +30,7 @@
             **/SetupApiLogCollector.cs,
             **/UserArtifactCollector.cs,
             **/ReportService.cs,
+            **/MonitorAlertDelivery.cs,
             **/*Pdf*.cs,
             **/ForensicReportBuilder.cs,
             **/ForensicReportContext.cs,
