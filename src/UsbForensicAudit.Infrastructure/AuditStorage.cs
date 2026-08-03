@@ -1,7 +1,7 @@
+using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.IO;
 using Microsoft.Data.Sqlite;
 
 namespace UsbForensicAudit;
@@ -37,7 +37,11 @@ public sealed class AuditStorage : IAuditStorage
         ArgumentNullException.ThrowIfNull(result);
         ExecuteExclusive(() =>
         {
-            if (string.IsNullOrWhiteSpace(result.SessionId)) result.SessionId = Guid.NewGuid().ToString("N");
+            if (string.IsNullOrWhiteSpace(result.SessionId))
+            {
+                result.SessionId = Guid.NewGuid().ToString("N");
+            }
+
             var inserted = SaveSqlite(result);
             if (inserted)
             {
@@ -88,7 +92,11 @@ public sealed class AuditStorage : IAuditStorage
             """;
         session.Parameters.AddWithValue("$session", sessionId);
         using var reader = session.ExecuteReader();
-        if (!reader.Read()) return null;
+        if (!reader.Read())
+        {
+            return null;
+        }
+
         var result = new AuditResult
         {
             SessionId = sessionId,
@@ -102,7 +110,10 @@ public sealed class AuditStorage : IAuditStorage
             Coverage = Deserialize<ScanCoverageReport>(reader.IsDBNull(8) ? "" : reader.GetString(8)) ?? new()
         };
         foreach (var warning in Deserialize<List<string>>(reader.IsDBNull(7) ? "" : reader.GetString(7)) ?? [])
+        {
             result.SourceWarnings.Add(warning);
+        }
+
         result.NetworkEnvironment = Deserialize<NetworkEnvironmentSnapshot>(reader.IsDBNull(9) ? "" : reader.GetString(9))
                                     ?? new NetworkEnvironmentSnapshot();
         reader.Close();
@@ -227,27 +238,56 @@ public sealed class AuditStorage : IAuditStorage
 
         EnsureColumns(connection, "devices", new Dictionary<string, string>
         {
-            ["session_id"] = "TEXT", ["record_key"] = "TEXT", ["record_json"] = "TEXT",
-            ["canonical_device_id"] = "TEXT", ["classification"] = "TEXT", ["classification_confidence"] = "TEXT",
-            ["classification_provenance"] = "TEXT", ["transport"] = "TEXT", ["transport_confidence"] = "TEXT",
-            ["connection"] = "TEXT", ["connection_confidence"] = "TEXT", ["hardware_ids"] = "TEXT",
-            ["compatible_ids"] = "TEXT", ["volumes_json"] = "TEXT", ["identity_provenance_json"] = "TEXT"
+            ["session_id"] = "TEXT",
+            ["record_key"] = "TEXT",
+            ["record_json"] = "TEXT",
+            ["canonical_device_id"] = "TEXT",
+            ["classification"] = "TEXT",
+            ["classification_confidence"] = "TEXT",
+            ["classification_provenance"] = "TEXT",
+            ["transport"] = "TEXT",
+            ["transport_confidence"] = "TEXT",
+            ["connection"] = "TEXT",
+            ["connection_confidence"] = "TEXT",
+            ["hardware_ids"] = "TEXT",
+            ["compatible_ids"] = "TEXT",
+            ["volumes_json"] = "TEXT",
+            ["identity_provenance_json"] = "TEXT"
         });
         EnsureColumns(connection, "evidence", new Dictionary<string, string>
         {
-            ["session_id"] = "TEXT", ["record_key"] = "TEXT", ["record_json"] = "TEXT",
-            ["provider"] = "TEXT", ["channel"] = "TEXT", ["record_id"] = "INTEGER", ["computer"] = "TEXT",
-            ["source_file"] = "TEXT", ["source_record"] = "TEXT", ["evidence_category"] = "TEXT",
-            ["user_explanation"] = "TEXT", ["acquisition_timestamp_utc"] = "TEXT", ["source_sha256"] = "TEXT",
-            ["provenance"] = "TEXT", ["evidence_strength"] = "TEXT", ["confidence"] = "TEXT",
-            ["user_sid"] = "TEXT", ["resolved_user_name"] = "TEXT", ["registry_last_write_utc"] = "TEXT",
+            ["session_id"] = "TEXT",
+            ["record_key"] = "TEXT",
+            ["record_json"] = "TEXT",
+            ["provider"] = "TEXT",
+            ["channel"] = "TEXT",
+            ["record_id"] = "INTEGER",
+            ["computer"] = "TEXT",
+            ["source_file"] = "TEXT",
+            ["source_record"] = "TEXT",
+            ["evidence_category"] = "TEXT",
+            ["user_explanation"] = "TEXT",
+            ["acquisition_timestamp_utc"] = "TEXT",
+            ["source_sha256"] = "TEXT",
+            ["provenance"] = "TEXT",
+            ["evidence_strength"] = "TEXT",
+            ["confidence"] = "TEXT",
+            ["user_sid"] = "TEXT",
+            ["resolved_user_name"] = "TEXT",
+            ["registry_last_write_utc"] = "TEXT",
             ["can_establish_connection_date"] = "INTEGER"
         });
         EnsureColumns(connection, "cleanup_findings", new Dictionary<string, string>
         {
-            ["session_id"] = "TEXT", ["record_key"] = "TEXT", ["record_json"] = "TEXT",
-            ["assessment"] = "TEXT", ["initiator_kind"] = "TEXT", ["initiator_account"] = "TEXT",
-            ["possible_tool"] = "TEXT", ["confidence"] = "TEXT", ["action_kind"] = "TEXT",
+            ["session_id"] = "TEXT",
+            ["record_key"] = "TEXT",
+            ["record_json"] = "TEXT",
+            ["assessment"] = "TEXT",
+            ["initiator_kind"] = "TEXT",
+            ["initiator_account"] = "TEXT",
+            ["possible_tool"] = "TEXT",
+            ["confidence"] = "TEXT",
+            ["action_kind"] = "TEXT",
             ["provenance"] = "TEXT"
         });
         // Сетевые связи хранятся вместе с вложенными сеансами и обращениями:
@@ -441,9 +481,16 @@ public sealed class AuditStorage : IAuditStorage
         using var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true);
         var sessionMetadata = new
         {
-            result.SessionId, result.StartedAtUtc, result.FinishedAtUtc, result.ComputerName,
-            result.UserName, result.WindowsVersion, result.OsInstalledAtUtc, result.IsAdministrator,
-            result.SourceWarnings, result.Coverage
+            result.SessionId,
+            result.StartedAtUtc,
+            result.FinishedAtUtc,
+            result.ComputerName,
+            result.UserName,
+            result.WindowsVersion,
+            result.OsInstalledAtUtc,
+            result.IsAdministrator,
+            result.SourceWarnings,
+            result.Coverage
         };
         foreach (var (type, item) in new[] { ("AuditSession", (object)sessionMetadata) }
                      .Concat(result.Devices.Select(x => ("UsbDeviceRecord", (object)x)))
@@ -463,7 +510,11 @@ public sealed class AuditStorage : IAuditStorage
             var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
             writer.WriteLine(JsonSerializer.Serialize(new
             {
-                sessionId = result.SessionId, recordType = type, previousHash, recordHash = hash, data = item
+                sessionId = result.SessionId,
+                recordType = type,
+                previousHash,
+                recordHash = hash,
+                data = item
             }, JsonOptions));
             previousHash = hash;
         }
@@ -474,9 +525,17 @@ public sealed class AuditStorage : IAuditStorage
 
     private string ReadLastHash()
     {
-        if (!File.Exists(JsonlPath)) return "";
+        if (!File.Exists(JsonlPath))
+        {
+            return "";
+        }
+
         var last = ReadLastNonEmptyLine(JsonlPath);
-        if (string.IsNullOrWhiteSpace(last)) return "";
+        if (string.IsNullOrWhiteSpace(last))
+        {
+            return "";
+        }
+
         try
         {
             using var doc = JsonDocument.Parse(last);
@@ -605,7 +664,10 @@ public sealed class AuditStorage : IAuditStorage
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
         {
-            if (!reader.IsDBNull(0) && deserialize(reader.GetString(0)) is { } item) target.Add(item);
+            if (!reader.IsDBNull(0) && deserialize(reader.GetString(0)) is { } item)
+            {
+                target.Add(item);
+            }
         }
     }
 
@@ -616,7 +678,10 @@ public sealed class AuditStorage : IAuditStorage
         {
             cmd.CommandText = $"PRAGMA table_info({ValidatedTable(table)});";
             using var reader = cmd.ExecuteReader();
-            while (reader.Read()) existing.Add(reader.GetString(1));
+            while (reader.Read())
+            {
+                existing.Add(reader.GetString(1));
+            }
         }
         foreach (var (name, type) in columns)
         {
@@ -726,7 +791,9 @@ public sealed class AuditStorage : IAuditStorage
     private static void Add(SqliteCommand cmd, params object[] pairs)
     {
         for (var i = 0; i < pairs.Length; i += 2)
+        {
             cmd.Parameters.AddWithValue((string)pairs[i], pairs[i + 1] ?? DBNull.Value);
+        }
     }
 
     private static string HashKey(string json) =>

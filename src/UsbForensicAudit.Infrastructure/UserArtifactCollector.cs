@@ -132,7 +132,11 @@ public sealed class UserArtifactCollector : IEvidenceCollector
     {
         const string relative = @"Software\Microsoft\Windows\CurrentVersion\Explorer\MountPoints2";
         using var key = users.OpenSubKey($@"{sid}\{relative}");
-        if (key is null) return;
+        if (key is null)
+        {
+            return;
+        }
+
         foreach (var name in key.GetSubKeyNames().Take(MaxRegistryRecordsPerSid))
         {
             if (!ForensicArtifactParsers.IsUsbOrVolumeMarker(name)
@@ -158,7 +162,11 @@ public sealed class UserArtifactCollector : IEvidenceCollector
         List<EvidenceRecord> evidence)
     {
         using var root = users.OpenSubKey($@"{sid}\{relative}");
-        if (root is null) return;
+        if (root is null)
+        {
+            return;
+        }
+
         var count = 0;
         WalkMru(root, $@"HKU\{sid}\{relative}", profile, artifact, evidence, ref count, 0);
     }
@@ -172,14 +180,22 @@ public sealed class UserArtifactCollector : IEvidenceCollector
         ref int count,
         int depth)
     {
-        if (depth > 12 || count >= MaxRegistryRecordsPerSid) return;
+        if (depth > 12 || count >= MaxRegistryRecordsPerSid)
+        {
+            return;
+        }
+
         var order = ForensicArtifactParsers.ParseMruListEx(key.GetValue("MRUListEx"));
         var names = order.Select(x => x.ToString())
             .Concat(key.GetValueNames().Where(x => x != "MRUListEx"))
             .Distinct(StringComparer.OrdinalIgnoreCase);
         foreach (var name in names)
         {
-            if (count >= MaxRegistryRecordsPerSid) break;
+            if (count >= MaxRegistryRecordsPerSid)
+            {
+                break;
+            }
+
             var value = key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
             var parsed = value is byte[] bytes ? ForensicArtifactParsers.ParsePidl(bytes) : null;
             var text = parsed?.BestPath ?? ValueText(value);
@@ -211,11 +227,19 @@ public sealed class UserArtifactCollector : IEvidenceCollector
         List<EvidenceRecord> evidence)
     {
         using var key = users.OpenSubKey($@"{sid}\{relative}");
-        if (key is null) return;
+        if (key is null)
+        {
+            return;
+        }
+
         foreach (var name in key.GetValueNames().Take(1000))
         {
             var text = ValueText(key.GetValue(name));
-            if (!ForensicArtifactParsers.IsUsbOrVolumeMarker(text) && !ArtifactStringExtractor.LooksInteresting(text)) continue;
+            if (!ForensicArtifactParsers.IsUsbOrVolumeMarker(text) && !ArtifactStringExtractor.LooksInteresting(text))
+            {
+                continue;
+            }
+
             AddDeduplicated(evidence, NewRegistryEvidence(
                 $"HKU {artifact}", profile, $@"HKU\{sid}\{relative}\{name}", text,
                 "User-entered path; indirect evidence only.", RegistryKeyTimestamps.GetLastWriteUtc(key), "Indirect", "Medium"));
@@ -259,15 +283,27 @@ public sealed class UserArtifactCollector : IEvidenceCollector
     {
         const string relative = @"Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist";
         using var root = users.OpenSubKey($@"{sid}\{relative}");
-        if (root is null) return;
+        if (root is null)
+        {
+            return;
+        }
+
         foreach (var guid in root.GetSubKeyNames().Take(100))
         {
             using var count = root.OpenSubKey($@"{guid}\Count");
-            if (count is null) continue;
+            if (count is null)
+            {
+                continue;
+            }
+
             foreach (var encoded in count.GetValueNames().Take(5000))
             {
                 var decoded = Rot13(encoded);
-                if (!ArtifactStringExtractor.LooksInteresting(decoded) && !CleanerToolCatalog.LooksLikeTrackedUtility(decoded)) continue;
+                if (!ArtifactStringExtractor.LooksInteresting(decoded) && !CleanerToolCatalog.LooksLikeTrackedUtility(decoded))
+                {
+                    continue;
+                }
+
                 AddDeduplicated(evidence, NewRegistryEvidence(
                     "HKU UserAssist", profile, $@"HKU\{sid}\{relative}\{guid}\Count\{encoded}", decoded,
                     "UserAssist supports application interaction, but alone does not prove execution or USB connection.",
@@ -289,7 +325,11 @@ public sealed class UserArtifactCollector : IEvidenceCollector
     {
         const string relative = @"Local Settings\Software\Microsoft\Windows\Shell\BagMRU";
         using var root = users.OpenSubKey($@"{sidClasses}\{relative}");
-        if (root is null) return;
+        if (root is null)
+        {
+            return;
+        }
+
         var count = 0;
         WalkShellBags(root, $@"HKU\{sidClasses}\{relative}", "", profile, sourcePrefix, evidence, ref count, 0);
     }
@@ -306,13 +346,21 @@ public sealed class UserArtifactCollector : IEvidenceCollector
         RegistryKey key, string registryPath, string parentPath, UserProfileIdentity profile,
         string sourcePrefix, List<EvidenceRecord> evidence, ref int count, int depth)
     {
-        if (depth > 16 || count >= MaxRegistryRecordsPerSid) return;
+        if (depth > 16 || count >= MaxRegistryRecordsPerSid)
+        {
+            return;
+        }
+
         var slot = TryInt(key.GetValue("NodeSlot"));
         foreach (var name in key.GetValueNames().Where(x => int.TryParse(x, out _)))
         {
             var parsed = ForensicArtifactParsers.ParseShellBagNode(
                 key.GetValue(name) as byte[], parentPath, slot, SystemDriveLetter);
-            if (!parsed.IsUsbRelevant) continue;
+            if (!parsed.IsUsbRelevant)
+            {
+                continue;
+            }
+
             AddDeduplicated(evidence, NewRegistryEvidence(
                 $"{sourcePrefix} Shellbags", profile, $"{registryPath}\\{name}", ShellBagPathText(parsed.Path),
                 $"Structured BagMRU node; slot={parsed.Slot?.ToString() ?? "unknown"}. {parsed.RelevanceReason} Показывает просмотр папки, а не подключение устройства.",
@@ -322,7 +370,11 @@ public sealed class UserArtifactCollector : IEvidenceCollector
         foreach (var childName in key.GetSubKeyNames())
         {
             using var child = key.OpenSubKey(childName);
-            if (child is null) continue;
+            if (child is null)
+            {
+                continue;
+            }
+
             var childNode = ForensicArtifactParsers.ParseShellBagNode(
                 key.GetValue(childName) as byte[], parentPath, slot, SystemDriveLetter);
             WalkShellBags(child, $"{registryPath}\\{childName}",
@@ -345,7 +397,11 @@ public sealed class UserArtifactCollector : IEvidenceCollector
                 Path.Combine(profile.ProfilePath, "AppData", "Roaming", "Microsoft", "Windows", "Start Menu"),
                 Path.Combine(profile.ProfilePath, "AppData", "Roaming", "Microsoft", "Windows", "SendTo")
             };
-            foreach (var root in roots) CollectLinks(root, profile, evidence, warnings);
+            foreach (var root in roots)
+            {
+                CollectLinks(root, profile, evidence, warnings);
+            }
+
             CollectJumpLists(profile, evidence, warnings);
             CollectRecycleBin(profile, evidence, warnings);
         }
@@ -354,7 +410,11 @@ public sealed class UserArtifactCollector : IEvidenceCollector
     private static void CollectLinks(
         string root, UserProfileIdentity profile, List<EvidenceRecord> evidence, List<string> warnings)
     {
-        if (!Directory.Exists(root)) return;
+        if (!Directory.Exists(root))
+        {
+            return;
+        }
+
         try
         {
             var paths = Directory.EnumerateFiles(root, "*.lnk", SearchOption.AllDirectories)
@@ -367,9 +427,17 @@ public sealed class UserArtifactCollector : IEvidenceCollector
             foreach (var path in paths.Take(MaxFilesPerProfile))
             {
                 var link = ShellLinkParser.TryParse(path);
-                if (link is null) continue;
+                if (link is null)
+                {
+                    continue;
+                }
+
                 var target = link.BestTarget;
-                if (!ForensicArtifactParsers.IsUsbOrVolumeMarker(target) && !ArtifactStringExtractor.LooksInteresting(target)) continue;
+                if (!ForensicArtifactParsers.IsUsbOrVolumeMarker(target) && !ArtifactStringExtractor.LooksInteresting(target))
+                {
+                    continue;
+                }
+
                 AddDeduplicated(evidence, NewFileEvidence(
                     "User LNK Parsed", profile, path, target,
                     "Structurally parsed Shell Link. Target timestamps describe the target/link metadata, not USB connection time.",
@@ -393,7 +461,11 @@ public sealed class UserArtifactCollector : IEvidenceCollector
                      (Path.Combine(recent, "CustomDestinations"), false)
                  })
         {
-            if (!Directory.Exists(directory)) continue;
+            if (!Directory.Exists(directory))
+            {
+                continue;
+            }
+
             try
             {
                 const int maxJumpLists = 2000;
@@ -413,7 +485,11 @@ public sealed class UserArtifactCollector : IEvidenceCollector
                     {
                         var target = entry.Link.BestTarget;
                         if (!ForensicArtifactParsers.IsUsbOrVolumeMarker(target)
-                            && !ArtifactStringExtractor.LooksInteresting(target)) continue;
+                            && !ArtifactStringExtractor.LooksInteresting(target))
+                        {
+                            continue;
+                        }
+
                         AddDeduplicated(evidence, NewFileEvidence(
                             automatic ? "JumpList AutomaticDestinations Parsed" : "JumpList CustomDestinations Parsed",
                             profile, path, target,
@@ -454,7 +530,11 @@ public sealed class UserArtifactCollector : IEvidenceCollector
         foreach (var driveRoot in driveRoots)
         {
             var root = Path.Combine(driveRoot, "$Recycle.Bin", profile.Sid);
-            if (!Directory.Exists(root)) continue;
+            if (!Directory.Exists(root))
+            {
+                continue;
+            }
+
             try
             {
                 paths.AddRange(Directory.EnumerateFiles(root, "$I*", SearchOption.AllDirectories)
@@ -464,7 +544,10 @@ public sealed class UserArtifactCollector : IEvidenceCollector
             {
                 warnings.Add($"Recycle Bin {profile.ResolvedUserName}/{driveRoot}: {ex.Message}");
             }
-            if (paths.Count > maxRecycleMetadata) break;
+            if (paths.Count > maxRecycleMetadata)
+            {
+                break;
+            }
         }
 
         if (paths.Count > maxRecycleMetadata)
@@ -477,7 +560,11 @@ public sealed class UserArtifactCollector : IEvidenceCollector
             {
                 var parsed = ParseRecycleMetadata(File.ReadAllBytes(path));
                 if (parsed is null || (!ArtifactStringExtractor.LooksInteresting(parsed.Value.OriginalPath)
-                                       && !ForensicArtifactParsers.IsUsbOrVolumeMarker(parsed.Value.OriginalPath))) continue;
+                                       && !ForensicArtifactParsers.IsUsbOrVolumeMarker(parsed.Value.OriginalPath)))
+                {
+                    continue;
+                }
+
                 AddDeduplicated(evidence, NewFileEvidence(
                     "Recycle Bin $I", profile, path, parsed.Value.OriginalPath,
                     "Recycle Bin metadata: deletion event for a removable-path candidate; indirect evidence.",
@@ -493,7 +580,11 @@ public sealed class UserArtifactCollector : IEvidenceCollector
 
     internal static (string OriginalPath, long Size, DateTimeOffset DeletedUtc)? ParseRecycleMetadata(byte[] data)
     {
-        if (data.Length < 24) return null;
+        if (data.Length < 24)
+        {
+            return null;
+        }
+
         var version = BinaryPrimitives.ReadInt64LittleEndian(data);
         var size = BinaryPrimitives.ReadInt64LittleEndian(data.AsSpan(8, 8));
         DateTimeOffset deleted;
@@ -503,14 +594,22 @@ public sealed class UserArtifactCollector : IEvidenceCollector
         if (version == 2 && data.Length >= 28)
         {
             var chars = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(24, 4));
-            if (chars <= 0 || chars > 32_767 || 28 + chars * 2 > data.Length) return null;
+            if (chars <= 0 || chars > 32_767 || 28 + chars * 2 > data.Length)
+            {
+                return null;
+            }
+
             original = Encoding.Unicode.GetString(data, 28, chars * 2).TrimEnd('\0');
         }
         else if (version == 1)
         {
             original = Encoding.Unicode.GetString(data, 24, data.Length - 24).TrimEnd('\0');
         }
-        else return null;
+        else
+        {
+            return null;
+        }
+
         return (original, size, deleted);
     }
 
@@ -587,7 +686,10 @@ public sealed class UserArtifactCollector : IEvidenceCollector
     {
         for (var i = 0; i < values.Count; i++)
         {
-            if (values[i] == value) return i;
+            if (values[i] == value)
+            {
+                return i;
+            }
         }
         return -1;
     }

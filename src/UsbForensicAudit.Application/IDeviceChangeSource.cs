@@ -9,5 +9,5 @@ namespace UsbForensicAudit;
 public interface IDeviceChangeSource
 {
     /// <summary>Возникает при подключении или отключении устройства; аргумент — человекочитаемое описание события.</summary>
-    event EventHandler<string>? DeviceChanged;
+    public event EventHandler<string>? DeviceChanged;
 }

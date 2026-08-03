@@ -28,10 +28,7 @@ public sealed class WmiUsbMonitor : IDisposable
             return;
         }
 
-        if (_deviceNotifier is not null)
-        {
-            _deviceNotifier.DeviceChanged -= OnExternalDeviceChanged;
-        }
+        _deviceNotifier?.DeviceChanged -= OnExternalDeviceChanged;
 
         _deviceNotifier = notifier;
         _deviceNotifier.DeviceChanged += OnExternalDeviceChanged;
@@ -187,10 +184,7 @@ public sealed class WmiUsbMonitor : IDisposable
     public void Dispose()
     {
         Stop();
-        if (_deviceNotifier is not null)
-        {
-            _deviceNotifier.DeviceChanged -= OnExternalDeviceChanged;
-            _deviceNotifier = null;
-        }
+        _deviceNotifier?.DeviceChanged -= OnExternalDeviceChanged;
+        _deviceNotifier = null;
     }
 }

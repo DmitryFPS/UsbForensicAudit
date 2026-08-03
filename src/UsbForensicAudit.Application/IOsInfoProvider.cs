@@ -8,7 +8,7 @@ namespace UsbForensicAudit;
 public interface IOsInfoProvider
 {
     /// <summary>Дата установки ОС (UTC) или null, если её не удалось определить.</summary>
-    DateTimeOffset? GetInstalledAtUtc();
+    public DateTimeOffset? GetInstalledAtUtc();
 }
 
 /// <summary>

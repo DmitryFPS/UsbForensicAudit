@@ -7,7 +7,7 @@ namespace UsbForensicAudit;
 /// </summary>
 public interface IEvidenceIntegrityVerifier
 {
-    IntegrityReport Verify();
+    public IntegrityReport Verify();
 }
 
 /// <summary>Итог проверки целостности доказательной базы.</summary>

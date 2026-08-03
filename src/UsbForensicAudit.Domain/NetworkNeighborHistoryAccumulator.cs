@@ -164,9 +164,9 @@ public static class NetworkNeighborHistoryAccumulator
         FirstSeenUtc = source.FirstSeenUtc,
         LastSeenUtc = source.LastSeenUtc,
         TimesSeen = source.TimesSeen,
-        IpAddresses = [..source.IpAddresses],
-        Networks = [..source.Networks],
-        Names = [..source.Names],
-        Observations = [..source.Observations]
+        IpAddresses = [.. source.IpAddresses],
+        Networks = [.. source.Networks],
+        Names = [.. source.Names],
+        Observations = [.. source.Observations]
     };
 }

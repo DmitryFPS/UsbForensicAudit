@@ -477,28 +477,28 @@ public sealed class MaturityCoverageTimelineTests
         DateTimeOffset timestamp,
         string category,
         string source) => new()
-    {
-        TimestampUtc = timestamp,
-        Source = source,
-        EvidenceCategory = category,
-        DeviceHint = DeviceId,
-        RawText = DeviceId,
-        CanEstablishConnectionDate = true
-    };
+        {
+            TimestampUtc = timestamp,
+            Source = source,
+            EvidenceCategory = category,
+            DeviceHint = DeviceId,
+            RawText = DeviceId,
+            CanEstablishConnectionDate = true
+        };
 
     private static EvidenceRecord CleanerEvidence(
         string eventId,
         string source,
         string executable,
         DateTimeOffset timestamp) => new()
-    {
-        TimestampUtc = timestamp,
-        Source = source,
-        EventId = eventId,
-        Summary = executable,
-        DeviceHint = $@"C:\Tools\{executable}",
-        ResolvedUserName = @"LAB\analyst"
-    };
+        {
+            TimestampUtc = timestamp,
+            Source = source,
+            EventId = eventId,
+            Summary = executable,
+            DeviceHint = $@"C:\Tools\{executable}",
+            ResolvedUserName = @"LAB\analyst"
+        };
 
     private static bool InvokeIsFromInitialWindowsSetup(DateTime creationTimeUtc, DateTimeOffset installedAt)
     {

@@ -5,9 +5,9 @@ namespace UsbForensicAudit;
 /// </summary>
 public interface IUsbDeviceCollector
 {
-    string ProgressMessage { get; }
+    public string ProgressMessage { get; }
 
-    IReadOnlyList<UsbDeviceRecord> Collect(List<string> warnings);
+    public IReadOnlyList<UsbDeviceRecord> Collect(List<string> warnings);
 }
 
 /// <summary>
@@ -16,11 +16,11 @@ public interface IUsbDeviceCollector
 /// </summary>
 public interface IEvidenceCollector
 {
-    string ProgressMessage { get; }
+    public string ProgressMessage { get; }
 
-    bool ShouldRun { get; }
+    public bool ShouldRun { get; }
 
-    IReadOnlyList<EvidenceRecord> Collect(List<string> warnings);
+    public IReadOnlyList<EvidenceRecord> Collect(List<string> warnings);
 }
 
 /// <summary>
@@ -29,9 +29,9 @@ public interface IEvidenceCollector
 /// </summary>
 public interface IHistoricalArtifactCollector
 {
-    string ProgressMessage { get; }
+    public string ProgressMessage { get; }
 
-    void Collect(AuditResult result, CancellationToken cancellationToken = default);
+    public void Collect(AuditResult result, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -45,11 +45,11 @@ public interface IHistoricalArtifactCollector
 /// </summary>
 public interface IFileSystemChangeCollector
 {
-    string ProgressMessage { get; }
+    public string ProgressMessage { get; }
 
-    bool ShouldRun { get; }
+    public bool ShouldRun { get; }
 
-    FileSystemChangeSet Collect(List<string> warnings, CancellationToken cancellationToken = default);
+    public FileSystemChangeSet Collect(List<string> warnings, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -86,11 +86,11 @@ public sealed class NoFileSystemChangeCollector : IFileSystemChangeCollector
 /// </summary>
 public interface INetworkArtifactCollector
 {
-    string ProgressMessage { get; }
+    public string ProgressMessage { get; }
 
-    bool ShouldRun { get; }
+    public bool ShouldRun { get; }
 
-    NetworkArtifactSet Collect(List<string> warnings);
+    public NetworkArtifactSet Collect(List<string> warnings);
 }
 
 /// <summary>
@@ -113,28 +113,28 @@ public sealed record NetworkArtifactSet(
 /// </summary>
 public interface IAuditStorage
 {
-    string DataDirectory { get; }
+    public string DataDirectory { get; }
 
-    string DatabasePath { get; }
+    public string DatabasePath { get; }
 
-    void Save(AuditResult result);
+    public void Save(AuditResult result);
 
-    void SaveNetworkEnvironment(string sessionId, NetworkEnvironmentSnapshot snapshot);
+    public void SaveNetworkEnvironment(string sessionId, NetworkEnvironmentSnapshot snapshot);
 
-    AuditResult? Load(string sessionId);
+    public AuditResult? Load(string sessionId);
 
     /// <summary>
     /// Карточки всех сохранённых сессий, отсортированные от новых к старым.
     /// Нужны для выбора сессий при сравнении без загрузки каждой целиком.
     /// </summary>
-    IReadOnlyList<SessionSummary> ListSessions();
+    public IReadOnlyList<SessionSummary> ListSessions();
 
     /// <summary>
     /// Идентичности всех устройств из всех прошлых сканирований — базовая
     /// линия для резидентного мониторинга. Лёгкий запрос без загрузки
     /// полных сессий.
     /// </summary>
-    IReadOnlyList<KnownDeviceIdentity> ListKnownDeviceIdentities();
+    public IReadOnlyList<KnownDeviceIdentity> ListKnownDeviceIdentities();
 }
 
 /// <summary>
@@ -149,7 +149,7 @@ public interface IOfflineWindowsAuditor
     /// Windows) и возвращает результат в том же формате, что и живое
     /// сканирование, но помеченный как офлайн.
     /// </summary>
-    AuditResult Audit(string root, CancellationToken cancellationToken = default);
+    public AuditResult Audit(string root, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -157,7 +157,7 @@ public interface IOfflineWindowsAuditor
 /// </summary>
 public interface ILiveDeviceMerger
 {
-    void Merge(AuditResult result);
+    public void Merge(AuditResult result);
 }
 
 /// <summary>
@@ -165,13 +165,13 @@ public interface ILiveDeviceMerger
 /// </summary>
 public interface IPrivilegeChecker
 {
-    bool IsAdministrator();
+    public bool IsAdministrator();
 
     /// <summary>
     /// Включает привилегии, нужные для чтения защищённых веток реестра, и
     /// сообщает, что в итоге получилось.
     /// </summary>
-    PrivilegeState AcquireAndDescribe() => new(IsAdministrator(), false, false, false);
+    public PrivilegeState AcquireAndDescribe() => new(IsAdministrator(), false, false, false);
 }
 
 /// <summary>
@@ -179,7 +179,7 @@ public interface IPrivilegeChecker
 /// </summary>
 public interface IReferenceImageDetector
 {
-    ReferenceImageTrace Detect(IEnumerable<UsbDeviceRecord> devices, List<string> warnings);
+    public ReferenceImageTrace Detect(IEnumerable<UsbDeviceRecord> devices, List<string> warnings);
 }
 
 /// <summary>

@@ -240,7 +240,7 @@ internal static class EventLogEventClassifier
             || IsProvider(record, "Microsoft-Windows-Partition")
             || IsProvider(record, "Microsoft-Windows-WPD-MTPClassDriver"))
         {
-        return record.Fields.Values.Any(EventLogRecordParser.ContainsDeviceMarker);
+            return record.Fields.Values.Any(EventLogRecordParser.ContainsDeviceMarker);
         }
 
         return record.Fields.Values.Any(EventLogRecordParser.ContainsDeviceMarker);

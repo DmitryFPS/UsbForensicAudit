@@ -1,5 +1,5 @@
-using ClosedXML.Excel;
 using System.IO;
+using ClosedXML.Excel;
 using UsbForensicAudit;
 using Xunit;
 

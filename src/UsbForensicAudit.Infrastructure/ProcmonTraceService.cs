@@ -34,13 +34,8 @@ public static class ProcmonTraceService
             throw new InvalidOperationException("Procmon требует запуска UsbForensicAudit от администратора.");
         }
 
-        using var utilityProcess = ResolveUtilityProcess(request);
-        if (utilityProcess is null)
-        {
-            throw new InvalidOperationException(
+        using var utilityProcess = ResolveUtilityProcess(request) ?? throw new InvalidOperationException(
                 $"Процесс «{request.UtilityProcessName}» не найден. Запустите утилиту, выполните поиск/обновление списка и повторите трассировку.");
-        }
-
         var procmonPath = await ProcmonBootstrap.EnsureProcmonAsync(progress, cancellationToken);
         var sessionDirectory = CreateSessionDirectory();
         var pmlPath = Path.Combine(sessionDirectory, "capture.pml");

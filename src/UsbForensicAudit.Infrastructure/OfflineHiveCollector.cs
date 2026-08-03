@@ -35,7 +35,11 @@ public sealed class OfflineHiveCollector : IEvidenceCollector
         List<EvidenceRecord> evidence,
         List<string> warnings)
     {
-        if (!File.Exists(sourceHive)) return;
+        if (!File.Exists(sourceHive))
+        {
+            return;
+        }
+
         var tempDirectory = Path.Combine(Path.GetTempPath(), "UsbForensicAudit", Guid.NewGuid().ToString("N"));
         var mount = $"UFA_USER_{Guid.NewGuid():N}";
         var loaded = false;
@@ -100,9 +104,18 @@ public sealed class OfflineHiveCollector : IEvidenceCollector
             {
                 Registry.Users.Flush();
                 var unload = RunRegWithRetry("unload", $@"HKU\{mount}");
-                if (unload.ExitCode != 0) warnings.Add($"Offline hive unload HKU\\{mount}: {unload.Output}");
+                if (unload.ExitCode != 0)
+                {
+                    warnings.Add($"Offline hive unload HKU\\{mount}: {unload.Output}");
+                }
             }
-            try { if (Directory.Exists(tempDirectory)) Directory.Delete(tempDirectory, true); }
+            try
+            {
+                if (Directory.Exists(tempDirectory))
+                {
+                    Directory.Delete(tempDirectory, true);
+                }
+            }
             catch (Exception ex) { warnings.Add($"Offline hive temp cleanup: {ex.Message}"); }
         }
     }

@@ -1,6 +1,6 @@
 using System.Windows;
 
-[assembly:ThemeInfo(
+[assembly: ThemeInfo(
     ResourceDictionaryLocation.None,            //где расположены словари ресурсов для конкретной темы
                                                 //(используется, если ресурс не найден на странице
                                                 // или в словарях ресурсов приложения)

@@ -6,24 +6,24 @@ namespace UsbForensicAudit;
 /// </summary>
 public interface IReportService
 {
-    string CreateHtml(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
+    public string CreateHtml(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
 
-    string CreatePdf(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
+    public string CreatePdf(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
 
-    string CreateBriefPdf(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
+    public string CreateBriefPdf(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
 
     /// <summary>
     /// Аналитическая записка: сжатый рассказ с общей хронологией — устройства,
     /// сеть, действия пользователя и очистка одной лентой времени.
     /// </summary>
-    string CreateAnalystNotePdf(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
+    public string CreateAnalystNotePdf(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
 
     /// <summary>Та же аналитическая записка, но в Excel — по листу на раздел.</summary>
-    string CreateAnalystNoteExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
+    public string CreateAnalystNoteExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
 
-    string CreateExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
+    public string CreateExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
 
-    string CreateBriefExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
+    public string CreateBriefExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
 
-    void OpenFile(string path);
+    public void OpenFile(string path);
 }

@@ -818,7 +818,11 @@ internal static partial class ForensicArtifactParsers
             for (var sector = start; sector != End && sector != Free && sector < miniFat.Length && seen.Add(sector) && output.Length < maxBytes; sector = miniFat[sector])
             {
                 var offset = checked((int)sector * size);
-                if (offset + size > miniStream.Length) break;
+                if (offset + size > miniStream.Length)
+                {
+                    break;
+                }
+
                 output.Write(miniStream, offset, Math.Min(size, maxBytes - (int)output.Length));
             }
             return output.ToArray();
@@ -827,7 +831,11 @@ internal static partial class ForensicArtifactParsers
         private static byte[] ReadSector(byte[] data, uint sector, int size)
         {
             var offset = checked(512 + (int)sector * size);
-            if (offset < 0 || offset + size > data.Length) throw new InvalidDataException();
+            if (offset < 0 || offset + size > data.Length)
+            {
+                throw new InvalidDataException();
+            }
+
             return data.AsSpan(offset, size).ToArray();
         }
 
@@ -848,7 +856,11 @@ internal static partial class ForensicArtifactParsers
             {
                 var nameBytes = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(offset + 0x40, 2));
                 var type = data[offset + 0x42];
-                if (nameBytes < 2 || nameBytes > 64 || type is not (2 or 5)) continue;
+                if (nameBytes < 2 || nameBytes > 64 || type is not (2 or 5))
+                {
+                    continue;
+                }
+
                 var name = Encoding.Unicode.GetString(data, offset, nameBytes - 2);
                 var start = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(offset + 0x74, 4));
                 var size = BinaryPrimitives.ReadUInt64LittleEndian(data.AsSpan(offset + 0x78, 8));

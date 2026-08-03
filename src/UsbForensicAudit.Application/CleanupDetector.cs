@@ -1,5 +1,5 @@
-using System.IO;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 
 namespace UsbForensicAudit;
 

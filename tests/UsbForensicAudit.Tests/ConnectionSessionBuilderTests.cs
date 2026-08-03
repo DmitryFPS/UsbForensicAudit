@@ -101,12 +101,12 @@ public class ConnectionSessionBuilderTests
 
     private static EvidenceRecord Evidence(
         DateTimeOffset timestamp, string category, string source, string eventId) => new()
-    {
-        TimestampUtc = timestamp,
-        Source = source,
-        EventId = eventId,
-        EvidenceCategory = category,
-        DeviceHint = @"USBSTOR\Disk&Ven_General&Prod_UDisk&Rev_5.00\2412242109410569603146&0",
-        CanEstablishConnectionDate = true
-    };
+        {
+            TimestampUtc = timestamp,
+            Source = source,
+            EventId = eventId,
+            EvidenceCategory = category,
+            DeviceHint = @"USBSTOR\Disk&Ven_General&Prod_UDisk&Rev_5.00\2412242109410569603146&0",
+            CanEstablishConnectionDate = true
+        };
 }

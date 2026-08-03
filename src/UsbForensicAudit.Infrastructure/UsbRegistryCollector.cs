@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
@@ -794,14 +794,9 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                     continue;
                 }
 
-                object? raw = propertyKey.GetValue(null, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
-                if (raw is null)
-                {
-                    raw = propertyKey.GetValueNames()
+                object? raw = propertyKey.GetValue(null, null, RegistryValueOptions.DoNotExpandEnvironmentNames) ?? propertyKey.GetValueNames()
                         .Select(valueName => propertyKey.GetValue(valueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames))
                         .FirstOrDefault(value => UsbRegistryForensicHelpers.TryParseFileTime(value, out _));
-                }
-
                 var valid = UsbRegistryForensicHelpers.TryParseFileTime(raw, out var timestamp);
                 parsed[name] = valid ? timestamp : null;
                 provenance[name] = new

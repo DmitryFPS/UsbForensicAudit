@@ -6,5 +6,5 @@ namespace UsbForensicAudit;
 /// </summary>
 public interface IExternalUtilityRegistryTracer
 {
-    IReadOnlyList<ExternalUtilitySourceHit> Trace(string? vid, string? pid);
+    public IReadOnlyList<ExternalUtilitySourceHit> Trace(string? vid, string? pid);
 }

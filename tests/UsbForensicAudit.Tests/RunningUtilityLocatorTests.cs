@@ -11,14 +11,14 @@ public class RunningUtilityLocatorTests
         string processName = "USBDetector",
         int processId = 1234,
         string utilityId = "usbdetector") => new()
-    {
-        UtilityId = utilityId,
-        DisplayName = displayName,
-        ProcessId = processId,
-        ProcessName = processName,
-        MainWindowTitle = "Окно",
-        HasMainWindow = true
-    };
+        {
+            UtilityId = utilityId,
+            DisplayName = displayName,
+            ProcessId = processId,
+            ProcessName = processName,
+            MainWindowTitle = "Окно",
+            HasMainWindow = true
+        };
 
     /// <summary>Живой процесс для проверки TryRefresh/Resolve: текущий тестовый процесс всегда жив.</summary>
     private static RunningExternalUtility LiveUtility(string displayName, string utilityId)

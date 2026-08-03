@@ -43,7 +43,10 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
                 var hints = ArtifactStringExtractor.ExtractInterestingStrings(path, 800_000, 20);
                 var cleaner = CleanerToolCatalog.MatchTrackedUtility(fileName)
                               ?? CleanerToolCatalog.MatchTrackedUtility(string.Join(" ", hints));
-                if (cleaner is null && hints.Count == 0) continue;
+                if (cleaner is null && hints.Count == 0)
+                {
+                    continue;
+                }
 
                 var isReadOnly = false;
                 try
@@ -90,8 +93,7 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
         {
             using var key = Registry.LocalMachine.OpenSubKey(
                 @"SYSTEM\CurrentControlSet\Control\Session Manager\AppCompatCache");
-            var bytes = key?.GetValue("AppCompatCache") as byte[];
-            if (key is null || bytes is null)
+            if (key is null || key?.GetValue("AppCompatCache") is not byte[] bytes)
             {
                 warnings.Add(@"Shimcache value не найден: HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\AppCompatCache");
                 return;
@@ -146,7 +148,13 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
             var copy = Path.Combine(temp, "Amcache.hve");
             File.Copy(source, copy);
             foreach (var suffix in new[] { ".LOG1", ".LOG2" })
-                if (File.Exists(source + suffix)) File.Copy(source + suffix, copy + suffix);
+            {
+                if (File.Exists(source + suffix))
+                {
+                    File.Copy(source + suffix, copy + suffix);
+                }
+            }
+
             var load = RunReg("load", $@"HKLM\{mount}", copy);
             if (load.ExitCode != 0)
             {
@@ -157,7 +165,11 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
             foreach (var area in new[] { @"Root\InventoryApplicationFile", @"Root\InventoryApplication" })
             {
                 using var root = Registry.LocalMachine.OpenSubKey($@"{mount}\{area}");
-                if (root is null) continue;
+                if (root is null)
+                {
+                    continue;
+                }
+
                 const int maxAmcacheRecords = 100_000;
                 var names = root.GetSubKeyNames();
                 if (names.Length > maxAmcacheRecords)
@@ -167,9 +179,17 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
                 foreach (var name in names.Take(maxAmcacheRecords))
                 {
                     using var item = root.OpenSubKey(name);
-                    if (item is null) continue;
+                    if (item is null)
+                    {
+                        continue;
+                    }
+
                     var path = First(item, "LowerCaseLongPath", "LongPath", "RootDirPath", "Name");
-                    if (!ArtifactStringExtractor.LooksInteresting(path) && !CleanerToolCatalog.LooksLikeTrackedUtility(path)) continue;
+                    if (!ArtifactStringExtractor.LooksInteresting(path) && !CleanerToolCatalog.LooksLikeTrackedUtility(path))
+                    {
+                        continue;
+                    }
+
                     var lastWrite = RegistryKeyTimestamps.GetLastWriteUtc(item);
                     evidence.Add(new EvidenceRecord
                     {
@@ -202,9 +222,12 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
             {
                 Registry.LocalMachine.Flush();
                 var unload = RunReg("unload", $@"HKLM\{mount}");
-                if (unload.ExitCode != 0) warnings.Add($"Amcache hive unload: {unload.Output}");
+                if (unload.ExitCode != 0)
+                {
+                    warnings.Add($"Amcache hive unload: {unload.Output}");
+                }
             }
-            try { if (Directory.Exists(temp)) Directory.Delete(temp, true); } catch { }
+            try { if (Directory.Exists(temp)) { Directory.Delete(temp, true); } } catch { }
         }
     }
 
@@ -214,12 +237,20 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
         foreach (var fileName in new[] { "PcaAppLaunchDic.txt", "PcaGeneralDb0.txt", "PcaGeneralDb1.txt" })
         {
             var path = Path.Combine(root, fileName);
-            if (!File.Exists(path)) continue;
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+
             try
             {
                 foreach (var line in File.ReadLines(path).Take(100_000))
                 {
-                    if (!ArtifactStringExtractor.LooksInteresting(line) && !CleanerToolCatalog.LooksLikeTrackedUtility(line)) continue;
+                    if (!ArtifactStringExtractor.LooksInteresting(line) && !CleanerToolCatalog.LooksLikeTrackedUtility(line))
+                    {
+                        continue;
+                    }
+
                     var fields = line.Split('|');
                     var timestamp = fields.Select(TryDate).FirstOrDefault(x => x.HasValue);
                     var strength = ClassifyPcaEvidenceStrength(fileName);
@@ -258,15 +289,27 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
             try
             {
                 using var root = Registry.LocalMachine.OpenSubKey(path);
-                if (root is null) continue;
+                if (root is null)
+                {
+                    continue;
+                }
+
                 foreach (var sid in root.GetSubKeyNames().Take(1024))
                 {
                     using var user = root.OpenSubKey(sid);
-                    if (user is null) continue;
+                    if (user is null)
+                    {
+                        continue;
+                    }
+
                     foreach (var executable in user.GetValueNames().Take(50_000))
                     {
                         if (!ArtifactStringExtractor.LooksInteresting(executable)
-                            && !CleanerToolCatalog.LooksLikeTrackedUtility(executable)) continue;
+                            && !CleanerToolCatalog.LooksLikeTrackedUtility(executable))
+                        {
+                            continue;
+                        }
+
                         var timestamp = TryFileTime(user.GetValue(executable) as byte[]);
                         evidence.Add(new EvidenceRecord
                         {
@@ -299,7 +342,13 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
     private static string First(RegistryKey key, params string[] names)
     {
         foreach (var name in names)
-            if (key.GetValue(name) is string value && !string.IsNullOrWhiteSpace(value)) return value;
+        {
+            if (key.GetValue(name) is string value && !string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
         return "";
     }
 
@@ -313,7 +362,11 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
 
     internal static DateTimeOffset? TryFileTime(byte[]? bytes)
     {
-        if (bytes is null || bytes.Length < 8) return null;
+        if (bytes is null || bytes.Length < 8)
+        {
+            return null;
+        }
+
         try { return DateTimeOffset.FromFileTime(BitConverter.ToInt64(bytes, 0)).ToUniversalTime(); }
         catch { return null; }
     }

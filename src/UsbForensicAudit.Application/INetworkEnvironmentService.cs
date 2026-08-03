@@ -10,7 +10,7 @@ public interface INetworkEnvironmentService
     /// Если true, программа сама опрашивает адреса подсети. Это медленнее, но
     /// находит устройства, с которыми машина ещё не разговаривала.
     /// </param>
-    Task<NetworkEnvironmentSnapshot> CaptureAsync(
+    public Task<NetworkEnvironmentSnapshot> CaptureAsync(
         bool activeProbe,
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default);

@@ -6,7 +6,7 @@ namespace UsbForensicAudit;
 /// </summary>
 public interface IConnectedDeviceProbe
 {
-    ConnectedDeviceIndex Capture();
+    public ConnectedDeviceIndex Capture();
 }
 
 /// <summary>

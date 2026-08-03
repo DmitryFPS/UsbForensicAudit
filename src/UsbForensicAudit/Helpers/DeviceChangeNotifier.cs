@@ -68,11 +68,8 @@ public sealed class DeviceChangeNotifier : IDeviceChangeSource, IDisposable
             _notificationHandle = IntPtr.Zero;
         }
 
-        if (_hwndSource is not null)
-        {
-            _hwndSource.RemoveHook(WndProc);
-            _hwndSource = null;
-        }
+        _hwndSource?.RemoveHook(WndProc);
+        _hwndSource = null;
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
