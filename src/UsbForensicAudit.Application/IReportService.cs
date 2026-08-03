@@ -25,5 +25,8 @@ public interface IReportService
 
     public string CreateBriefExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
 
+    /// <summary>Единый таймлайн доказательств в CSV (UTF-8 с BOM) для Timeline Explorer/Excel.</summary>
+    public string CreateTimelineCsv(AuditResult result, string directory);
+
     public void OpenFile(string path);
 }

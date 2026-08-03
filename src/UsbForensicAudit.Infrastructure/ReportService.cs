@@ -67,6 +67,15 @@ public sealed class ReportService : IReportService
             path => ExcelReportGenerator.GenerateBrief(path, ForensicReportContext.Create(result, externalUtilitySnapshot)));
     }
 
+    public string CreateTimelineCsv(AuditResult result, string directory)
+    {
+        return CreateAtomically(
+            directory,
+            $"UsbForensicAudit_Timeline_{ReportTimestamp()}.csv",
+            // UTF-8 с BOM: Excel по BOM определяет кодировку и корректно показывает кириллицу.
+            path => File.WriteAllText(path, TimelineCsvExporter.BuildTimelineCsv(result), new System.Text.UTF8Encoding(true)));
+    }
+
     public void OpenFile(string path)
     {
         Process.Start(new ProcessStartInfo
