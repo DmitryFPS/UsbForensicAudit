@@ -552,12 +552,55 @@ public sealed class AuditStorage : IAuditStorage
         return false;
     }
 
+    /// <summary>Таблицы, для которых разрешён динамический SQL (LoadRecords/EnsureColumns).</summary>
+    private static readonly HashSet<string> KnownTables = new(StringComparer.Ordinal)
+    {
+        "devices", "evidence", "cleanup_findings", "network_connections", "audit_sessions"
+    };
+
+    /// <summary>Типы колонок, которые EnsureColumns имеет право подставлять в ALTER TABLE.</summary>
+    private static readonly HashSet<string> KnownColumnTypes = new(StringComparer.Ordinal)
+    {
+        "TEXT", "INTEGER"
+    };
+
+    private static string ValidatedTable(string table)
+    {
+        // Имена приходят только из констант этого класса, но динамический SQL обязан
+        // защищаться сам: рефакторинг, пропустивший сюда внешние данные, не должен
+        // превращаться в SQL-инъекцию в базу доказательств.
+        if (!KnownTables.Contains(table))
+        {
+            throw new ArgumentException($"Неизвестная таблица для динамического SQL: '{table}'.", nameof(table));
+        }
+
+        return table;
+    }
+
+    private static string ValidatedIdentifier(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            throw new ArgumentException("Пустой SQL-идентификатор.", nameof(name));
+        }
+
+        foreach (var c in name)
+        {
+            if (!char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c) && c != '_')
+            {
+                throw new ArgumentException($"Недопустимый SQL-идентификатор: '{name}'.", nameof(name));
+            }
+        }
+
+        return name;
+    }
+
     private static void LoadRecords<T>(
         SqliteConnection connection, string table, string sessionId, Func<string, T?> deserialize, List<T> target)
         where T : class
     {
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = $"SELECT record_json FROM {table} WHERE session_id=$session ORDER BY id;";
+        cmd.CommandText = $"SELECT record_json FROM {ValidatedTable(table)} WHERE session_id=$session ORDER BY id;";
         cmd.Parameters.AddWithValue("$session", sessionId);
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
@@ -571,12 +614,22 @@ public sealed class AuditStorage : IAuditStorage
         var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         using (var cmd = connection.CreateCommand())
         {
-            cmd.CommandText = $"PRAGMA table_info({table});";
+            cmd.CommandText = $"PRAGMA table_info({ValidatedTable(table)});";
             using var reader = cmd.ExecuteReader();
             while (reader.Read()) existing.Add(reader.GetString(1));
         }
         foreach (var (name, type) in columns)
-            if (!existing.Contains(name)) Execute(connection, $"ALTER TABLE {table} ADD COLUMN {name} {type};");
+        {
+            if (!KnownColumnTypes.Contains(type))
+            {
+                throw new ArgumentException($"Недопустимый тип колонки для динамического SQL: '{type}'.", nameof(columns));
+            }
+
+            if (!existing.Contains(name))
+            {
+                Execute(connection, $"ALTER TABLE {ValidatedTable(table)} ADD COLUMN {ValidatedIdentifier(name)} {type};");
+            }
+        }
     }
 
     private SqliteConnection Open()
