@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="..\..\tools\Procmon64.exe" LogicalName="UsbForensicAudit.Tools.Procmon64.exe" Condition="Exists('..\..\tools\Procmon64.exe')" />
+    <EmbeddedResource Include="ManualContent.txt" LogicalName="UsbForensicAudit.ManualContent.txt" />
   </ItemGroup>
 
   <ItemGroup>
