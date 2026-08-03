@@ -31,7 +31,7 @@ public static class ExpertNotes
     private static string Escape(string? value) =>
         (value ?? string.Empty).Replace("\\", "\\\\").Replace("|", "\\|");
 
-        /// <summary>Проставляет сохранённые заметки на находки результата по ключу.</summary>
+    /// <summary>Проставляет сохранённые заметки на находки результата по ключу.</summary>
     public static void Apply(IEnumerable<CleanupFinding> findings, IReadOnlyDictionary<string, string> notes)
     {
         ArgumentNullException.ThrowIfNull(findings);

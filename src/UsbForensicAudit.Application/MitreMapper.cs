@@ -80,9 +80,10 @@ public static class MitreMapper
             && haystack.Contains("очищ", StringComparison.OrdinalIgnoreCase);
 
         // Код события 1102 (очистка журнала безопасности) засчитываем только как
-        // отдельный «токен», а не подстроку: иначе 1102 в пути или ID записи —
-        // ложный вердикт. Событие живёт в поле EventId (границы по не-цифрам).
-        var mentionsClearEventId = ContainsEventCode(finding.EventId, "1102");
+        // отдельный «токен» с границами по не-цифрам, а не подстроку: иначе
+        // 1102 внутри большего числа (11021, 41102) давал бы ложный вердикт.
+        var mentionsClearEventId = ContainsEventCode(finding.Finding, "1102")
+                                   || ContainsEventCode(finding.Details, "1102");
 
         return mentionsClearedLog || mentionsClearEventId;
     }

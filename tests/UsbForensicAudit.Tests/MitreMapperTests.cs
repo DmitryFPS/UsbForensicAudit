@@ -11,14 +11,13 @@ namespace UsbForensicAudit.Tests;
 /// </summary>
 public sealed class MitreMapperTests
 {
-    private static CleanupFinding Suspicious(string finding, string area = "", string details = "", string eventId = "") => new()
+    private static CleanupFinding Suspicious(string finding, string area = "", string details = "") => new()
     {
         Assessment = "Suspicious",
         Severity = "High",
         Finding = finding,
         Area = area,
-        Details = details,
-        EventId = eventId
+        Details = details
     };
 
     [Fact]
@@ -84,10 +83,10 @@ public sealed class MitreMapperTests
     }
 
     [Fact]
-    public void Event_id_1102_maps_log_clearing_even_without_keywords()
+    public void Event_code_1102_maps_log_clearing_even_without_keywords()
     {
         var result = new AuditResult();
-        result.CleanupFindings.Add(Suspicious("Аномалия журнала", area: "Security", eventId: "1102"));
+        result.CleanupFindings.Add(Suspicious("Событие безопасности", area: "Security", details: "Event ID 1102"));
 
         var ids = MitreMapper.Map(result).Findings.Select(x => x.Technique.Id).ToArray();
 
