@@ -302,15 +302,8 @@ public partial class MainViewModel : ObservableObject
 
     public static int SeverityRank(string severity)
     {
-        return severity.ToLowerInvariant() switch
-        {
-            "critical" => 5,
-            "high" => 4,
-            "medium" => 3,
-            "low" => 2,
-            "info" => 1,
-            _ => 0
-        };
+        // Делегирует единой шкале в Domain — сортировка в UI, HTML и Excel обязана совпадать.
+        return ReportSeverity.Rank(severity);
     }
 
     public static int CategoryRank(string category)

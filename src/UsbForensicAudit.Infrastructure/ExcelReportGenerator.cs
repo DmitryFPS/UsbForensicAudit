@@ -501,7 +501,7 @@ internal static class ExcelReportGenerator
     {
         var rows = findings
             .OrderByDescending(x => x.IsSuspicious)
-            .ThenByDescending(x => SeverityRank(x.Severity))
+            .ThenByDescending(x => ReportSeverity.Rank(x.Severity))
             .ThenByDescending(x => x.TimestampUtc)
             .ToArray();
 
@@ -894,17 +894,6 @@ internal static class ExcelReportGenerator
         var normalized = ReportText.ForPdf(value, 32000);
         return string.IsNullOrWhiteSpace(normalized) ? "—" : normalized;
     }
-
-    private static int SeverityRank(string severity) =>
-        severity.ToLowerInvariant() switch
-        {
-            "critical" => 5,
-            "high" => 4,
-            "medium" => 3,
-            "low" => 2,
-            "info" => 1,
-            _ => 0
-        };
 
     private static RiskStyle ResolveRisk(ForensicReportContext context)
     {

@@ -26,7 +26,7 @@ internal sealed class ForensicReportContext
             .ToArray();
         SuspiciousFindings = CleanupFindings
             .Where(x => x.IsSuspicious)
-            .OrderByDescending(x => SeverityRank(x.Severity))
+            .OrderByDescending(x => ReportSeverity.Rank(x.Severity))
             .ThenByDescending(x => x.TimestampUtc)
             .ToArray();
         HighRiskFindings = SuspiciousFindings
@@ -34,7 +34,7 @@ internal sealed class ForensicReportContext
             .ToArray();
         AttentionFindings = CleanupFindings
             .Where(x => x.NeedsAttention)
-            .OrderByDescending(x => SeverityRank(x.Severity))
+            .OrderByDescending(x => ReportSeverity.Rank(x.Severity))
             .ThenByDescending(x => x.TimestampUtc)
             .ToArray();
         EvidenceBySource = Timeline
@@ -442,13 +442,6 @@ internal sealed class ForensicReportContext
                && haystack.Contains(needle, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static int SeverityRank(string? severity) => severity?.ToUpperInvariant() switch
-    {
-        "HIGH" => 3,
-        "MEDIUM" => 2,
-        "LOW" => 1,
-        _ => 0
-    };
 }
 
 internal static class ForensicReportBuilder
