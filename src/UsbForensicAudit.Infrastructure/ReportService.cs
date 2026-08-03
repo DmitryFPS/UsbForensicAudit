@@ -67,6 +67,15 @@ public sealed class ReportService : IReportService
             path => ExcelReportGenerator.GenerateBrief(path, ForensicReportContext.Create(result, externalUtilitySnapshot)));
     }
 
+    public string CreateManagerPdf(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null)
+    {
+        return CreateAtomically(directory, $"UsbForensicAudit_Rukovoditel_{ReportTimestamp()}.pdf", path =>
+        {
+            PdfFontHelper.EnsureRegistered();
+            ManagerOnePagePdfReport.Generate(path, ForensicReportContext.Create(result, externalUtilitySnapshot));
+        });
+    }
+
     public string CreateTimelineCsv(AuditResult result, string directory)
     {
         return CreateAtomically(

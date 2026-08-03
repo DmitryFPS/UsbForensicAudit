@@ -237,7 +237,8 @@ Options:
                       (with --diff saves the comparison report)
   --reports &lt;dir&gt;     generate reports into the given directory
   --formats &lt;list&gt;    comma-separated report formats (default: html,pdf)
-                      allowed: html, pdf, brief-pdf, analyst-pdf,
+                      allowed: html, pdf, manager-pdf (one-page
+                      management summary), brief-pdf, analyst-pdf,
                       excel, brief-excel, analyst-excel
   --list-sessions     list saved sessions and exit (no scanning)
   --diff &lt;base&gt; &lt;tgt&gt; compare two saved sessions: what appeared

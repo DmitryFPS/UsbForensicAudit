@@ -25,6 +25,12 @@ public interface IReportService
 
     public string CreateBriefExcel(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
 
+    /// <summary>
+    /// Одностраничный отчёт для руководителя: выводы человеческим языком,
+    /// без технических терминов и таблиц. Техника остаётся в полном отчёте.
+    /// </summary>
+    public string CreateManagerPdf(AuditResult result, string directory, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null);
+
     /// <summary>Единый таймлайн доказательств в CSV (UTF-8 с BOM) для Timeline Explorer/Excel.</summary>
     public string CreateTimelineCsv(AuditResult result, string directory);
 

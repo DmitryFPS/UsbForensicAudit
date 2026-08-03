@@ -53,7 +53,7 @@ public sealed class CliOptions
     public string? Error { get; private set; }
 
     public static readonly IReadOnlyList<string> KnownFormats =
-        ["html", "pdf", "brief-pdf", "analyst-pdf", "excel", "brief-excel", "analyst-excel"];
+        ["html", "pdf", "manager-pdf", "brief-pdf", "analyst-pdf", "excel", "brief-excel", "analyst-excel"];
 
     public static CliOptions Parse(string[] args)
     {

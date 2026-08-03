@@ -528,6 +528,7 @@ internal static class Program
             {
                 "html" => reportService.CreateHtml(result, directory),
                 "pdf" => reportService.CreatePdf(result, directory),
+                "manager-pdf" => reportService.CreateManagerPdf(result, directory),
                 "brief-pdf" => reportService.CreateBriefPdf(result, directory),
                 "analyst-pdf" => reportService.CreateAnalystNotePdf(result, directory),
                 "excel" => reportService.CreateExcel(result, directory),

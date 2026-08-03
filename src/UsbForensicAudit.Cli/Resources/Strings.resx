@@ -240,7 +240,8 @@
                       (с --diff сохраняет отчёт сравнения)
   --reports &lt;каталог&gt; сгенерировать отчёты в указанный каталог
   --formats &lt;список&gt;  форматы отчётов через запятую (по умолчанию: html,pdf)
-                      допустимые: html, pdf, brief-pdf, analyst-pdf,
+                      допустимые: html, pdf, manager-pdf (1 страница
+                      для руководителя), brief-pdf, analyst-pdf,
                       excel, brief-excel, analyst-excel
   --list-sessions     показать сохранённые сессии и выйти (без сканирования)
   --diff &lt;баз&gt; &lt;цел&gt;  сравнить две сохранённые сессии: что появилось

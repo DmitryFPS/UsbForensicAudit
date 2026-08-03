@@ -1099,6 +1099,7 @@
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,14"/>
                         <WrapPanel>
+                            <Button x:Name="ManagerPdfReportButton" Content="Для руководителя (1 стр.)" Click="ManagerPdfReportButton_Click" IsEnabled="False" Background="#5B2333" BorderBrush="#F472B6"/>
                             <Button x:Name="PdfReportButton" Content="Полный PDF" Click="PdfReportButton_Click" IsEnabled="False" Background="#14532D" BorderBrush="{StaticResource Accent}"/>
                             <Button x:Name="AnalystNotePdfReportButton" Content="Аналитическая записка (PDF)" Click="AnalystNotePdfReportButton_Click" IsEnabled="False" Background="#3B2A5A" BorderBrush="#A78BFA"/>
                             <Button x:Name="BriefPdfReportButton" Content="Сводный PDF" Click="BriefPdfReportButton_Click" IsEnabled="False" Background="#1E3A5F" BorderBrush="{StaticResource Accent2}"/>

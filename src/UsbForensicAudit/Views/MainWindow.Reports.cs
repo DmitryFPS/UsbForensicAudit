@@ -12,6 +12,22 @@ namespace UsbForensicAudit;
 /// </summary>
 public partial class MainWindow
 {
+    private async void ManagerPdfReportButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.LastResult is null)
+        {
+            return;
+        }
+
+        var result = _vm.LastResult;
+        var snapshot = GetExternalUtilitySnapshotForReport();
+        await RunReportAsync(
+            () => _vm.ReportService.CreateManagerPdf(result, _vm.Storage.DataDirectory, snapshot),
+            "Отчёт для руководителя создан",
+            "Manager PDF creation failed",
+            "Ошибка PDF");
+    }
+
     private async void PdfReportButton_Click(object sender, RoutedEventArgs e)
     {
         if (_vm.LastResult is null)
