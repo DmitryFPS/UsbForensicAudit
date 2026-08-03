@@ -18,12 +18,17 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel(
         AuditOrchestrator orchestrator,
         IReportService reportService,
-        INetworkEnvironmentService networkEnvironmentService)
+        INetworkEnvironmentService networkEnvironmentService,
+        IExternalUtilityRegistryTracer registryTracer)
     {
         _orchestrator = orchestrator;
         _networkEnvironmentService = networkEnvironmentService;
         ReportService = reportService;
+        ExternalUtilities = new ExternalUtilitiesViewModel(() => LastResult, registryTracer);
     }
+
+    /// <summary>Состояние и логика вкладки сторонних утилит — выделены в дочернюю ViewModel.</summary>
+    public ExternalUtilitiesViewModel ExternalUtilities { get; }
 
     public ObservableCollection<UsbDeviceRecord> Devices { get; } = [];
 
@@ -45,11 +50,11 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<NetworkAdapterRecord> NetworkAdapters { get; } = [];
 
-    public ObservableCollection<ExternalUtilityRow> ExternalUtilityRows { get; } = [];
+    public ObservableCollection<ExternalUtilityRow> ExternalUtilityRows => ExternalUtilities.Rows;
 
-    public ObservableCollection<RunningExternalUtility> RunningExternalUtilities { get; } = [];
+    public ObservableCollection<RunningExternalUtility> RunningExternalUtilities => ExternalUtilities.RunningUtilities;
 
-    public ObservableCollection<HistoricalUtilityLaunch> HistoricalUtilityLaunches { get; } = [];
+    public ObservableCollection<HistoricalUtilityLaunch> HistoricalUtilityLaunches => ExternalUtilities.HistoricalLaunches;
 
     [ObservableProperty]
     private bool _isScanning;

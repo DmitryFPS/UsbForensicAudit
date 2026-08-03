@@ -34,9 +34,6 @@ public partial class MainWindow : Window
     private string _lastExternalUtilityAnalysisCopyText = "";
     private ExternalUtilityRow? _activeExternalUtilityRow;
     private RunningExternalUtility? _lastCapturedExternalUtility;
-    private readonly Dictionary<string, IReadOnlyList<ExternalUtilitySourceHit>> _procmonHitsByRowKey = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, string> _procmonSessionByRowKey = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, string> _procmonSummaryByRowKey = new(StringComparer.Ordinal);
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly SemaphoreSlim _exclusiveOperation = new(1, 1);
     private readonly SemaphoreSlim _liveRefreshGate = new(1, 1);

@@ -83,7 +83,7 @@ public partial class MainWindow
                 }
             }
 
-            RefreshExternalUtilityRowAssessments();
+            _vm.ExternalUtilities.RefreshAssessments();
             RefreshExternalUtilitySectionFilterCombo();
             _externalUtilityRowsView.Refresh();
 
@@ -229,38 +229,14 @@ public partial class MainWindow
         ExternalUtilitySectionInfoReliability.Text = $"{info.Reliability} Источники: {info.TypicalSources}";
     }
 
-    private void RefreshExternalUtilityRowAssessments()
-    {
-        foreach (var row in _externalUtilityRows)
-        {
-            var assessment = AssessExternalUtilityRow(row);
-            row.AnalysisText = assessment.FullExplanation;
-            row.VerdictDisplayText = assessment.VerdictTitle;
-            row.VidPidText = assessment.Identifier.VidPidText;
-            row.VendorProductText = assessment.Identifier.VendorProductText;
-        }
-    }
-
-    private ExternalUtilityRowAssessment AssessExternalUtilityRow(ExternalUtilityRow row)
-    {
-        var rowKey = ExternalUtilityRowKey.Build(row);
-        _procmonHitsByRowKey.TryGetValue(rowKey, out var procmonHits);
-        _procmonSessionByRowKey.TryGetValue(rowKey, out var procmonSession);
-        _procmonSummaryByRowKey.TryGetValue(rowKey, out var procmonSummary);
-        return ExternalUtilityRowExplainer.Assess(row, _vm.LastResult, procmonHits, procmonSession, procmonSummary, new RegistryExternalUtilityTracer());
-    }
-
     private ExternalUtilityRow? GetExternalUtilityRowForActions() =>
         ExternalUtilityRowsGrid.SelectedItem as ExternalUtilityRow ?? _activeExternalUtilityRow;
 
     private void ApplyExternalUtilityRowAssessment(ExternalUtilityRow row)
     {
         _activeExternalUtilityRow = row;
-        var assessment = AssessExternalUtilityRow(row);
-        row.AnalysisText = assessment.FullExplanation;
-        row.VerdictDisplayText = assessment.VerdictTitle;
-        row.VidPidText = assessment.Identifier.VidPidText;
-        row.VendorProductText = assessment.Identifier.VendorProductText;
+        var assessment = _vm.ExternalUtilities.Assess(row);
+        ExternalUtilitiesViewModel.ApplyAssessmentToRow(row, assessment);
 
         ExternalUtilityVerdictTitleText.Text = assessment.VerdictTitle;
         ExternalUtilityReportConclusionText.Text = assessment.ReportConclusionRow;
@@ -276,39 +252,12 @@ public partial class MainWindow
             $"VID/PID: {assessment.Identifier.VidPidText} · {assessment.Identifier.VendorProductText} ({assessment.Identifier.ParseMethod})";
         ExternalUtilityOriginText.Text = $"Откуда, скорее всего: {assessment.ProbableOrigin}";
         ExternalUtilityAuditMatchText.Text = $"Наш аудит: {assessment.AuditMatchSummary}";
-        ExternalUtilityBriefAnalysisText.Text = BuildExternalUtilityBriefAnalysis(assessment, row);
+        ExternalUtilityBriefAnalysisText.Text = ExternalUtilitiesViewModel.BuildBriefAnalysis(assessment, row);
         ExternalUtilitySelectedRowSummaryText.Text =
             $"{row.SectionTitle}{Environment.NewLine}{row.FormattedDetailsText}";
         _lastExternalUtilityAnalysisCopyText = assessment.FullExplanation;
         CopyExternalUtilityAnalysisButton.IsEnabled = true;
         UpdateExternalUtilityControls();
-    }
-
-    private static string BuildExternalUtilityBriefAnalysis(ExternalUtilityRowAssessment assessment, ExternalUtilityRow row)
-    {
-        var lines = new List<string>
-        {
-            $"• Откуда строка: {assessment.ProbableOrigin}",
-            $"• Замечание: {assessment.UsbDetectorNote}",
-            $"• Аудит: {assessment.AuditMatchSummary}"
-        };
-
-        if (assessment.Identifier.HasVid)
-        {
-            lines.Add($"• VID/PID: {assessment.Identifier.VidPidText} · {assessment.Identifier.VendorProductText}");
-        }
-
-        if (assessment.HasProcmonEvidence)
-        {
-            lines.Insert(0, "• Procmon: жёстко зафиксировано чтение реестра процессом утилиты.");
-        }
-
-        if (ExternalUtilitySectionCatalog.IsOtherTracesSection(row.SectionTitle))
-        {
-            lines.Add("• Раздел «Другие следы»: косвенные ключи Windows; одна строка ≠ доказательство флешки.");
-        }
-
-        return string.Join(Environment.NewLine, lines);
     }
 
     private void ResetExternalUtilityAnalysisPanel()
@@ -417,7 +366,7 @@ public partial class MainWindow
 
         var row = ExternalUtilityManualParser.Parse(raw);
         _externalUtilityRows.Add(row);
-        RefreshExternalUtilityRowAssessments();
+        _vm.ExternalUtilities.RefreshAssessments();
         RefreshExternalUtilitySectionFilterCombo();
         _externalUtilityRowsView.Refresh();
         ExternalUtilityRowsGrid.SelectedItem = row;
@@ -469,7 +418,7 @@ public partial class MainWindow
             _externalUtilityRows.Add(row);
         }
 
-        RefreshExternalUtilityRowAssessments();
+        _vm.ExternalUtilities.RefreshAssessments();
         RefreshExternalUtilitySectionFilterCombo();
         _externalUtilityRowsView.Refresh();
 

@@ -95,12 +95,9 @@ public partial class MainWindow
                 progress,
                 _lifetimeCancellation.Token);
 
-            var rowKey = ExternalUtilityRowKey.Build(row);
-            _procmonHitsByRowKey[rowKey] = result.Hits;
-            _procmonSessionByRowKey[rowKey] = result.SessionDirectory;
-            _procmonSummaryByRowKey[rowKey] = result.SummaryForReport;
+            _vm.ExternalUtilities.RecordProcmonResult(row, result.Hits, result.SessionDirectory, result.SummaryForReport);
 
-            RefreshExternalUtilityRowAssessments();
+            _vm.ExternalUtilities.RefreshAssessments();
             ApplyExternalUtilityRowAssessment(row);
             ExternalUtilityStatusText.Text =
                 $"Procmon завершён: {result.Hits.Count} совпадений, событий в CSV: {result.ParsedEventCount}. Папка: {result.SessionDirectory}";
@@ -116,11 +113,10 @@ public partial class MainWindow
             ProcmonTraceStatusText.Text = ex.Message;
             ExternalUtilityStatusText.Text = ex.Message;
 
-            var rowKey = ExternalUtilityRowKey.Build(row);
             var failedSession = RunningUtilityLocator.ExtractProcmonSessionDirectory(ex.Message);
             if (!string.IsNullOrWhiteSpace(failedSession) && Directory.Exists(failedSession))
             {
-                _procmonSessionByRowKey[rowKey] = failedSession;
+                _vm.ExternalUtilities.RecordProcmonSessionDirectory(row, failedSession);
                 OpenProcmonSessionFolderButton.IsEnabled = true;
             }
 
@@ -141,8 +137,7 @@ public partial class MainWindow
             return;
         }
 
-        var rowKey = ExternalUtilityRowKey.Build(row);
-        if (!_procmonSessionByRowKey.TryGetValue(rowKey, out var sessionDirectory)
+        if (!_vm.ExternalUtilities.TryGetProcmonSessionDirectory(row, out var sessionDirectory)
             || !Directory.Exists(sessionDirectory))
         {
             ProcmonTraceStatusText.Text = "Папка сессии Procmon для этой строки не найдена.";
