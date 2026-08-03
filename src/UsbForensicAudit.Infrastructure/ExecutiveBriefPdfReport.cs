@@ -11,6 +11,13 @@ internal static class ExecutiveBriefPdfReport
 
     public static void Generate(string path, ForensicReportContext ctx)
     {
+        using var output = File.Create(path);
+        Generate(output, ctx);
+    }
+
+    /// <summary>Пишет отчёт в поток: тесты проверяют содержимое без записи на диск.</summary>
+    public static void Generate(Stream output, ForensicReportContext ctx)
+    {
         var result = ctx.Result;
 
         Document.Create(container =>
@@ -55,7 +62,7 @@ internal static class ExecutiveBriefPdfReport
                     .FontSize(7.5f)
                     .FontColor(Colors.Grey.Darken1);
             });
-        }).GeneratePdf(path);
+        }).GeneratePdf(output);
     }
 
     private static void AppendOverviewPage(ColumnDescriptor column, ForensicReportContext ctx)

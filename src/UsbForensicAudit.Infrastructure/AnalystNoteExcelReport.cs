@@ -16,6 +16,13 @@ internal static class AnalystNoteExcelReport
 
     public static void Generate(string path, ForensicReportContext ctx)
     {
+        using var output = File.Create(path);
+        Generate(output, ctx);
+    }
+
+    /// <summary>Пишет отчёт в поток: тесты проверяют содержимое без записи на диск.</summary>
+    public static void Generate(Stream output, ForensicReportContext ctx)
+    {
         using var workbook = new XLWorkbook();
         workbook.Properties.Title = "Аналитическая записка UsbForensicAudit";
         workbook.Properties.Subject = "Подключаемые устройства и сетевая активность — связный рассказ";
@@ -29,7 +36,7 @@ internal static class AnalystNoteExcelReport
         AddUserActionsSheet(workbook, ctx);
         AddChronologySheet(workbook, ctx);
 
-        workbook.SaveAs(path);
+        workbook.SaveAs(output);
     }
 
     // ------------------------------------------------------------------

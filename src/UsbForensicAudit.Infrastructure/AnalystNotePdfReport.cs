@@ -24,6 +24,13 @@ internal static class AnalystNotePdfReport
 
     public static void Generate(string path, ForensicReportContext ctx)
     {
+        using var output = File.Create(path);
+        Generate(output, ctx);
+    }
+
+    /// <summary>Пишет отчёт в поток: тесты проверяют содержимое без записи на диск.</summary>
+    public static void Generate(Stream output, ForensicReportContext ctx)
+    {
         var result = ctx.Result;
 
         Document.Create(container =>
@@ -69,7 +76,7 @@ internal static class AnalystNotePdfReport
                     text.TotalPages();
                 });
             });
-        }).GeneratePdf(path);
+        }).GeneratePdf(output);
     }
 
     // ------------------------------------------------------------------

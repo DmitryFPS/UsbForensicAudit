@@ -17,6 +17,13 @@ internal static class ExcelReportGenerator
 
     public static void GenerateFull(string path, ForensicReportContext context)
     {
+        using var output = File.Create(path);
+        GenerateFull(output, context);
+    }
+
+    /// <summary>Пишет отчёт в поток: тесты проверяют содержимое без записи на диск.</summary>
+    public static void GenerateFull(Stream output, ForensicReportContext context)
+    {
         using var workbook = CreateWorkbook(
             "Полный отчёт UsbForensicAudit",
             "Полные результаты forensic-аудита USB-устройств");
@@ -34,10 +41,17 @@ internal static class ExcelReportGenerator
         AddWarningsSheet(workbook, context.Result.SourceWarnings);
         AddExternalUtilitiesSheet(workbook, context.ExternalUtilitySnapshot);
 
-        workbook.SaveAs(path);
+        workbook.SaveAs(output);
     }
 
     public static void GenerateBrief(string path, ForensicReportContext context)
+    {
+        using var output = File.Create(path);
+        GenerateBrief(output, context);
+    }
+
+    /// <summary>Пишет отчёт в поток: тесты проверяют содержимое без записи на диск.</summary>
+    public static void GenerateBrief(Stream output, ForensicReportContext context)
     {
         using var workbook = CreateWorkbook(
             "Сводный отчёт UsbForensicAudit",
@@ -49,7 +63,7 @@ internal static class ExcelReportGenerator
         AddDevicesSheet(workbook, context.ReportableDevices, "Все USB устройства");
         AddWarningsSheet(workbook, context.Result.SourceWarnings);
 
-        workbook.SaveAs(path);
+        workbook.SaveAs(output);
     }
 
     private static XLWorkbook CreateWorkbook(string title, string subject)

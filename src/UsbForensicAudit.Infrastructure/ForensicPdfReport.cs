@@ -12,6 +12,13 @@ internal static class ForensicPdfReport
 
     public static void Generate(string path, ForensicReportContext ctx)
     {
+        using var output = File.Create(path);
+        Generate(output, ctx);
+    }
+
+    /// <summary>Пишет отчёт в поток: тесты проверяют содержимое без записи на диск.</summary>
+    public static void Generate(Stream output, ForensicReportContext ctx)
+    {
         var result = ctx.Result;
         var externalSnapshot = ctx.ExternalUtilitySnapshot;
 
@@ -82,7 +89,7 @@ internal static class ForensicPdfReport
                     .FontSize(7)
                     .FontColor(Colors.Grey.Darken1);
             });
-        }).GeneratePdf(path);
+        }).GeneratePdf(output);
     }
 
     private static void AppendCoverSection(ColumnDescriptor column, ForensicReportContext ctx)
