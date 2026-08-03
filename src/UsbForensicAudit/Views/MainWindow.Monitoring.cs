@@ -12,6 +12,10 @@ public partial class MainWindow
     private UnknownDeviceDetector? _unknownDeviceDetector;
     private UnknownDeviceAlertWindow? _unknownDeviceAlertWindow;
 
+    /// <summary>Счётчик алертов за календарный день — для строки состояния.</summary>
+    private int _alertsToday;
+    private DateOnly _alertsDay = DateOnly.FromDateTime(DateTime.Now);
+
     private void MonitorButton_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -25,6 +29,7 @@ public partial class MainWindow
             StopMonitorButton.IsEnabled = true;
             ShowActiveDevicesButton.IsEnabled = true;
             AppendLog("Live-мониторинг запущен. Обновление идёт по событиям Windows, без постоянного опроса каждые 2 секунды.");
+            UpdateMonitorStatusBar(active: true);
             if (_monitor.UsesPollingFallback)
             {
                 AppendLog("WMI-события недоступны: включён резервный опрос USB каждые 5 секунд.");
@@ -51,6 +56,7 @@ public partial class MainWindow
         StopMonitorButton.IsEnabled = false;
         ShowActiveDevicesButton.IsEnabled = false;
         AppendLog("Live-мониторинг остановлен.");
+        UpdateMonitorStatusBar(active: false);
     }
 
     /// <summary>
@@ -113,6 +119,8 @@ public partial class MainWindow
             AppendLog($"ВНИМАНИЕ: подключено неизвестное устройство — {device.DeviceName} ({device.DeviceId}). В доказательной базе оно не встречалось.");
         }
 
+        RegisterMonitorAlerts(unknown.Count);
+
         if (_unknownDeviceAlertWindow is not { IsVisible: true })
         {
             _unknownDeviceAlertWindow = new UnknownDeviceAlertWindow
@@ -124,6 +132,28 @@ public partial class MainWindow
         }
 
         _unknownDeviceAlertWindow.AppendDevices(unknown);
+    }
+
+    /// <summary>Строка состояния: индикатор мониторинга и счётчик алертов за сегодня.</summary>
+    private void UpdateMonitorStatusBar(bool active)
+    {
+        MonitorStatusDot.Fill = active
+            ? (System.Windows.Media.Brush)FindResource("Ok")
+            : (System.Windows.Media.Brush)FindResource("Stroke");
+        MonitorStatusText.Text = active ? "Мониторинг активен" : "Мониторинг выключен";
+    }
+
+    private void RegisterMonitorAlerts(int count)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        if (today != _alertsDay)
+        {
+            _alertsDay = today;
+            _alertsToday = 0;
+        }
+
+        _alertsToday += count;
+        MonitorAlertsText.Text = _alertsToday > 0 ? $"Алертов сегодня: {_alertsToday}" : "";
     }
 
     private void UnknownDeviceAlertWindow_Closed(object? sender, EventArgs e)
