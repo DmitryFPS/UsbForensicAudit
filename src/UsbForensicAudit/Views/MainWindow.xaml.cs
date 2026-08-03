@@ -305,7 +305,7 @@ public partial class MainWindow : Window
             : $"Всего записей: {result.CleanupFindings.Count}, подозрительных: {suspiciousCount}";
         UpdateOsInstallDisplay(result);
         RefreshHistoricalUtilityLaunches(result);
-        RefreshExternalUtilityRowAssessments();
+        _vm.ExternalUtilities.RefreshAssessments();
         RefreshExternalUtilitySectionFilterCombo();
         DataGridAutoSize.FitColumns(DevicesGrid);
         DataGridAutoSize.FitColumns(EvidenceGrid);
