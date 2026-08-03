@@ -24,7 +24,7 @@ public partial class MainViewModel : ObservableObject
         _orchestrator = orchestrator;
         _networkEnvironmentService = networkEnvironmentService;
         ReportService = reportService;
-        ExternalUtilities = new ExternalUtilitiesViewModel(() => LastResult, registryTracer);
+        ExternalUtilities = new ExternalUtilitiesViewModel(orchestrator.Storage.DataDirectory, () => LastResult, registryTracer);
     }
 
     /// <summary>Состояние и логика вкладки сторонних утилит — выделены в дочернюю ViewModel.</summary>

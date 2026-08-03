@@ -30,7 +30,6 @@ public partial class MainWindow : Window
     private readonly ICollectionView _externalUtilityRowsView;
     private readonly ICollectionView _devicesView;
     private readonly ICollectionView _networkView;
-    private ExternalUtilityReportSnapshot _externalUtilitySnapshot = new();
     private string _lastExternalUtilityAnalysisCopyText = "";
     private ExternalUtilityRow? _activeExternalUtilityRow;
     private RunningExternalUtility? _lastCapturedExternalUtility;
@@ -68,7 +67,7 @@ public partial class MainWindow : Window
         _externalUtilityRowsView = CollectionViewSource.GetDefaultView(_externalUtilityRows);
         _externalUtilityRowsView.Filter = FilterExternalUtilityRow;
         ExternalUtilityRowsGrid.ItemsSource = _externalUtilityRowsView;
-        _externalUtilitySnapshot = ExternalUtilitySnapshotStorage.Load(_vm.Storage.DataDirectory) ?? new ExternalUtilityReportSnapshot();
+        _vm.ExternalUtilities.LoadSnapshotFromDisk();
         RestoreExternalUtilitySnapshotToUi();
         RefreshExternalUtilitySectionFilterCombo();
         AdminStatusText.Text = AdminHelper.IsAdministrator() ? "Администратор" : "Нет прав администратора";

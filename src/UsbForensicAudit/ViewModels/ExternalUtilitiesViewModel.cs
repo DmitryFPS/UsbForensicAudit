@@ -12,17 +12,22 @@ namespace UsbForensicAudit;
 /// </summary>
 public partial class ExternalUtilitiesViewModel : ObservableObject
 {
+    private readonly string _dataDirectory;
     private readonly IExternalUtilityRegistryTracer? _registryTracer;
     private readonly Func<AuditResult?> _currentAuditResult;
+
+    private ExternalUtilityReportSnapshot _snapshot = new();
 
     private readonly Dictionary<string, IReadOnlyList<ExternalUtilitySourceHit>> _procmonHitsByRowKey = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _procmonSessionByRowKey = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _procmonSummaryByRowKey = new(StringComparer.Ordinal);
 
     public ExternalUtilitiesViewModel(
+        string dataDirectory,
         Func<AuditResult?> currentAuditResult,
         IExternalUtilityRegistryTracer? registryTracer = null)
     {
+        _dataDirectory = dataDirectory;
         _currentAuditResult = currentAuditResult;
         _registryTracer = registryTracer;
     }
@@ -111,5 +116,94 @@ public partial class ExternalUtilitiesViewModel : ObservableObject
         }
 
         return string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>Загружает сохранённый снапшот с диска — вызывается при старте окна.</summary>
+    public void LoadSnapshotFromDisk() =>
+        _snapshot = ExternalUtilitySnapshotStorage.Load(_dataDirectory) ?? new ExternalUtilityReportSnapshot();
+
+    /// <summary>Восстанавливает строки и историю запусков из снапшота в наблюдаемые коллекции.</summary>
+    public void RestoreFromSnapshot()
+    {
+        Rows.Clear();
+        foreach (var row in _snapshot.Rows)
+        {
+            Rows.Add(row);
+        }
+
+        RefreshAssessments();
+
+        HistoricalLaunches.Clear();
+        foreach (var launch in _snapshot.HistoricalLaunches)
+        {
+            HistoricalLaunches.Add(launch);
+        }
+    }
+
+    /// <summary>
+    /// Переносит текущие строки в снапшот и сохраняет его на диск.
+    /// Запись идёт вне UI-потока; ошибки уходят в app.log и не прерывают работу.
+    /// </summary>
+    public Task SaveSnapshotAsync(string? utilityName)
+    {
+        _snapshot.CapturedAtUtc = DateTimeOffset.UtcNow;
+        _snapshot.UtilityName = utilityName;
+        _snapshot.Rows.Clear();
+        foreach (var row in Rows)
+        {
+            _snapshot.Rows.Add(row);
+        }
+
+        return PersistSnapshotAsync();
+    }
+
+    /// <summary>Обновляет историю запусков утилит из результатов аудита и сохраняет снапшот.</summary>
+    public void RefreshHistoricalLaunches(AuditResult? result)
+    {
+        HistoricalLaunches.Clear();
+        foreach (var launch in ExternalUtilityHistoryService.CollectFromAudit(result))
+        {
+            HistoricalLaunches.Add(launch);
+        }
+
+        _snapshot.HistoricalLaunches.Clear();
+        foreach (var launch in HistoricalLaunches)
+        {
+            _snapshot.HistoricalLaunches.Add(launch);
+        }
+
+        if (HistoricalLaunches.Count > 0 || _snapshot.Rows.Count > 0)
+        {
+            _ = PersistSnapshotAsync();
+        }
+    }
+
+    /// <summary>Снапшот для вложения в отчёты; null, когда показывать нечего.</summary>
+    public ExternalUtilityReportSnapshot? SnapshotForReport =>
+        _snapshot.Rows.Count == 0 && _snapshot.HistoricalLaunches.Count == 0 ? null : _snapshot;
+
+    private Task PersistSnapshotAsync()
+    {
+        // Отсоединённая копия: пока файл пишется в фоне, пользователь может
+        // добавить строку — фоновая сериализация не должна видеть эти правки.
+        var copy = new ExternalUtilityReportSnapshot
+        {
+            CapturedAtUtc = _snapshot.CapturedAtUtc,
+            UtilityName = _snapshot.UtilityName
+        };
+        copy.Rows.AddRange(_snapshot.Rows);
+        copy.HistoricalLaunches.AddRange(_snapshot.HistoricalLaunches);
+
+        return Task.Run(() =>
+        {
+            try
+            {
+                ExternalUtilitySnapshotStorage.Save(_dataDirectory, copy);
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error(exception, "External utility snapshot save failed");
+            }
+        });
     }
 }

@@ -378,68 +378,23 @@ public partial class MainWindow
 
     private void RefreshHistoricalUtilityLaunches(AuditResult? result)
     {
-        _historicalUtilityLaunches.Clear();
-        foreach (var launch in ExternalUtilityHistoryService.CollectFromAudit(result))
-        {
-            _historicalUtilityLaunches.Add(launch);
-        }
-
+        _vm.ExternalUtilities.RefreshHistoricalLaunches(result);
         HistoricalUtilityLaunchesList.ItemsSource = _historicalUtilityLaunches;
-        _externalUtilitySnapshot.HistoricalLaunches.Clear();
-        foreach (var launch in _historicalUtilityLaunches)
-        {
-            _externalUtilitySnapshot.HistoricalLaunches.Add(launch);
-        }
-
-        if (_historicalUtilityLaunches.Count > 0 || _externalUtilitySnapshot.Rows.Count > 0)
-        {
-            ExternalUtilitySnapshotStorage.Save(_vm.Storage.DataDirectory, _externalUtilitySnapshot);
-        }
     }
 
-    private void SaveExternalUtilitySnapshot(string? utilityName)
-    {
-        _externalUtilitySnapshot.CapturedAtUtc = DateTimeOffset.UtcNow;
-        _externalUtilitySnapshot.UtilityName = utilityName;
-        _externalUtilitySnapshot.Rows.Clear();
-        foreach (var row in _externalUtilityRows)
-        {
-            _externalUtilitySnapshot.Rows.Add(row);
-        }
-
-        ExternalUtilitySnapshotStorage.Save(_vm.Storage.DataDirectory, _externalUtilitySnapshot);
-    }
+    private void SaveExternalUtilitySnapshot(string? utilityName) =>
+        _ = _vm.ExternalUtilities.SaveSnapshotAsync(utilityName);
 
     private void RestoreExternalUtilitySnapshotToUi()
     {
-        _externalUtilityRows.Clear();
-        foreach (var row in _externalUtilitySnapshot.Rows)
-        {
-            _externalUtilityRows.Add(row);
-        }
-
-        _vm.ExternalUtilities.RefreshAssessments();
+        _vm.ExternalUtilities.RestoreFromSnapshot();
         RefreshExternalUtilitySectionFilterCombo();
         _externalUtilityRowsView.Refresh();
-
-        _historicalUtilityLaunches.Clear();
-        foreach (var launch in _externalUtilitySnapshot.HistoricalLaunches)
-        {
-            _historicalUtilityLaunches.Add(launch);
-        }
-
         HistoricalUtilityLaunchesList.ItemsSource = _historicalUtilityLaunches;
     }
 
-    private ExternalUtilityReportSnapshot? GetExternalUtilitySnapshotForReport()
-    {
-        if (_externalUtilitySnapshot.Rows.Count == 0 && _externalUtilitySnapshot.HistoricalLaunches.Count == 0)
-        {
-            return null;
-        }
-
-        return _externalUtilitySnapshot;
-    }
+    private ExternalUtilityReportSnapshot? GetExternalUtilitySnapshotForReport() =>
+        _vm.ExternalUtilities.SnapshotForReport;
 
     private void UpdateExternalUtilityControls()
     {
