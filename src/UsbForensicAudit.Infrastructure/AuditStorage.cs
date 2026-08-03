@@ -583,9 +583,12 @@ public sealed class AuditStorage : IAuditStorage
     {
         var connection = new SqliteConnection($"Data Source={DatabasePath};Default Timeout=30;Pooling=True");
         connection.Open();
-        using var timeout = connection.CreateCommand();
-        timeout.CommandText = "PRAGMA busy_timeout=30000;";
-        timeout.ExecuteNonQuery();
+        using var pragma = connection.CreateCommand();
+        // WAL: атомарность базы при сбое посреди массовой вставки и параллельное чтение
+        // без SQLITE_BUSY (UI читает сессии, пока идёт запись). Для WAL безопасен
+        // synchronous=NORMAL: fsync выполняется на чекпойнтах, а не на каждой транзакции.
+        pragma.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=30000;";
+        pragma.ExecuteNonQuery();
         return connection;
     }
 

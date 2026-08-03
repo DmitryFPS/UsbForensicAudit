@@ -11,7 +11,21 @@ internal sealed class ClipboardReadOptions
 
 internal static class Win32ListViewClipboardReader
 {
-    private static readonly object ClipboardSync = new();
+    /// <summary>
+    /// Сериализует доступ к буферу обмена между чтениями. SemaphoreSlim вместо lock,
+    /// чтобы владение можно было передать зависшему рабочему потоку (см. TryRead).
+    /// </summary>
+    private static readonly SemaphoreSlim ClipboardGate = new(1, 1);
+
+    /// <summary>Максимальное ожидание, если предыдущее чтение ещё не завершилось.</summary>
+    private static readonly TimeSpan GateTimeout = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Максимальная длительность одного чтения: клик + Ctrl+A/Ctrl+C обычно занимают
+    /// доли секунды; всё, что дольше, означает зависшее целевое окно (модальный диалог, UAC).
+    /// </summary>
+    private static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(8);
+
     private const int SwRestore = 9;
     private const int VkControl = 0x11;
     private const int VkA = 0x41;
@@ -23,10 +37,67 @@ internal static class Win32ListViewClipboardReader
         IntPtr listViewHandle,
         ClipboardReadOptions? options = null)
     {
-        lock (ClipboardSync)
+        if (!ClipboardGate.Wait(GateTimeout))
         {
-            return TryReadCore(mainWindowHandle, listViewHandle, options);
+            // Предыдущее чтение зависло и всё ещё владеет буфером обмена —
+            // не выстраиваем очередь, вызывающий код обойдётся снапшотом без clipboard.
+            return null;
         }
+
+        // 0 — владеет вызывающий поток; 1 — вызывающий отдал владение (таймаут);
+        // 2 — рабочий поток завершился. Кто видит «чужую» отметку — освобождает семафор.
+        var ownership = 0;
+        Win32ListViewReader.ListViewSnapshot? result = null;
+
+        var worker = new Thread(() =>
+        {
+            try
+            {
+                result = TryReadCore(mainWindowHandle, listViewHandle, options);
+            }
+            catch
+            {
+                // Результат остаётся null: ошибки чтения чужого окна не критичны.
+            }
+            finally
+            {
+                if (Interlocked.Exchange(ref ownership, 2) == 1)
+                {
+                    ClipboardGate.Release();
+                }
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "UsbForensicAudit clipboard reader"
+        };
+
+        try
+        {
+            worker.SetApartmentState(ApartmentState.STA);
+            worker.Start();
+        }
+        catch
+        {
+            ClipboardGate.Release();
+            return null;
+        }
+
+        if (worker.Join(ReadTimeout))
+        {
+            ClipboardGate.Release();
+            return result;
+        }
+
+        // Целевое окно зависло: возвращаемся без результата, а владение семафором
+        // передаём рабочему потоку — он освободит его, если когда-нибудь «отвиснет».
+        // До этого момента clipboard-путь честно отключён (Wait выше вернёт false).
+        if (Interlocked.Exchange(ref ownership, 1) == 2)
+        {
+            ClipboardGate.Release();
+        }
+
+        return null;
     }
 
     private static Win32ListViewReader.ListViewSnapshot? TryReadCore(
