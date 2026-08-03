@@ -93,6 +93,47 @@
             </Setter>
         </Style>
 
+        <!-- Вкладки главной навигации: вертикальная рельса слева с иконками
+             Segoe MDL2 Assets (встроенный шрифт Windows). Выбранная вкладка
+             помечается синей кромкой слева, как в дизайн-системе SOC. -->
+        <Style x:Key="NavTab" TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource TextMuted}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="NavBorder" Background="Transparent" CornerRadius="8" Margin="0,2,8,2" Padding="12,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="26"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="NavIcon" Text="{TemplateBinding Tag}" FontFamily="Segoe MDL2 Assets" FontSize="15" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}"/>
+                                <TextBlock x:Name="NavLabel" Grid.Column="1" Text="{TemplateBinding Header}" FontSize="13" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" TextTrimming="CharacterEllipsis"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="NavBorder" Property="Background" Value="#16203A"/>
+                                <Setter TargetName="NavBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                <Setter TargetName="NavBorder" Property="BorderThickness" Value="3,0,0,0"/>
+                                <Setter TargetName="NavBorder" Property="Padding" Value="9,10,12,10"/>
+                                <Setter TargetName="NavIcon" Property="Foreground" Value="{StaticResource Accent}"/>
+                                <Setter TargetName="NavLabel" Property="Foreground" Value="{StaticResource TextMain}"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="IsSelected" Value="False"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="NavBorder" Property="Background" Value="#121A2E"/>
+                                <Setter TargetName="NavLabel" Property="Foreground" Value="{StaticResource TextSoft}"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="TabControl">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -248,8 +289,8 @@
             </Grid>
         </Border>
 
-        <TabControl Grid.Row="1" Margin="18">
-            <TabItem Header="Обзор">
+        <TabControl Grid.Row="1" Margin="18" TabStripPlacement="Left">
+            <TabItem Header="Обзор" Style="{StaticResource NavTab}" Tag="&#xE80F;">
                 <Grid Margin="4,14,4,4">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -358,7 +399,7 @@
                 </Grid>
             </TabItem>
 
-            <TabItem Header="USB устройства">
+            <TabItem Header="USB устройства" Style="{StaticResource NavTab}" Tag="&#xECF0;">
                 <DockPanel Margin="4,14,4,4">
                     <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
                         <StackPanel>
@@ -505,7 +546,7 @@
                 </DockPanel>
             </TabItem>
 
-            <TabItem Header="Сетевые подключения">
+            <TabItem Header="Сетевые подключения" Style="{StaticResource NavTab}" Tag="&#xE839;">
                 <TabControl Margin="4,14,4,4">
                     <TabItem Header="История связей">
                 <DockPanel Margin="0,8,0,0">
@@ -774,7 +815,7 @@
                 </TabControl>
             </TabItem>
 
-            <TabItem Header="Доказательства">
+            <TabItem Header="Доказательства" Style="{StaticResource NavTab}" Tag="&#xE8FD;">
                 <DockPanel Margin="4,14,4,4">
                     <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
                         <StackPanel>
@@ -808,7 +849,7 @@
                 </DockPanel>
             </TabItem>
 
-            <TabItem Header="Таймлайн">
+            <TabItem Header="Таймлайн" Style="{StaticResource NavTab}" Tag="&#xE823;">
                 <DockPanel Margin="4,14,4,4">
                     <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
                         <StackPanel>
@@ -849,7 +890,7 @@
                 </DockPanel>
             </TabItem>
 
-            <TabItem Header="Следы очистки">
+            <TabItem Header="Следы очистки" Style="{StaticResource NavTab}" Tag="&#xEA99;">
                 <DockPanel Margin="4,14,4,4">
                     <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
                         <StackPanel>
@@ -925,7 +966,7 @@
                 </DockPanel>
             </TabItem>
 
-            <TabItem Header="Риски">
+            <TabItem Header="Риски" Style="{StaticResource NavTab}" Tag="&#xE7BA;">
                 <Grid Margin="4,14,4,4">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -999,7 +1040,7 @@
                 </Grid>
             </TabItem>
 
-            <TabItem Header="Сторонние утилиты">
+            <TabItem Header="Сторонние утилиты" Style="{StaticResource NavTab}" Tag="&#xE90F;">
                 <Grid Margin="4,14,4,4">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -1138,7 +1179,7 @@
                 </Grid>
             </TabItem>
 
-            <TabItem Header="Отчет">
+            <TabItem Header="Отчет" Style="{StaticResource NavTab}" Tag="&#xE9F9;">
                 <Border Margin="4,14,4,4" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="14" Padding="22">
                     <StackPanel>
                         <TextBlock Text="Полные отчёты содержат все данные для расследования. Сводные отчёты показывают ключевые цифры, инциденты и значимые устройства. Аналитическая записка — связный рассказ с общей хронологией событий. Доступны PDF и Excel. Таймлайн (CSV) открывается в Timeline Explorer и Excel. Пакет доказательств — ZIP с отчётами, сырьём и манифестом SHA-256 для передачи."
