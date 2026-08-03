@@ -71,6 +71,7 @@ internal static class ForensicReportBuilder
         html.AppendLine("<li><a href=\"#summary\">1. Сводка для расследования</a></li>");
         html.AppendLine("<li><a href=\"#incidents\">2. Возможные инциденты</a></li>");
         html.AppendLine("<li><a href=\"#exfiltration\">Вынос данных на съёмные носители</a></li>");
+        html.AppendLine("<li><a href=\"#mitre\">Сопоставление с MITRE ATT&amp;CK</a></li>");
         html.AppendLine("<li><a href=\"#policy\">Соответствие политике устройств</a></li>");
         html.AppendLine("<li><a href=\"#cleanup\">3. Все признаки очистки</a></li>");
         html.AppendLine("<li><a href=\"#devices\">4. USB-устройства</a></li>");
@@ -89,6 +90,7 @@ internal static class ForensicReportBuilder
         AppendSummarySection(html, ctx);
         AppendIncidentSection(html, ctx);
         AppendExfiltrationSection(html, ctx);
+        AppendMitreSection(html, ctx);
         AppendPolicySection(html, ctx);
         AppendCleanupSection(html, ctx);
         AppendDevicesSection(html, ctx);
@@ -126,6 +128,7 @@ internal static class ForensicReportBuilder
         html.AppendLine($"<span class=\"muted\">{E(ctx.ActivityVerdict())}</span><br>");
         html.AppendLine($"<span class=\"muted\">{E(ctx.TransferVerdict())}</span><br>");
         html.AppendLine($"<span class=\"muted\">{E(ctx.Exfiltration.Verdict())}</span><br>");
+        html.AppendLine($"<span class=\"muted\">{E(ctx.Mitre.Verdict())}</span><br>");
         if (ctx.PolicySummary.PolicyDefined)
         {
             html.AppendLine($"<span class=\"muted\">{E(ctx.PolicySummary.Verdict())}</span><br>");
@@ -258,6 +261,26 @@ internal static class ForensicReportBuilder
             html.AppendLine(
                 $"<tr class=\"{rowClass}\"><td>{E(item.DeviceDisplayName)}</td><td>{E(item.VidPidText)}</td>" +
                 $"<td>{E(item.SerialText)}</td><td>{E(item.DecisionText)}</td></tr>");
+        }
+        html.AppendLine("</table>");
+    }
+
+    private static void AppendMitreSection(StringBuilder html, ForensicReportContext ctx)
+    {
+        var mitre = ctx.Mitre;
+        html.AppendLine("<h2 id=\"mitre\">Сопоставление с MITRE ATT&amp;CK</h2>");
+        html.AppendLine($"<p class=\"note\">{E(mitre.Verdict())}</p>");
+        if (!mitre.HasFindings)
+        {
+            return;
+        }
+
+        html.AppendLine("<table><tr><th>Техника</th><th>Название</th><th>Тактика</th><th>Обоснование</th></tr>");
+        foreach (var finding in mitre.Findings)
+        {
+            html.AppendLine(
+                $"<tr><td><a href=\"{E(finding.Technique.Url)}\" target=\"_blank\" rel=\"noopener noreferrer\">{E(finding.Technique.Id)}</a></td>" +
+                $"<td>{E(finding.Technique.Name)}</td><td>{E(finding.Technique.Tactic)}</td><td>{E(finding.Rationale)}</td></tr>");
         }
         html.AppendLine("</table>");
     }

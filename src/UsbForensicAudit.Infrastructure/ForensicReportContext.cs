@@ -57,6 +57,7 @@ internal sealed class ForensicReportContext
         // программой. Тесты передают политику явно и на диск не ходят.
         PolicySummary = DevicePolicyEvaluator.Evaluate(result, policy ?? DevicePolicyProvider.LoadDefault());
         Case = caseMetadata ?? CaseMetadataProvider.LoadDefault();
+        Mitre = MitreMapper.Map(result);
     }
 
     public AuditResult Result { get; }
@@ -108,6 +109,9 @@ internal sealed class ForensicReportContext
 
     /// <summary>Карточка дела (chain of custody) из case.json.</summary>
     public CaseMetadata Case { get; }
+
+    /// <summary>Сопоставление находок с техниками MITRE ATT&CK.</summary>
+    public MitreAssessment Mitre { get; }
 
     /// <summary>Снимок Wi-Fi в эфире и соседей по сети на момент съёмки.</summary>
     public NetworkEnvironmentSnapshot NetworkEnvironment { get; }

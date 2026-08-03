@@ -149,6 +149,7 @@ internal static class ForensicPdfReport
         column.Item().PaddingTop(4).Text(T(ctx.ActivityVerdict())).FontSize(8).FontColor(Colors.Grey.Darken2);
         column.Item().PaddingTop(4).Text(T(ctx.TransferVerdict())).FontSize(8).FontColor(Colors.Grey.Darken2);
         column.Item().PaddingTop(4).Text(T(ctx.Exfiltration.Verdict())).FontSize(8).FontColor(Colors.Grey.Darken2);
+        column.Item().PaddingTop(4).Text(T(ctx.Mitre.Verdict())).FontSize(8).FontColor(Colors.Grey.Darken2);
         if (ctx.PolicySummary.PolicyDefined)
         {
             column.Item().PaddingTop(4).Text(T(ctx.PolicySummary.Verdict())).FontSize(8).FontColor(Colors.Grey.Darken2);
