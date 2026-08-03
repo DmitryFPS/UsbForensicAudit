@@ -65,6 +65,10 @@ public sealed class EvidenceIntegrityVerifier : IEvidenceIntegrityVerifier
         var breaks = new List<ChainBreak>();
         var finalHashes = new Dictionary<string, string>(StringComparer.Ordinal);
         var expectedPrevious = "";
+        // После повреждённой строки следующий целый record нельзя сверить с
+        // предыдущим звеном (его хеш неизвестен) — иначе он всегда помечался бы
+        // ложным разрывом. Пропускаем ровно одну проверку связи и продолжаем.
+        var resyncAfterCorrupt = false;
         var total = 0;
         var lineNumber = 0;
         foreach (var line in lines)
@@ -96,10 +100,18 @@ public sealed class EvidenceIntegrityVerifier : IEvidenceIntegrityVerifier
                 });
                 // Дальше сверять цепочку не с чем: хеш повреждённой записи неизвестен.
                 expectedPrevious = "";
+                resyncAfterCorrupt = true;
                 continue;
             }
 
-            if (!string.Equals(previousHash, expectedPrevious, StringComparison.OrdinalIgnoreCase))
+            if (resyncAfterCorrupt)
+            {
+                // Первая целая запись после повреждённой: связь с предыдущим
+                // звеном проверить нельзя, но собственный хеш записи ниже
+                // проверяется, и с этой записи цепочка продолжается заново.
+                resyncAfterCorrupt = false;
+            }
+            else if (!string.Equals(previousHash, expectedPrevious, StringComparison.OrdinalIgnoreCase))
             {
                 breaks.Add(new ChainBreak
                 {

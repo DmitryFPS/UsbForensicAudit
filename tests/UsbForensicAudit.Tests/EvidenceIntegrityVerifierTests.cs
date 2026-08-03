@@ -46,6 +46,21 @@ public sealed class EvidenceIntegrityVerifierTests
     }
 
     [Fact]
+    public void VerifyChain_CorruptLine_DoesNotCascadeToNextIntactRecord()
+    {
+        var lines = BuildJournal("s1", 4);
+        // Одна строка целиком повреждена (не парсится как JSON).
+        lines[1] = "{это не json";
+
+        var result = EvidenceIntegrityVerifier.VerifyChain(lines);
+
+        // Ровно один разрыв — сама битая строка. Следующая целая запись не должна
+        // помечаться ложным разрывом связи из-за обрыва после повреждённой.
+        Assert.Single(result.Breaks);
+        Assert.Equal(2, result.Breaks[0].LineNumber);
+    }
+
+    [Fact]
     public void VerifyChain_DeletedRecord_ReportsBrokenLink()
     {
         var lines = BuildJournal("s1", 3);

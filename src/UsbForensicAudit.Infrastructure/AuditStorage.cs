@@ -369,6 +369,13 @@ public sealed class AuditStorage : IAuditStorage
         Execute(connection, "CREATE UNIQUE INDEX IF NOT EXISTS ux_devices_session_record ON devices(session_id, record_key) WHERE session_id IS NOT NULL;");
         Execute(connection, "CREATE UNIQUE INDEX IF NOT EXISTS ux_evidence_session_record ON evidence(session_id, record_key) WHERE session_id IS NOT NULL;");
         Execute(connection, "CREATE UNIQUE INDEX IF NOT EXISTS ux_cleanup_session_record ON cleanup_findings(session_id, record_key) WHERE session_id IS NOT NULL;");
+
+        // Явные индексы по session_id: выборка записей сессии и COUNT-подзапросы
+        // в ListSessions иначе деградируют в full scan на базе с историей за год.
+        Execute(connection, "CREATE INDEX IF NOT EXISTS ix_devices_session ON devices(session_id);");
+        Execute(connection, "CREATE INDEX IF NOT EXISTS ix_evidence_session ON evidence(session_id);");
+        Execute(connection, "CREATE INDEX IF NOT EXISTS ix_cleanup_session ON cleanup_findings(session_id);");
+        Execute(connection, "CREATE INDEX IF NOT EXISTS ix_network_session ON network_connections(session_id);");
     }
 
     private bool SaveSqlite(AuditResult result)
@@ -531,8 +538,11 @@ public sealed class AuditStorage : IAuditStorage
     private string AppendJsonl(AuditResult result)
     {
         var previousHash = ReadLastHash();
-        using var stream = new FileStream(JsonlPath, FileMode.Append, FileAccess.Write, FileShare.Read);
-        using var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true);
+        // Все строки сессии сначала собираются в буфер и дозаписываются одним
+        // вызовом Write: цепочка попадает в файл целиком либо (при сбое) целиком
+        // не попадает. Раньше строки писались по одной в цикле — сбой посередине
+        // оставлял оборванную сессию без завершающей записи и без печати.
+        var buffer = new StringBuilder();
         var sessionMetadata = new
         {
             result.SessionId,
@@ -562,7 +572,7 @@ public sealed class AuditStorage : IAuditStorage
         {
             var payload = JsonSerializer.Serialize(new { sessionId = result.SessionId, recordType = type, previousHash, data = item }, JsonOptions);
             var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
-            writer.WriteLine(JsonSerializer.Serialize(new
+            buffer.Append(JsonSerializer.Serialize(new
             {
                 sessionId = result.SessionId,
                 recordType = type,
@@ -570,8 +580,13 @@ public sealed class AuditStorage : IAuditStorage
                 recordHash = hash,
                 data = item
             }, JsonOptions));
+            buffer.Append('\n');
             previousHash = hash;
         }
+
+        using var stream = new FileStream(JsonlPath, FileMode.Append, FileAccess.Write, FileShare.Read);
+        using var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true);
+        writer.Write(buffer.ToString());
         writer.Flush();
         stream.Flush(flushToDisk: true);
         return previousHash;
@@ -716,12 +731,32 @@ public sealed class AuditStorage : IAuditStorage
         cmd.CommandText = $"SELECT record_json FROM {ValidatedTable(table)} WHERE session_id=$session ORDER BY id;";
         cmd.Parameters.AddWithValue("$session", sessionId);
         using var reader = cmd.ExecuteReader();
+        var skipped = 0;
         while (reader.Read())
         {
-            if (!reader.IsDBNull(0) && deserialize(reader.GetString(0)) is { } item)
+            if (reader.IsDBNull(0))
             {
-                target.Add(item);
+                continue;
             }
+
+            try
+            {
+                if (deserialize(reader.GetString(0)) is { } item)
+                {
+                    target.Add(item);
+                }
+            }
+            catch (JsonException)
+            {
+                // Одна усечённая/битая запись не должна делать всю сессию
+                // неоткрываемой: пропускаем её и продолжаем читать остальные.
+                skipped++;
+            }
+        }
+
+        if (skipped > 0)
+        {
+            AppLog.Error(new InvalidDataException($"{skipped}"), $"Пропущено повреждённых записей в {table}: {skipped}");
         }
     }
 
