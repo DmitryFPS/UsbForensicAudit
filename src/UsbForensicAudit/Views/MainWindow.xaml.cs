@@ -296,6 +296,10 @@ public partial class MainWindow : Window
     {
         _vm.PopulateFromResult(result);
 
+        // До обновления таблицы устройств: оценка политики штампует решение
+        // на записи, и колонка «Политика» должна показать его сразу.
+        RefreshRisks(result);
+
         _devicesView.Refresh();
         UpdateDeviceCount();
         EvidenceCountText.Text = _evidence.Count.ToString();

@@ -55,6 +55,26 @@ public sealed class DevicePolicyTests
     }
 
     [Fact]
+    public void Evaluate_stamps_decision_onto_device_record()
+    {
+        var policy = DevicePolicyEvaluator.Parse("""
+            { "allowlistEnforced": true, "allowed": [ { "serial": "CORP-1" } ] }
+            """);
+        var approved = External("1", "2", "CORP-1");
+        var stranger = External("1", "2", "STRANGER");
+        var result = new AuditResult();
+        result.Devices.Add(approved);
+        result.Devices.Add(stranger);
+
+        DevicePolicyEvaluator.Evaluate(result, policy);
+
+        Assert.Equal(DevicePolicyDecision.Approved, approved.PolicyDecision);
+        Assert.Equal(DevicePolicyDecision.Unlisted, stranger.PolicyDecision);
+        Assert.Equal("✓ разрешено", approved.PolicyBadgeText);
+        Assert.NotEqual("", stranger.PolicyBadgeText);
+    }
+
+    [Fact]
     public void Empty_or_blank_json_yields_empty_policy()
     {
         Assert.True(DevicePolicyEvaluator.Parse("").IsEmpty);

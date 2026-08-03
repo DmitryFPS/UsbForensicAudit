@@ -32,20 +32,29 @@ public static class DevicePolicyEvaluator
 
         // Оцениваются только принесённые с собой устройства: у записи внутреннего
         // диска и частей шины «политика подключения» смысла не имеет.
-        var items = result.Devices
-            .Where(device => device.IsExternalDevice || device.Externality == DeviceExternality.PossiblyExternal)
-            .Select(device => new DevicePolicyResultItem
+        // Решение дополнительно штампуется на саму запись устройства —
+        // вкладка устройств показывает его колонкой-бейджем без повторной оценки.
+        var items = new List<DevicePolicyResultItem>();
+        foreach (var device in result.Devices
+                     .Where(device => device.IsExternalDevice || device.Externality == DeviceExternality.PossiblyExternal))
+        {
+            var decision = policy.Decide(device);
+            device.PolicyDecision = decision;
+            items.Add(new DevicePolicyResultItem
             {
                 DeviceDisplayName = device.DisplayName,
                 VidPidText = device.VidPidText,
                 SerialText = device.SerialText,
-                Decision = policy.Decide(device)
-            })
+                Decision = decision
+            });
+        }
+
+        var ordered = items
             .OrderByDescending(x => x.IsViolation)
             .ThenBy(x => x.DeviceDisplayName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        return new DevicePolicySummary { Items = items, PolicyDefined = true };
+        return new DevicePolicySummary { Items = ordered, PolicyDefined = true };
     }
 
     /// <summary>Разбирает JSON политики. Пустая или пробельная строка даёт пустую политику.</summary>

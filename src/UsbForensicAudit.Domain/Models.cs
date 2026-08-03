@@ -173,6 +173,22 @@ public sealed class UsbDeviceRecord
     [JsonIgnore]
     public bool IsExternalDevice => DeviceExternality.IsExternal(Externality);
 
+    /// <summary>
+    /// Решение политики допустимых устройств для этой записи. Ставится
+    /// DevicePolicyEvaluator при оценке; без файла политики остаётся NotEvaluated.
+    /// </summary>
+    public DevicePolicyDecision PolicyDecision { get; set; } = DevicePolicyDecision.NotEvaluated;
+
+    /// <summary>Короткий бейдж решения политики для таблицы устройств.</summary>
+    [JsonIgnore]
+    public string PolicyBadgeText => PolicyDecision switch
+    {
+        DevicePolicyDecision.Approved => "✓ разрешено",
+        DevicePolicyDecision.Blocked => "✗ чёрный список",
+        DevicePolicyDecision.Unlisted => "! вне списка",
+        _ => ""
+    };
+
     [JsonIgnore]
     public string IdentityTrustText => IdentityTrustFindings.Count == 0
         ? "Идентификаторы выглядят достоверно."
