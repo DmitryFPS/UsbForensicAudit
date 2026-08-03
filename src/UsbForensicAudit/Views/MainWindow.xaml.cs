@@ -103,7 +103,7 @@ public partial class MainWindow : Window
 
     private void ElevateButton_Click(object sender, RoutedEventArgs e)
     {
-        AdminHelper.TryRestartElevated(this);
+        ElevationHelper.TryRestartElevated(this);
     }
 
     private void DevicesGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)

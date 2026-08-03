@@ -35,6 +35,8 @@
             **/OfflineHiveCollector.cs,
             **/OfflineWindowsAuditor.cs,
             **/AdminHelper.cs,
+            **/ElevationHelper.cs,
+            **/WindowsOsInfoProvider.cs,
             **/AppLog.cs,
             **/DarkWindowChrome.cs,
             **/DataGridAutoSize.cs,

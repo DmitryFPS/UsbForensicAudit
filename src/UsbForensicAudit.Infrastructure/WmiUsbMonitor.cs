@@ -10,7 +10,7 @@ public sealed class WmiUsbMonitor : IDisposable
     private ManagementEventWatcher? _watcher;
     private System.Threading.Timer? _debounceTimer;
     private System.Threading.Timer? _pollingTimer;
-    private DeviceChangeNotifier? _deviceNotifier;
+    private IDeviceChangeSource? _deviceNotifier;
     private int _refreshPending;
     private int _refreshInProgress;
     private int _isRunning;
@@ -21,7 +21,7 @@ public sealed class WmiUsbMonitor : IDisposable
 
     public bool UsesPollingFallback { get; private set; }
 
-    public void AttachDeviceNotifier(DeviceChangeNotifier notifier)
+    public void AttachDeviceNotifier(IDeviceChangeSource notifier)
     {
         if (_deviceNotifier == notifier)
         {
