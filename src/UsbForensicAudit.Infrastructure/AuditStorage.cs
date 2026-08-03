@@ -80,6 +80,53 @@ public sealed class AuditStorage : IAuditStorage
         });
     }
 
+    public void SaveExpertNote(string findingKey, string note)
+    {
+        if (string.IsNullOrWhiteSpace(findingKey))
+        {
+            return;
+        }
+
+        ExecuteExclusive(() =>
+        {
+            using var connection = Open();
+            using var command = connection.CreateCommand();
+            if (string.IsNullOrWhiteSpace(note))
+            {
+                command.CommandText = "DELETE FROM expert_notes WHERE finding_key=$key;";
+                command.Parameters.AddWithValue("$key", findingKey);
+            }
+            else
+            {
+                command.CommandText = """
+                    INSERT INTO expert_notes (finding_key, note, updated_at_utc)
+                    VALUES ($key, $note, $updated)
+                    ON CONFLICT(finding_key) DO UPDATE SET note=$note, updated_at_utc=$updated;
+                    """;
+                command.Parameters.AddWithValue("$key", findingKey);
+                command.Parameters.AddWithValue("$note", note);
+                command.Parameters.AddWithValue("$updated", DateTimeOffset.UtcNow.ToString("O"));
+            }
+
+            command.ExecuteNonQuery();
+        });
+    }
+
+    public IReadOnlyDictionary<string, string> LoadExpertNotes()
+    {
+        var notes = new Dictionary<string, string>(StringComparer.Ordinal);
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT finding_key, note FROM expert_notes;";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            notes[reader.GetString(0)] = reader.GetString(1);
+        }
+
+        return notes;
+    }
+
     public AuditResult? Load(string sessionId)
     {
         using var connection = Open();
@@ -233,6 +280,13 @@ public sealed class AuditStorage : IAuditStorage
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp_utc TEXT NOT NULL, severity TEXT NOT NULL, area TEXT NOT NULL,
                 finding TEXT NOT NULL, details TEXT
+            );
+            """);
+        Execute(connection, """
+            CREATE TABLE IF NOT EXISTS expert_notes (
+                finding_key TEXT PRIMARY KEY,
+                note TEXT NOT NULL,
+                updated_at_utc TEXT NOT NULL
             );
             """);
 

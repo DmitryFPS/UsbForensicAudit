@@ -130,6 +130,15 @@ public interface IAuditStorage
     public IReadOnlyList<SessionSummary> ListSessions();
 
     /// <summary>
+    /// Сохраняет заметку эксперта по стабильному ключу находки
+    /// (<see cref="ExpertNotes.KeyOf"/>). Пустая заметка удаляет запись.
+    /// </summary>
+    public void SaveExpertNote(string findingKey, string note);
+
+    /// <summary>Все сохранённые заметки эксперта: ключ находки → текст.</summary>
+    public IReadOnlyDictionary<string, string> LoadExpertNotes();
+
+    /// <summary>
     /// Идентичности всех устройств из всех прошлых сканирований — базовая
     /// линия для резидентного мониторинга. Лёгкий запрос без загрузки
     /// полных сессий.

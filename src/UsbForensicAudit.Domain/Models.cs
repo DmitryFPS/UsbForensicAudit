@@ -303,6 +303,18 @@ public sealed class CleanupFinding
     public string ActionKind { get; set; } = "Unknown";
     public string Provenance { get; set; } = "";
 
+    /// <summary>
+    /// Заметка эксперта к находке. Пишется вручную во вкладке «Следы очистки»,
+    /// хранится в audit.sqlite по стабильному ключу находки и попадает в отчёты.
+    /// </summary>
+    public string ExpertNote { get; set; } = "";
+
+    /// <summary>Подробности вместе с заметкой эксперта — единый текст для отчётов.</summary>
+    [JsonIgnore]
+    public string DetailsWithNote => string.IsNullOrWhiteSpace(ExpertNote)
+        ? Details
+        : $"{Details}\nЗаметка эксперта: {ExpertNote}";
+
     [JsonIgnore]
     public string TimestampText => DateDisplay.FormatMoscow(TimestampUtc);
 

@@ -225,7 +225,7 @@ internal static class ForensicPdfReport
             f.PossibleToolText,
             f.AreaText,
             f.Finding,
-            f.Details
+            f.DetailsWithNote
         }));
         AppendAttentionTable(column, ctx);
     }
@@ -261,7 +261,7 @@ internal static class ForensicPdfReport
             f.InitiatorText,
             f.PossibleToolText,
             f.Finding,
-            f.Details
+            f.DetailsWithNote
         }));
     }
 
@@ -305,7 +305,7 @@ internal static class ForensicPdfReport
                 f.SeverityText,
                 f.AreaText,
                 f.Finding,
-                f.Details
+                f.DetailsWithNote
             }));
     }
 

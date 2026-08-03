@@ -229,6 +229,10 @@ public sealed class EvidenceIntegrityVerifierTests
         public IReadOnlyList<SessionSummary> ListSessions() => throw new NotSupportedException();
 
         public IReadOnlyList<KnownDeviceIdentity> ListKnownDeviceIdentities() => throw new NotSupportedException();
+
+        public void SaveExpertNote(string findingKey, string note) => throw new NotSupportedException();
+
+        public IReadOnlyDictionary<string, string> LoadExpertNotes() => throw new NotSupportedException();
     }
 
     /// <summary>Строит корректный журнал тем же алгоритмом, что боевой код.</summary>

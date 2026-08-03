@@ -182,7 +182,7 @@ internal static class ForensicReportBuilder
                 $"<tr class=\"{rowClass}\"><td>{E(finding.TimestampText)}</td>" +
                 $"<td class=\"{E(finding.Severity.ToLowerInvariant())}\">{E(finding.AssessmentText)} / {E(finding.SeverityText)}</td>" +
                 $"<td>{E(finding.ConfidenceText)}</td><td>{E(finding.InitiatorText)}</td><td>{E(finding.PossibleToolText)}</td>" +
-                $"<td>{E(finding.AreaText)}</td><td>{E(finding.Finding)}</td><td>{E(finding.Details)}</td></tr>");
+                $"<td>{E(finding.AreaText)}</td><td>{E(finding.Finding)}</td><td>{E(finding.DetailsWithNote)}</td></tr>");
         }
         html.AppendLine("</table>");
         AppendAttentionTable(html, ctx);
@@ -212,7 +212,7 @@ internal static class ForensicReportBuilder
                 $"<tr><td>{E(finding.TimestampText)}</td><td>{E(finding.ActionKindText)}</td>" +
                 $"<td class=\"{E(finding.Severity.ToLowerInvariant())}\">{E(finding.SeverityText)}</td>" +
                 $"<td>{E(finding.InitiatorText)}</td><td>{E(finding.PossibleToolText)}</td>" +
-                $"<td>{E(finding.Finding)}</td><td>{E(finding.Details)}</td></tr>");
+                $"<td>{E(finding.Finding)}</td><td>{E(finding.DetailsWithNote)}</td></tr>");
         }
         html.AppendLine("</table>");
     }
@@ -326,7 +326,7 @@ internal static class ForensicReportBuilder
                 $"<tr><td>{E(finding.TimestampText)}</td><td>{E(finding.ActionKindText)}</td><td>{E(finding.AssessmentText)}</td><td>{E(finding.InitiatorText)}</td>" +
                 $"<td>{E(finding.PossibleToolText)}</td><td>{E(finding.ConfidenceText)}</td>" +
                 $"<td class=\"{E(finding.Severity.ToLowerInvariant())}\">{E(finding.SeverityText)}</td>" +
-                $"<td>{E(finding.AreaText)}</td><td>{E(finding.Finding)}</td><td>{E(finding.Details)}</td></tr>");
+                $"<td>{E(finding.AreaText)}</td><td>{E(finding.Finding)}</td><td>{E(finding.DetailsWithNote)}</td></tr>");
         }
         html.AppendLine("</table>");
     }

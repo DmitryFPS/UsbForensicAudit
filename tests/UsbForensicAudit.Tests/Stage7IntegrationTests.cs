@@ -393,6 +393,11 @@ public sealed class Stage7IntegrationTests
             Saved?.Devices
                 .Select(d => new KnownDeviceIdentity(d.Vid, d.Pid, d.Serial, d.DeviceInstanceId))
                 .ToArray() ?? [];
+
+        public void SaveExpertNote(string findingKey, string note) { }
+
+        public IReadOnlyDictionary<string, string> LoadExpertNotes() =>
+            new Dictionary<string, string>();
     }
 
     private sealed class FakePrivilegeChecker : IPrivilegeChecker

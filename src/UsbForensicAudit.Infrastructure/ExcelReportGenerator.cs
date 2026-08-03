@@ -533,7 +533,7 @@ internal static class ExcelReportGenerator
                 Column<CleanupFinding>("Инструмент", 26, x => x.PossibleToolText),
                 Column<CleanupFinding>("Область", 28, x => x.AreaText),
                 Column<CleanupFinding>("Что найдено", 44, x => x.Finding),
-                Column<CleanupFinding>("Подробности", 62, x => x.Details)
+                Column<CleanupFinding>("Подробности", 62, x => x.DetailsWithNote)
             ]);
 
         for (var index = 0; index < rows.Length; index++)

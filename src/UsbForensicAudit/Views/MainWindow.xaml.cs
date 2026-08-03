@@ -294,6 +294,10 @@ public partial class MainWindow : Window
 
     private void BindResult(AuditResult result)
     {
+        // Заметки эксперта возвращаются на находки до привязки коллекций,
+        // чтобы таблица и отчёты сразу показывали их.
+        ApplyExpertNotes(result);
+
         _vm.PopulateFromResult(result);
 
         // До обновления таблицы устройств: оценка политики штампует решение

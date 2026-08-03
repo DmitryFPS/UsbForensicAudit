@@ -803,9 +803,21 @@
                             </StackPanel>
                         </StackPanel>
                     </Border>
+                    <Border DockPanel.Dock="Bottom" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Заметка эксперта к выделенной находке (попадает в отчёты и сохраняется между сканированиями):"
+                                       Foreground="{StaticResource TextMain}" Margin="0,0,0,6"/>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" x:Name="SaveExpertNoteButton" Content="Сохранить заметку" Click="SaveExpertNoteButton_Click" Margin="10,0,0,0" VerticalAlignment="Top"/>
+                                <TextBox x:Name="ExpertNoteTextBox" AcceptsReturn="True" TextWrapping="Wrap" Height="56" VerticalScrollBarVisibility="Auto"/>
+                            </DockPanel>
+                            <TextBlock x:Name="ExpertNoteStatusText" Foreground="{StaticResource TextMuted}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
                     <DataGrid x:Name="FindingsGrid"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
+                              SelectionChanged="FindingsGrid_SelectionChanged"
                               CellStyle="{StaticResource ExplainedDataGridCellStyle}">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampText}" Width="150"/>
@@ -818,6 +830,7 @@
                             <DataGridTextColumn Header="Где искали" Binding="{Binding AreaText}" Width="170"/>
                             <DataGridTextColumn Header="Что найдено" Binding="{Binding Finding}" Width="250"/>
                             <DataGridTextColumn Header="Подробности" Binding="{Binding Details}" Width="420"/>
+                            <DataGridTextColumn Header="Заметка эксперта" Binding="{Binding ExpertNote}" Width="260"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </DockPanel>
