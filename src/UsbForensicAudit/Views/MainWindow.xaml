@@ -985,20 +985,6 @@
                               VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                               VirtualizingPanel.VirtualizationMode="Recycling"
                               ScrollViewer.CanContentScroll="True">
-                        <DataGrid.GroupStyle>
-                            <GroupStyle>
-                                <GroupStyle.HeaderTemplate>
-                                    <DataTemplate>
-                                        <Border Background="{StaticResource PanelDeep}" BorderBrush="{StaticResource Stroke}" BorderThickness="0,0,0,1" Padding="10,7">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource Accent}" FontWeight="SemiBold" FontSize="13"/>
-                                                <TextBlock Text="{Binding ItemCount, StringFormat=' · событий: {0}'}" Foreground="{StaticResource TextMuted}" FontSize="12" Margin="6,0,0,0" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </GroupStyle.HeaderTemplate>
-                            </GroupStyle>
-                        </DataGrid.GroupStyle>
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
                                 <Style.Triggers>
@@ -1009,8 +995,8 @@
                             </Style>
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampText}" Width="170"/>
-                            <DataGridTextColumn Header="Тип" Binding="{Binding Kind}" Width="150">
+                            <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampText}" Width="170" MinWidth="150"/>
+                            <DataGridTextColumn Header="Тип" Binding="{Binding Kind}" Width="150" MinWidth="130">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="VerticalAlignment" Value="Center"/>
@@ -1029,9 +1015,9 @@
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="Источник" Binding="{Binding Source}" Width="220"/>
-                            <DataGridTextColumn Header="Устройство / объект" Binding="{Binding Device}" Width="260"/>
-                            <DataGridTextColumn Header="Что произошло" Binding="{Binding Description}" Width="*"/>
+                            <DataGridTextColumn Header="Источник" Binding="{Binding Source}" Width="220" MinWidth="150"/>
+                            <DataGridTextColumn Header="Устройство / объект" Binding="{Binding Device}" Width="260" MinWidth="180"/>
+                            <DataGridTextColumn Header="Что произошло" Binding="{Binding Description}" Width="*" MinWidth="240"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </DockPanel>

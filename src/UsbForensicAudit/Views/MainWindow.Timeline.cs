@@ -46,8 +46,10 @@ public partial class MainWindow
         {
             Filter = TimelineFilterPredicate
         };
-        // Лента группируется по дням: заголовок «1 мая 2026» перед событиями дня.
-        _timelineView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(TimelineViewEntry.DayText)));
+        // Группировку по дням убрали намеренно: DataGrid + группировка +
+        // виртуализация в WPF ломают растягивание строк и схлопывают колонки
+        // в ~30px. День и так виден в колонке «Дата и время», сортировка
+        // новых сверху сохранена в TimelineViewBuilder.
         TimelineGrid.ItemsSource = _timelineView;
         // Важно: НЕ вызываем DataGridAutoSize.FitColumns здесь. Лента длинная,
         // виртуализированная и сгруппированная — в момент подгонки реализованы
