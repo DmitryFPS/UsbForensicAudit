@@ -67,6 +67,10 @@ public static class MonitorAlertDelivery
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
 
+    // Сериализует запись в alerts.jsonl: два одновременно подключённых устройства
+    // иначе конкурировали бы за файл, и один алерт терялся бы с IOException.
+    private static readonly object FileLock = new();
+
     public static void Deliver(MonitorAlert alert, MonitorAlertOptions options, string dataDirectory, Action<string>? log = null)
     {
         ArgumentNullException.ThrowIfNull(alert);
@@ -82,7 +86,11 @@ public static class MonitorAlertDelivery
 
         if (options.WebhookUrl is not null)
         {
-            PostWebhook(alert, options.WebhookUrl, log);
+            // Вебхук отправляется в фоне: сетевой таймаут до 10 с не должен
+            // блокировать поток мониторинга (иначе — истощение пула потоков
+            // при недоступном вебхуке и потоке подключений).
+            var url = options.WebhookUrl;
+            _ = Task.Run(() => PostWebhookAsync(alert, url, log));
         }
     }
 
@@ -99,10 +107,13 @@ public static class MonitorAlertDelivery
                 details = alert.Details,
                 deviceKey = alert.DeviceKey
             });
-            File.AppendAllText(
-                Path.Combine(dataDirectory, "alerts.jsonl"),
-                line + Environment.NewLine,
-                new UTF8Encoding(false));
+            lock (FileLock)
+            {
+                File.AppendAllText(
+                    Path.Combine(dataDirectory, "alerts.jsonl"),
+                    line + Environment.NewLine,
+                    new UTF8Encoding(false));
+            }
         }
         catch (Exception exception)
         {
@@ -125,15 +136,25 @@ public static class MonitorAlertDelivery
                 description = description[..800];
             }
 
-            using var process = Process.Start(new ProcessStartInfo
+            // ArgumentList вместо строки Arguments: каждый аргумент передаётся
+            // отдельно, .NET сам корректно квотирует. Имя устройства с кавычками,
+            // скобками, & или | больше не может «сломать» или подменить аргумент
+            // eventcreate — закрыта инъекция аргументов от вредоносного USB.
+            var info = new ProcessStartInfo
             {
                 FileName = "eventcreate",
-                Arguments = $"/T WARNING /ID 776 /L APPLICATION /SO UsbForensicAudit /D \"{description.Replace('"', '\'')}\"",
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
-            });
+            };
+            info.ArgumentList.Add("/T"); info.ArgumentList.Add("WARNING");
+            info.ArgumentList.Add("/ID"); info.ArgumentList.Add("776");
+            info.ArgumentList.Add("/L"); info.ArgumentList.Add("APPLICATION");
+            info.ArgumentList.Add("/SO"); info.ArgumentList.Add("UsbForensicAudit");
+            info.ArgumentList.Add("/D"); info.ArgumentList.Add(description);
+
+            using var process = Process.Start(info);
             process?.WaitForExit(5000);
         }
         catch (Exception exception)
@@ -143,7 +164,7 @@ public static class MonitorAlertDelivery
         }
     }
 
-    private static void PostWebhook(MonitorAlert alert, string url, Action<string>? log)
+    private static async Task PostWebhookAsync(MonitorAlert alert, string url, Action<string>? log)
     {
         try
         {
@@ -156,7 +177,7 @@ public static class MonitorAlertDelivery
                 details = alert.Details
             });
             using var content = new StringContent(payload, Encoding.UTF8, "application/json");
-            using var response = Http.PostAsync(url, content).GetAwaiter().GetResult();
+            using var response = await Http.PostAsync(url, content).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 log?.Invoke($"Вебхук ответил {(int)response.StatusCode} на алерт «{alert.Title}».");

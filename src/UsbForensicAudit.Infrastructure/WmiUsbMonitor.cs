@@ -14,7 +14,7 @@ public sealed class WmiUsbMonitor : IDisposable
     private int _refreshPending;
     private int _refreshInProgress;
     private int _isRunning;
-    private string _lastReason = "Обновление списка USB";
+    private volatile string _lastReason = "Обновление списка USB";
 
     public event EventHandler<string>? DeviceChanged;
     public event EventHandler? RefreshRequested;

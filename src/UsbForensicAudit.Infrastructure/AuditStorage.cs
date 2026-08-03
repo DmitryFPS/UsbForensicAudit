@@ -115,14 +115,19 @@ public sealed class AuditStorage : IAuditStorage
     public IReadOnlyDictionary<string, string> LoadExpertNotes()
     {
         var notes = new Dictionary<string, string>(StringComparer.Ordinal);
-        using var connection = Open();
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT finding_key, note FROM expert_notes;";
-        using var reader = command.ExecuteReader();
-        while (reader.Read())
+        // Под тем же мьютексом, что и запись заметок: иначе чтение из UI-потока
+        // могло совпасть с записью из фонового и дать грязный результат.
+        ExecuteExclusive(() =>
         {
-            notes[reader.GetString(0)] = reader.GetString(1);
-        }
+            using var connection = Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT finding_key, note FROM expert_notes;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                notes[reader.GetString(0)] = reader.GetString(1);
+            }
+        });
 
         return notes;
     }
