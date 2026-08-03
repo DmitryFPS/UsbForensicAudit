@@ -21,18 +21,23 @@ public sealed class WmiConnectedDeviceProbe : IConnectedDeviceProbe
                 "OR PNPDeviceID LIKE 'SWD%' OR PNPDeviceID LIKE 'USB4%' OR PNPDeviceID LIKE 'PCI%' " +
                 "OR Service='uaspstor' OR Service='Usb4HostRouter' OR Service='Usb4DeviceRouter' OR Service='Usb4P2PNetAdapter'");
 
-            foreach (ManagementObject item in searcher.Get())
+            using var pnpEntities = searcher.Get();
+            foreach (ManagementObject item in pnpEntities)
             {
-                var pnpId = item["PNPDeviceID"]?.ToString() ?? "";
-                var metadata = LiveDeviceMetadataReader.Read(pnpId);
-                if (DeviceTransportClassifier.IsRelevantLiveCandidate(
-                        pnpId, item["Service"]?.ToString() ?? "", metadata.HardwareIds,
-                        metadata.CompatibleIds, metadata.LocationPaths, item["Name"]?.ToString() ?? "")
-                    || DeviceTransportClassifier.IsBuiltinStorageLiveCandidate(
-                        pnpId, item["Service"]?.ToString() ?? "", metadata.HardwareIds,
-                        metadata.CompatibleIds, metadata.LocationPaths, item["Name"]?.ToString() ?? ""))
+                // ManagementObject держит COM-объект (RCW): без Dispose ресурсы копятся до GC.
+                using (item)
                 {
-                    pnpIdentifiers.Add(pnpId);
+                    var pnpId = item["PNPDeviceID"]?.ToString() ?? "";
+                    var metadata = LiveDeviceMetadataReader.Read(pnpId);
+                    if (DeviceTransportClassifier.IsRelevantLiveCandidate(
+                            pnpId, item["Service"]?.ToString() ?? "", metadata.HardwareIds,
+                            metadata.CompatibleIds, metadata.LocationPaths, item["Name"]?.ToString() ?? "")
+                        || DeviceTransportClassifier.IsBuiltinStorageLiveCandidate(
+                            pnpId, item["Service"]?.ToString() ?? "", metadata.HardwareIds,
+                            metadata.CompatibleIds, metadata.LocationPaths, item["Name"]?.ToString() ?? ""))
+                    {
+                        pnpIdentifiers.Add(pnpId);
+                    }
                 }
             }
 
@@ -40,28 +45,36 @@ public sealed class WmiConnectedDeviceProbe : IConnectedDeviceProbe
                 "SELECT PNPDeviceID, InterfaceType, MediaType, Model FROM Win32_DiskDrive " +
                 "WHERE InterfaceType='USB' OR MediaType='Removable Media' OR MediaType='External hard disk media' OR PNPDeviceID LIKE 'SCSI%'");
 
-            foreach (ManagementObject disk in diskSearcher.Get())
+            using var disks = diskSearcher.Get();
+            foreach (ManagementObject disk in disks)
             {
-                var pnpId = disk["PNPDeviceID"]?.ToString() ?? "";
-                var mediaType = disk["MediaType"]?.ToString() ?? "";
-                var metadata = LiveDeviceMetadataReader.Read(pnpId);
-                if (DeviceTransportClassifier.IsRelevantLiveCandidate(
-                        pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds,
-                        metadata.LocationPaths, disk["Model"]?.ToString() ?? "", mediaType)
-                    || DeviceTransportClassifier.IsBuiltinStorageLiveCandidate(
-                        pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds,
-                        metadata.LocationPaths, disk["Model"]?.ToString() ?? "", mediaType))
+                using (disk)
                 {
-                    pnpIdentifiers.Add(pnpId);
+                    var pnpId = disk["PNPDeviceID"]?.ToString() ?? "";
+                    var mediaType = disk["MediaType"]?.ToString() ?? "";
+                    var metadata = LiveDeviceMetadataReader.Read(pnpId);
+                    if (DeviceTransportClassifier.IsRelevantLiveCandidate(
+                            pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds,
+                            metadata.LocationPaths, disk["Model"]?.ToString() ?? "", mediaType)
+                        || DeviceTransportClassifier.IsBuiltinStorageLiveCandidate(
+                            pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds,
+                            metadata.LocationPaths, disk["Model"]?.ToString() ?? "", mediaType))
+                    {
+                        pnpIdentifiers.Add(pnpId);
+                    }
                 }
             }
 
             using var volumeSearcher = new ManagementObjectSearcher(
                 "SELECT DeviceID, DriveType FROM Win32_LogicalDisk WHERE DriveType = 2");
 
-            foreach (ManagementObject volume in volumeSearcher.Get())
+            using var volumes = volumeSearcher.Get();
+            foreach (ManagementObject volume in volumes)
             {
-                driveLetters.Add(volume["DeviceID"]?.ToString());
+                using (volume)
+                {
+                    driveLetters.Add(volume["DeviceID"]?.ToString());
+                }
             }
         }
         catch
