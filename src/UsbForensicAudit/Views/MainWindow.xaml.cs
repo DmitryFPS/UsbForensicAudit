@@ -303,6 +303,7 @@ public partial class MainWindow : Window
         // До обновления таблицы устройств: оценка политики штампует решение
         // на записи, и колонка «Политика» должна показать его сразу.
         RefreshRisks(result);
+        RefreshTimeline(result);
 
         _devicesView.Refresh();
         UpdateDeviceCount();

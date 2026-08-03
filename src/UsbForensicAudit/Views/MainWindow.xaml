@@ -760,6 +760,47 @@
                 </DockPanel>
             </TabItem>
 
+            <TabItem Header="Таймлайн">
+                <DockPanel Margin="4,14,4,4">
+                    <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Единая лента событий: подключения и активность USB, признаки очистки и сетевые связи — одной хронологией, новые сверху. Подозрительная очистка подсвечена."
+                                       Foreground="{StaticResource TextMain}" TextWrapping="Wrap"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <TextBlock Text="Тип:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <ComboBox x:Name="TimelineKindCombo" Width="200" SelectionChanged="TimelineFilter_Changed"/>
+                                <TextBlock Text="Устройство:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="16,0,8,0"/>
+                                <ComboBox x:Name="TimelineDeviceCombo" Width="280" SelectionChanged="TimelineFilter_Changed"/>
+                                <TextBlock Text="Поиск:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="16,0,8,0"/>
+                                <TextBox x:Name="TimelineSearchBox" Width="240" TextChanged="TimelineFilter_Changed"/>
+                                <TextBlock x:Name="TimelineCountText" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <DataGrid x:Name="TimelineGrid"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              EnableRowVirtualization="True">
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsAlarm}" Value="True">
+                                        <Setter Property="Foreground" Value="#F87171"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampText}" Width="170"/>
+                            <DataGridTextColumn Header="Тип" Binding="{Binding Kind}" Width="150"/>
+                            <DataGridTextColumn Header="Источник" Binding="{Binding Source}" Width="220"/>
+                            <DataGridTextColumn Header="Устройство / объект" Binding="{Binding Device}" Width="260"/>
+                            <DataGridTextColumn Header="Что произошло" Binding="{Binding Description}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
             <TabItem Header="Следы очистки">
                 <DockPanel Margin="4,14,4,4">
                     <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
