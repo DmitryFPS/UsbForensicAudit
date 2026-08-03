@@ -11,28 +11,28 @@
         MinHeight="720"
         MinWidth="1120"
         FontFamily="Segoe UI"
-        Background="#07111F">
+        Background="#0A0E1A">
     <Window.Resources>
-        <SolidColorBrush x:Key="Bg" Color="#07111F"/>
-        <SolidColorBrush x:Key="Panel" Color="#0B1728"/>
-        <SolidColorBrush x:Key="Panel2" Color="#101F33"/>
-        <SolidColorBrush x:Key="Stroke" Color="#1F3B59"/>
-        <SolidColorBrush x:Key="TextMain" Color="#E5F2FF"/>
-        <SolidColorBrush x:Key="TextMuted" Color="#8EA7BF"/>
-        <SolidColorBrush x:Key="Accent" Color="#38D996"/>
-        <SolidColorBrush x:Key="Accent2" Color="#38BDF8"/>
-        <SolidColorBrush x:Key="Warn" Color="#FBBF24"/>
-        <SolidColorBrush x:Key="Danger" Color="#FB7185"/>
-        <SolidColorBrush x:Key="PanelDeep" Color="#081320"/>
-        <SolidColorBrush x:Key="AccentSoft" Color="#4ADE9B"/>
-        <SolidColorBrush x:Key="TextSoft" Color="#D9E8F5"/>
+        <SolidColorBrush x:Key="Bg" Color="#0A0E1A"/>
+        <SolidColorBrush x:Key="Panel" Color="#111726"/>
+        <SolidColorBrush x:Key="Panel2" Color="#16203A"/>
+        <SolidColorBrush x:Key="Stroke" Color="#1E2A44"/>
+        <SolidColorBrush x:Key="TextMain" Color="#E6EDF7"/>
+        <SolidColorBrush x:Key="TextMuted" Color="#8B98B8"/>
+        <SolidColorBrush x:Key="Accent" Color="#4C8DFF"/>
+        <SolidColorBrush x:Key="Accent2" Color="#6FA8FF"/>
+        <SolidColorBrush x:Key="Warn" Color="#F59E0B"/>
+        <SolidColorBrush x:Key="Danger" Color="#EF4444"/>
+        <SolidColorBrush x:Key="PanelDeep" Color="#0D1322"/>
+        <SolidColorBrush x:Key="AccentSoft" Color="#7FB4FF"/>
+        <SolidColorBrush x:Key="TextSoft" Color="#D7E0F0"/>
         <local:CellExplanationToolTipConverter x:Key="CellExplanationToolTipConverter"/>
         <local:DeviceExternalityBrushConverter x:Key="DeviceExternalityBrushConverter"/>
         <local:NetworkConnectionBrushConverter x:Key="NetworkConnectionBrushConverter"/>
 
         <Style TargetType="ToolTip">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#E5F2FF"/>
+            <Setter Property="Foreground" Value="#E6EDF7"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="MaxWidth" Value="540"/>
@@ -43,7 +43,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToolTip">
-                        <Border Background="#142A43"
+                        <Border Background="#182238"
                                 BorderBrush="{StaticResource Accent2}"
                                 BorderThickness="1"
                                 CornerRadius="9"
@@ -61,9 +61,9 @@
         </Style>
 
         <Style TargetType="Button">
-            <Setter Property="Foreground" Value="#E5F2FF"/>
-            <Setter Property="Background" Value="#11243A"/>
-            <Setter Property="BorderBrush" Value="#2B4C6F"/>
+            <Setter Property="Foreground" Value="#E6EDF7"/>
+            <Setter Property="Background" Value="#141C30"/>
+            <Setter Property="BorderBrush" Value="#263354"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="14,9"/>
             <Setter Property="Margin" Value="6,0,0,0"/>
@@ -80,8 +80,8 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#173456"/>
-                                <Setter Property="BorderBrush" Value="#38BDF8"/>
+                                <Setter Property="Background" Value="#1B2742"/>
+                                <Setter Property="BorderBrush" Value="#6FA8FF"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.45"/>
@@ -98,7 +98,7 @@
         </Style>
 
         <Style TargetType="TabItem">
-            <Setter Property="Foreground" Value="#8EA7BF"/>
+            <Setter Property="Foreground" Value="#8B98B8"/>
             <Setter Property="Padding" Value="16,9"/>
             <Setter Property="Margin" Value="0,0,4,0"/>
             <Setter Property="Template">
@@ -115,8 +115,8 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="TabBorder" Property="Background" Value="#132A44"/>
-                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#38BDF8"/>
-                                <Setter Property="Foreground" Value="#E5F2FF"/>
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#6FA8FF"/>
+                                <Setter Property="Foreground" Value="#E6EDF7"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -125,14 +125,14 @@
         </Style>
 
         <Style TargetType="DataGrid">
-            <Setter Property="Background" Value="#081320"/>
-            <Setter Property="Foreground" Value="#D9E8F5"/>
-            <Setter Property="BorderBrush" Value="#1F3B59"/>
+            <Setter Property="Background" Value="#0D1322"/>
+            <Setter Property="Foreground" Value="#D7E0F0"/>
+            <Setter Property="BorderBrush" Value="#1E2A44"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="GridLinesVisibility" Value="Horizontal"/>
             <Setter Property="HorizontalGridLinesBrush" Value="#1A2F49"/>
             <Setter Property="VerticalGridLinesBrush" Value="#1A2F49"/>
-            <Setter Property="RowBackground" Value="#0B1728"/>
+            <Setter Property="RowBackground" Value="#111726"/>
             <Setter Property="AlternatingRowBackground" Value="#0E1D30"/>
             <Setter Property="HeadersVisibility" Value="Column"/>
             <Setter Property="CanUserAddRows" Value="False"/>
@@ -144,7 +144,7 @@
         <Style TargetType="DataGridColumnHeader">
             <Setter Property="Background" Value="#122840"/>
             <Setter Property="Foreground" Value="#BFE7FF"/>
-            <Setter Property="BorderBrush" Value="#1F3B59"/>
+            <Setter Property="BorderBrush" Value="#1E2A44"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Padding" Value="8,7"/>
         </Style>
@@ -152,11 +152,11 @@
         <Style TargetType="DataGridCell">
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="6,4"/>
-            <Setter Property="Foreground" Value="#D9E8F5"/>
+            <Setter Property="Foreground" Value="#D7E0F0"/>
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
                     <Setter Property="Background" Value="#175A78"/>
-                    <Setter Property="Foreground" Value="#E5F2FF"/>
+                    <Setter Property="Foreground" Value="#E6EDF7"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -180,8 +180,8 @@
         </Style>
 
         <Style x:Key="Card" TargetType="Border">
-            <Setter Property="Background" Value="#0B1728"/>
-            <Setter Property="BorderBrush" Value="#1F3B59"/>
+            <Setter Property="Background" Value="#111726"/>
+            <Setter Property="BorderBrush" Value="#1E2A44"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="14"/>
             <Setter Property="Padding" Value="16"/>
@@ -201,7 +201,7 @@
                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                     <GradientStop Color="#08111F" Offset="0"/>
                     <GradientStop Color="#0D2136" Offset="0.55"/>
-                    <GradientStop Color="#07111F" Offset="1"/>
+                    <GradientStop Color="#0A0E1A" Offset="1"/>
                 </LinearGradientBrush>
             </Border.Background>
             <Grid Margin="22,18">
@@ -238,11 +238,11 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="ElevateButton" Content="Запуск от администратора" Click="ElevateButton_Click" Background="#1E3A5F" BorderBrush="{StaticResource Accent2}"/>
-                    <Button x:Name="ScanButton" Content="Полное сканирование" Click="ScanButton_Click" Background="#14532D" BorderBrush="{StaticResource Accent}"/>
+                    <Button x:Name="ElevateButton" Content="Запуск от администратора" Click="ElevateButton_Click"/>
+                    <Button x:Name="ScanButton" Content="Полное сканирование" Click="ScanButton_Click" Background="#2456B4" BorderBrush="#4C8DFF"/>
                     <Button x:Name="MonitorButton" Content="Старт мониторинга" Click="MonitorButton_Click"/>
                     <Button x:Name="ShowActiveDevicesButton" Content="Окно USB" IsEnabled="False" Click="ShowActiveDevicesButton_Click"/>
-                    <Button x:Name="StopMonitorButton" Content="Стоп" IsEnabled="False" Click="StopMonitorButton_Click" Background="#3F1D2B" BorderBrush="{StaticResource Danger}"/>
+                    <Button x:Name="StopMonitorButton" Content="Стоп" IsEnabled="False" Click="StopMonitorButton_Click" Background="#33121C" BorderBrush="{StaticResource Danger}"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -407,7 +407,7 @@
                                     </DataTrigger>
                                     <Trigger Property="IsSelected" Value="True">
                                         <Setter Property="Background" Value="#175A78"/>
-                                        <Setter Property="Foreground" Value="#E5F2FF"/>
+                                        <Setter Property="Foreground" Value="#E6EDF7"/>
                                     </Trigger>
                                 </Style.Triggers>
                             </Style>
@@ -424,7 +424,7 @@
                                                 <Setter Property="FontWeight" Value="Bold"/>
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding PolicyDecision}" Value="Unlisted">
-                                                <Setter Property="Foreground" Value="#FBBF24"/>
+                                                <Setter Property="Foreground" Value="#F59E0B"/>
                                                 <Setter Property="FontWeight" Value="Bold"/>
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding PolicyDecision}" Value="Approved">
@@ -543,7 +543,7 @@
                                     </DataTrigger>
                                     <Trigger Property="IsSelected" Value="True">
                                         <Setter Property="Background" Value="#175A78"/>
-                                        <Setter Property="Foreground" Value="#E5F2FF"/>
+                                        <Setter Property="Foreground" Value="#E6EDF7"/>
                                     </Trigger>
                                 </Style.Triggers>
                             </Style>
@@ -1099,15 +1099,15 @@
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,14"/>
                         <WrapPanel>
-                            <Button x:Name="ManagerPdfReportButton" Content="Для руководителя (1 стр.)" Click="ManagerPdfReportButton_Click" IsEnabled="False" Background="#5B2333" BorderBrush="#F472B6"/>
-                            <Button x:Name="PdfReportButton" Content="Полный PDF" Click="PdfReportButton_Click" IsEnabled="False" Background="#14532D" BorderBrush="{StaticResource Accent}"/>
-                            <Button x:Name="AnalystNotePdfReportButton" Content="Аналитическая записка (PDF)" Click="AnalystNotePdfReportButton_Click" IsEnabled="False" Background="#3B2A5A" BorderBrush="#A78BFA"/>
-                            <Button x:Name="BriefPdfReportButton" Content="Сводный PDF" Click="BriefPdfReportButton_Click" IsEnabled="False" Background="#1E3A5F" BorderBrush="{StaticResource Accent2}"/>
-                            <Button x:Name="ExcelReportButton" Content="Полный Excel" Click="ExcelReportButton_Click" IsEnabled="False" Background="#14532D" BorderBrush="{StaticResource Accent}"/>
-                            <Button x:Name="BriefExcelReportButton" Content="Сводный Excel" Click="BriefExcelReportButton_Click" IsEnabled="False" Background="#1E3A5F" BorderBrush="{StaticResource Accent2}"/>
-                            <Button x:Name="AnalystNoteExcelReportButton" Content="Аналитическая записка (Excel)" Click="AnalystNoteExcelReportButton_Click" IsEnabled="False" Background="#3B2A5A" BorderBrush="#A78BFA"/>
-                            <Button x:Name="TimelineCsvButton" Content="Таймлайн (CSV)" Click="TimelineCsvButton_Click" IsEnabled="False" Background="#4A3B12" BorderBrush="#F5D98A"/>
-                            <Button x:Name="EvidencePackageButton" Content="Пакет доказательств (ZIP)" Click="EvidencePackageButton_Click" IsEnabled="False" Background="#4A1D1D" BorderBrush="#F87171"/>
+                            <Button x:Name="ManagerPdfReportButton" Content="Для руководителя (1 стр.)" Click="ManagerPdfReportButton_Click" IsEnabled="False"/>
+                            <Button x:Name="PdfReportButton" Content="Полный PDF" Click="PdfReportButton_Click" IsEnabled="False"/>
+                            <Button x:Name="AnalystNotePdfReportButton" Content="Аналитическая записка (PDF)" Click="AnalystNotePdfReportButton_Click" IsEnabled="False"/>
+                            <Button x:Name="BriefPdfReportButton" Content="Сводный PDF" Click="BriefPdfReportButton_Click" IsEnabled="False"/>
+                            <Button x:Name="ExcelReportButton" Content="Полный Excel" Click="ExcelReportButton_Click" IsEnabled="False"/>
+                            <Button x:Name="BriefExcelReportButton" Content="Сводный Excel" Click="BriefExcelReportButton_Click" IsEnabled="False"/>
+                            <Button x:Name="AnalystNoteExcelReportButton" Content="Аналитическая записка (Excel)" Click="AnalystNoteExcelReportButton_Click" IsEnabled="False"/>
+                            <Button x:Name="TimelineCsvButton" Content="Таймлайн (CSV)" Click="TimelineCsvButton_Click" IsEnabled="False"/>
+                            <Button x:Name="EvidencePackageButton" Content="Пакет доказательств (ZIP)" Click="EvidencePackageButton_Click" IsEnabled="False"/>
                             <Button Content="Открыть папку данных" Click="OpenDataFolderButton_Click"/>
                         </WrapPanel>
                         <TextBlock x:Name="ReportStatusText" Foreground="{StaticResource TextMuted}" Margin="0,16,0,0" TextWrapping="Wrap"/>

@@ -9,24 +9,24 @@
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
         FontFamily="Segoe UI"
-        Background="#07111F">
+        Background="#0A0E1A">
     <Window.Resources>
         <Style TargetType="Button">
-            <Setter Property="Foreground" Value="#E5F2FF"/>
+            <Setter Property="Foreground" Value="#E6EDF7"/>
             <Setter Property="Background" Value="#14532D"/>
-            <Setter Property="BorderBrush" Value="#38D996"/>
+            <Setter Property="BorderBrush" Value="#4C8DFF"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="18,8"/>
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
 
         <Style TargetType="DataGrid">
-            <Setter Property="Background" Value="#081320"/>
+            <Setter Property="Background" Value="#0D1322"/>
             <Setter Property="Foreground" Value="#D8E9FA"/>
-            <Setter Property="BorderBrush" Value="#1F3B59"/>
+            <Setter Property="BorderBrush" Value="#1E2A44"/>
             <Setter Property="GridLinesVisibility" Value="Horizontal"/>
             <Setter Property="HorizontalGridLinesBrush" Value="#12293F"/>
-            <Setter Property="RowBackground" Value="#0B1728"/>
+            <Setter Property="RowBackground" Value="#111726"/>
             <Setter Property="AlternatingRowBackground" Value="#0E1D30"/>
             <Setter Property="HeadersVisibility" Value="Column"/>
         </Style>
@@ -35,7 +35,7 @@
             <Setter Property="Background" Value="#12293F"/>
             <Setter Property="Foreground" Value="#9FC6E4"/>
             <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="BorderBrush" Value="#1F3B59"/>
+            <Setter Property="BorderBrush" Value="#1E2A44"/>
             <Setter Property="BorderThickness" Value="0,0,1,1"/>
         </Style>
 
@@ -47,13 +47,13 @@
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
                     <Setter Property="Background" Value="#175A78"/>
-                    <Setter Property="Foreground" Value="#E5F2FF"/>
+                    <Setter Property="Foreground" Value="#E6EDF7"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
     </Window.Resources>
 
-    <Border Margin="14" Padding="16" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="14">
+    <Border Margin="14" Padding="16" Background="#111726" BorderBrush="#1E2A44" BorderThickness="1" CornerRadius="14">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -64,7 +64,7 @@
 
             <StackPanel>
                 <TextBlock x:Name="TitleText"
-                           Foreground="#38BDF8"
+                           Foreground="#6FA8FF"
                            FontSize="21"
                            FontWeight="SemiBold"
                            TextWrapping="Wrap"/>
@@ -72,19 +72,19 @@
                            Foreground="#D8E9FA"
                            TextWrapping="Wrap"
                            Margin="0,8,0,0"/>
-                <TextBlock Foreground="#8EA7BF" TextWrapping="Wrap" Margin="0,8,0,0"
+                <TextBlock Foreground="#8B98B8" TextWrapping="Wrap" Margin="0,8,0,0"
                            Text="Windows не записывает, что именно происходило с файлом. Она сохраняет следы обращений: какие папки открывали в проводнике, какие файлы открывали, что удаляли в корзину, что запускали. Столбец «Почему отнесено к этому устройству» показывает основание привязки — по нему вывод можно проверить."/>
                 <TextBlock x:Name="WarningText"
-                           Foreground="#FBBF24"
+                           Foreground="#F59E0B"
                            TextWrapping="Wrap"
                            Margin="0,8,0,0"
                            Visibility="Collapsed"/>
             </StackPanel>
 
             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,14,0,10">
-                <TextBlock Text="Показывать:" Foreground="#8EA7BF" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBlock Text="Показывать:" Foreground="#8B98B8" VerticalAlignment="Center" Margin="0,0,8,0"/>
                 <ComboBox x:Name="KindFilterCombo" Width="290" SelectionChanged="KindFilterCombo_SelectionChanged"/>
-                <TextBlock x:Name="CountText" Foreground="#8EA7BF" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                <TextBlock x:Name="CountText" Foreground="#8B98B8" VerticalAlignment="Center" Margin="14,0,0,0"/>
             </StackPanel>
 
             <TabControl Grid.Row="2" Background="Transparent" BorderThickness="0">
@@ -107,7 +107,7 @@
                     <DockPanel Margin="0,10,0,0">
                         <TextBlock x:Name="CopyVerdictText"
                                    DockPanel.Dock="Top"
-                                   Foreground="#FBBF24"
+                                   Foreground="#F59E0B"
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,10"/>
                         <DataGrid x:Name="CopyGrid" AutoGenerateColumns="False" IsReadOnly="True">
@@ -127,7 +127,7 @@
                                         </DataTrigger>
                                         <Trigger Property="IsSelected" Value="True">
                                             <Setter Property="Background" Value="#175A78"/>
-                                            <Setter Property="Foreground" Value="#E5F2FF"/>
+                                            <Setter Property="Foreground" Value="#E6EDF7"/>
                                         </Trigger>
                                     </Style.Triggers>
                                 </Style>
@@ -158,7 +158,7 @@
             <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
                 <Button Content="Скопировать историю в буфер"
                         Background="#123B57"
-                        BorderBrush="#38BDF8"
+                        BorderBrush="#6FA8FF"
                         Margin="0,0,10,0"
                         Click="CopyButton_Click"/>
                 <Button Content="Закрыть" IsDefault="True" IsCancel="True" Click="CloseButton_Click"/>

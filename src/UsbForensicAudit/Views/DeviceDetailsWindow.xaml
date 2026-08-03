@@ -10,18 +10,18 @@
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
         FontFamily="Segoe UI"
-        Background="#07111F">
+        Background="#0A0E1A">
     <Window.Resources>
         <Style x:Key="FieldLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#8EA7BF"/>
+            <Setter Property="Foreground" Value="#8B98B8"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Margin" Value="0,0,0,4"/>
         </Style>
 
         <Style x:Key="FieldValue" TargetType="TextBox">
-            <Setter Property="Foreground" Value="#E5F2FF"/>
-            <Setter Property="Background" Value="#101F33"/>
-            <Setter Property="BorderBrush" Value="#1F3B59"/>
+            <Setter Property="Foreground" Value="#E6EDF7"/>
+            <Setter Property="Background" Value="#16203A"/>
+            <Setter Property="BorderBrush" Value="#1E2A44"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="Margin" Value="0,0,0,14"/>
@@ -31,9 +31,9 @@
         </Style>
 
         <Style TargetType="Button">
-            <Setter Property="Foreground" Value="#E5F2FF"/>
+            <Setter Property="Foreground" Value="#E6EDF7"/>
             <Setter Property="Background" Value="#14532D"/>
-            <Setter Property="BorderBrush" Value="#38D996"/>
+            <Setter Property="BorderBrush" Value="#4C8DFF"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="22,9"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -42,8 +42,8 @@
 
     <Border Margin="18"
             Padding="20"
-            Background="#0B1728"
-            BorderBrush="#1F3B59"
+            Background="#111726"
+            BorderBrush="#1E2A44"
             BorderThickness="1"
             CornerRadius="14">
         <Grid>
@@ -54,7 +54,7 @@
             </Grid.RowDefinitions>
 
             <TextBlock Text="Сведения об устройстве"
-                       Foreground="#38BDF8"
+                       Foreground="#6FA8FF"
                        FontSize="22"
                        FontWeight="SemiBold"
                        Margin="0,0,0,18"/>
@@ -118,7 +118,7 @@
                 <Button x:Name="ActivityButton"
                         Content="История действий на устройстве"
                         Background="#123B57"
-                        BorderBrush="#38BDF8"
+                        BorderBrush="#6FA8FF"
                         Margin="0,0,10,0"
                         Click="ActivityButton_Click"/>
                 <Button Content="Закрыть"

@@ -1,11 +1,11 @@
-﻿<Application x:Class="UsbForensicAudit.App"
+<Application x:Class="UsbForensicAudit.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:UsbForensicAudit">
     <Application.Resources>
-        <SolidColorBrush x:Key="ScrollTrackBrush" Color="#0A1522"/>
-        <SolidColorBrush x:Key="ScrollThumbBrush" Color="#1E3550"/>
-        <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#2A4868"/>
+        <SolidColorBrush x:Key="ScrollTrackBrush" Color="#0C1220"/>
+        <SolidColorBrush x:Key="ScrollThumbBrush" Color="#243252"/>
+        <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#31446E"/>
 
         <ControlTemplate x:Key="VerticalScrollBarTemplate" TargetType="{x:Type ScrollBar}">
             <Grid Width="{TemplateBinding Width}" Background="{StaticResource ScrollTrackBrush}">

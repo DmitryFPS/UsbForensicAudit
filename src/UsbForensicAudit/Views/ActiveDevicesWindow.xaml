@@ -7,17 +7,17 @@
         MinHeight="360"
         MinWidth="820"
         FontFamily="Segoe UI"
-        Background="#07111F">
+        Background="#0A0E1A">
     <Window.Resources>
         <Style TargetType="DataGrid">
-            <Setter Property="Background" Value="#081320"/>
-            <Setter Property="Foreground" Value="#D9E8F5"/>
-            <Setter Property="BorderBrush" Value="#1F3B59"/>
+            <Setter Property="Background" Value="#0D1322"/>
+            <Setter Property="Foreground" Value="#D7E0F0"/>
+            <Setter Property="BorderBrush" Value="#1E2A44"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="GridLinesVisibility" Value="Horizontal"/>
             <Setter Property="HorizontalGridLinesBrush" Value="#1A2F49"/>
             <Setter Property="VerticalGridLinesBrush" Value="#1A2F49"/>
-            <Setter Property="RowBackground" Value="#0B1728"/>
+            <Setter Property="RowBackground" Value="#111726"/>
             <Setter Property="AlternatingRowBackground" Value="#0E1D30"/>
             <Setter Property="HeadersVisibility" Value="Column"/>
             <Setter Property="CanUserAddRows" Value="False"/>
@@ -25,14 +25,14 @@
         <Style TargetType="DataGridColumnHeader">
             <Setter Property="Background" Value="#122840"/>
             <Setter Property="Foreground" Value="#BFE7FF"/>
-            <Setter Property="BorderBrush" Value="#1F3B59"/>
+            <Setter Property="BorderBrush" Value="#1E2A44"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Padding" Value="8,7"/>
         </Style>
         <Style TargetType="DataGridCell">
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="6,4"/>
-            <Setter Property="Foreground" Value="#D9E8F5"/>
+            <Setter Property="Foreground" Value="#D7E0F0"/>
         </Style>
     </Window.Resources>
 
@@ -42,18 +42,18 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border Background="#0B1728" BorderBrush="#38BDF8" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,0,0,14">
+        <Border Background="#111726" BorderBrush="#6FA8FF" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,0,0,14">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <Ellipse Width="42" Height="42" Fill="#0F2B45" Stroke="#38D996" StrokeThickness="1.5"/>
-                <Path Grid.Column="0" Stroke="#38D996" StrokeThickness="2.2" Data="M12,21 L30,21 M21,12 L21,30" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <Ellipse Width="42" Height="42" Fill="#0F2B45" Stroke="#4C8DFF" StrokeThickness="1.5"/>
+                <Path Grid.Column="0" Stroke="#4C8DFF" StrokeThickness="2.2" Data="M12,21 L30,21 M21,12 L21,30" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <StackPanel Grid.Column="1" Margin="14,0,0,0">
-                    <TextBlock Text="Сейчас подключено USB / Type-C" Foreground="#E5F2FF" FontSize="18" FontWeight="SemiBold"/>
+                    <TextBlock Text="Сейчас подключено USB / Type-C" Foreground="#E6EDF7" FontSize="18" FontWeight="SemiBold"/>
                     <TextBlock Text="Показывает только устройства, которые подключены прямо сейчас. После отключения строка исчезает, но история остаётся во вкладке «USB устройства»."
-                               Foreground="#8EA7BF"
+                               Foreground="#8B98B8"
                                TextWrapping="Wrap"
                                Margin="0,3,0,0"/>
                 </StackPanel>
