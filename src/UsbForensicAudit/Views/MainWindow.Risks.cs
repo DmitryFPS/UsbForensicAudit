@@ -72,10 +72,10 @@ public partial class MainWindow
         var accent = (Brush)FindResource("Accent2");
         var textMain = (Brush)FindResource("TextMain");
 
-        // Вопрос 1: что подключали.
-        var external = result.Devices
-            .Where(x => x.IsExternalDevice && !DeviceComposition.IsFoldedByDefault(x))
-            .ToArray();
+        // Вопрос 1: что подключали. Единый источник с отчётами
+        // (ForensicReportContext.ExternalListedDevices) — иначе число внешних
+        // устройств в «Обзоре» и в отчёте руководителю расходилось (8 против 7).
+        var external = ForensicReportContext.ExternalListedDevices(result.Devices);
         var lastSeen = external
             .Select(x => x.LastSeenUtc)
             .Where(x => x is not null)
@@ -83,10 +83,10 @@ public partial class MainWindow
             .FirstOrDefault();
         AnswerDevicesBar.Background = policy.HasViolations ? danger : accent;
         AnswerDevicesVerdict.Foreground = policy.HasViolations ? danger : textMain;
-        AnswerDevicesVerdict.Text = external.Length == 0
+        AnswerDevicesVerdict.Text = external.Count == 0
             ? "Следов внешних носителей не найдено"
-            : $"Да — внешних устройств: {external.Length}";
-        AnswerDevicesNote.Text = external.Length == 0
+            : $"Да — внешних устройств: {external.Count}";
+        AnswerDevicesNote.Text = external.Count == 0
             ? "Отсутствие следов не доказывает отсутствие подключений."
             : (lastSeen is not null ? $"Последняя активность: {DateDisplay.FormatMoscow(lastSeen.Value)}. " : "")
               + (policy.HasViolations

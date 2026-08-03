@@ -315,6 +315,21 @@ internal sealed class ForensicReportContext
             .OrderByDescending(x => x.TimestampUtc);
     }
 
+    /// <summary>
+    /// Единый канонический список внешних устройств «одна вещь — одна строка»
+    /// в области USB-аудита. ОДИН источник истины для всех мест, где показывается
+    /// число внешних устройств (вкладка «Обзор», отчёт руководителю, HTML-сводка),
+    /// чтобы цифры нигде не расходились. Совпадает с фильтром ListedDevices +
+    /// IsExternalDevice, применяемым в отчётах.
+    /// </summary>
+    internal static IReadOnlyList<UsbDeviceRecord> ExternalListedDevices(IReadOnlyList<UsbDeviceRecord> devices)
+    {
+        ArgumentNullException.ThrowIfNull(devices);
+        return BuildUsbScopeDevices(devices)
+            .Where(x => !DeviceComposition.IsFoldedByDefault(x) && x.IsExternalDevice)
+            .ToArray();
+    }
+
     private static UsbDeviceRecord[] BuildUsbScopeDevices(IReadOnlyList<UsbDeviceRecord> devices)
     {
         var coreUsb = devices
