@@ -458,7 +458,11 @@ internal static class Program
         {
             try
             {
-                var result = JsonSerializer.Deserialize<AuditResult>(File.ReadAllText(file));
+                // Потоковое чтение вместо ReadAllText: на корпоративном флоте
+                // экспорты бывают в несколько МБ, и загрузка каждого целиком в
+                // строку давала бы пиковую память в сотни МБ (риск OOM).
+                using var stream = File.OpenRead(file);
+                var result = JsonSerializer.Deserialize<AuditResult>(stream);
                 if (result is null)
                 {
                     Console.Error.WriteLine(CliStrings.Format("FleetFileSkipped", file, "null"));
@@ -467,9 +471,10 @@ internal static class Program
 
                 results.Add(result);
             }
-            catch (JsonException exception)
+            catch (Exception exception) when (exception is JsonException or NotSupportedException or InvalidOperationException or IOException)
             {
-                // Один битый экспорт не должен ронять сводку по остальным машинам.
+                // Один битый или несовместимый экспорт не должен ронять сводку
+                // по остальным машинам — пропускаем с предупреждением.
                 Console.Error.WriteLine(CliStrings.Format("FleetFileSkipped", file, exception.Message));
             }
         }

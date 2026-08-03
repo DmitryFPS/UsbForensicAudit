@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Threading;
 
 namespace UsbForensicAudit;
 
@@ -69,9 +71,31 @@ public partial class MainWindow
             TimelineSearchBox.Text);
     }
 
+    private DispatcherTimer? _timelineFilterDebounce;
+
+    // Выбор в списках применяем сразу — событий немного.
     private void TimelineFilter_Changed(object sender, SelectionChangedEventArgs e) => RefreshTimelineFilter();
 
-    private void TimelineFilter_Changed(object sender, TextChangedEventArgs e) => RefreshTimelineFilter();
+    // Ввод текста поиска — с задержкой: полный проход по всей ленте на каждую
+    // букву давал заметный лаг на большой истории. Перезапускаемый таймер
+    // применяет фильтр один раз после паузы в наборе.
+    private void TimelineFilter_Changed(object sender, TextChangedEventArgs e)
+    {
+        _timelineFilterDebounce ??= CreateTimelineDebounceTimer();
+        _timelineFilterDebounce.Stop();
+        _timelineFilterDebounce.Start();
+    }
+
+    private DispatcherTimer CreateTimelineDebounceTimer()
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(180) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            RefreshTimelineFilter();
+        };
+        return timer;
+    }
 
     private void RefreshTimelineFilter()
     {
