@@ -249,6 +249,10 @@
                       образ диска (например, F:\) или скопированный
                       каталог Windows; анализируются только кусты
                       реестра, исследуемые файлы не изменяются
+  --fleet &lt;каталог&gt;   сводка по флоту: прочитать JSON-экспорты
+                      сканирований разных машин из каталога и показать
+                      носители, засветившиеся на нескольких компьютерах
+                      (с --json сохраняет сводку в файл)
   --verify            проверить целостность доказательной базы:
                       пересчитать hash-chain журнала и сверить
                       печати сессий с базой (с --json сохраняет
@@ -267,5 +271,29 @@
 
 Результат всегда сохраняется в базу data\audit.sqlite рядом с exe —
 той же, что использует GUI-приложение.</value>
+  </data>
+  <data name="ErrFleetArg" xml:space="preserve">
+    <value>После --fleet нужно указать каталог с JSON-экспортами сканирований</value>
+  </data>
+  <data name="ErrFleetMix" xml:space="preserve">
+    <value>--fleet нельзя сочетать с другими режимами (кроме --json для сохранения сводки)</value>
+  </data>
+  <data name="FleetDirectoryMissing" xml:space="preserve">
+    <value>Каталог не найден: {0}</value>
+  </data>
+  <data name="FleetFileSkipped" xml:space="preserve">
+    <value>Файл пропущен (не является экспортом сканирования): {0} — {1}</value>
+  </data>
+  <data name="FleetNoFiles" xml:space="preserve">
+    <value>В каталоге {0} нет ни одного пригодного JSON-экспорта сканирования</value>
+  </data>
+  <data name="FleetHeader" xml:space="preserve">
+    <value>Сводка по флоту: экспортов сканирований: {0}, машин: {1}</value>
+  </data>
+  <data name="FleetDeviceLine" xml:space="preserve">
+    <value>    машин: {0} ({1}); впервые: {2}; в последний раз: {3}</value>
+  </data>
+  <data name="FleetJsonSaved" xml:space="preserve">
+    <value>Сводка по флоту сохранена: {0}</value>
   </data>
 </root>

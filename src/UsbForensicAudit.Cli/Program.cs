@@ -73,6 +73,13 @@ internal static class Program
                 return PrintIntegrity(services, options.JsonPath);
             }
 
+            // Флот — тоже только чтение: JSON-экспорты сканирований, ни одна
+            // живая система не затрагивается, поэтому админ-права не нужны.
+            if (options.FleetDirectory is not null)
+            {
+                return PrintFleet(options.FleetDirectory, options.JsonPath);
+            }
+
             var privilegeChecker = services.GetRequiredService<IPrivilegeChecker>();
             if (!privilegeChecker.IsAdministrator())
             {
@@ -350,6 +357,73 @@ internal static class Program
         var json = JsonSerializer.Serialize(result, JsonExportOptions);
         File.WriteAllText(fullPath, json, Encoding.UTF8);
         Console.WriteLine(CliStrings.Format("JsonExport", fullPath));
+    }
+
+    /// <summary>
+    /// Сводный отчёт по флоту: читает JSON-экспорты сканирований (--json) из
+    /// каталога и находит носители, засветившиеся на нескольких машинах —
+    /// перемещение флешки между компьютерами является сильным сигналом утечки.
+    /// </summary>
+    private static int PrintFleet(string directory, string? jsonPath)
+    {
+        var fullPath = Path.GetFullPath(directory);
+        if (!Directory.Exists(fullPath))
+        {
+            Console.Error.WriteLine(CliStrings.Format("FleetDirectoryMissing", fullPath));
+            return ExitFailure;
+        }
+
+        var results = new List<AuditResult>();
+        foreach (var file in Directory.EnumerateFiles(fullPath, "*.json").OrderBy(static x => x, StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var result = JsonSerializer.Deserialize<AuditResult>(File.ReadAllText(file));
+                if (result is null)
+                {
+                    Console.Error.WriteLine(CliStrings.Format("FleetFileSkipped", file, "null"));
+                    continue;
+                }
+
+                results.Add(result);
+            }
+            catch (JsonException exception)
+            {
+                // Один битый экспорт не должен ронять сводку по остальным машинам.
+                Console.Error.WriteLine(CliStrings.Format("FleetFileSkipped", file, exception.Message));
+            }
+        }
+
+        if (results.Count == 0)
+        {
+            Console.Error.WriteLine(CliStrings.Format("FleetNoFiles", fullPath));
+            return ExitFailure;
+        }
+
+        var summary = FleetAnalyzer.Analyze(results);
+
+        Console.WriteLine(CliStrings.Format("FleetHeader", results.Count, summary.MachineCount));
+        Console.WriteLine(summary.Verdict());
+        Console.WriteLine();
+
+        foreach (var device in summary.Devices)
+        {
+            var marker = device.IsCrossMachine ? "!" : " ";
+            Console.WriteLine($"{marker} {device.DisplayName}");
+            Console.WriteLine(CliStrings.Format("FleetDeviceLine",
+                device.MachineCount, device.MachinesText, device.FirstSeenText, device.LastSeenText));
+        }
+
+        if (jsonPath is not null)
+        {
+            File.WriteAllText(
+                Path.GetFullPath(jsonPath),
+                JsonSerializer.Serialize(summary, JsonExportOptions),
+                new UTF8Encoding(false));
+            Console.WriteLine(CliStrings.Format("FleetJsonSaved", Path.GetFullPath(jsonPath)));
+        }
+
+        return ExitSuccess;
     }
 
     private static readonly JsonSerializerOptions JsonExportOptions = new()

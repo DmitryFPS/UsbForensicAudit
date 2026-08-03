@@ -37,6 +37,12 @@ public sealed class CliOptions
     /// <summary>Проверить целостность доказательной базы и выйти, не сканируя.</summary>
     public bool Verify { get; private set; }
 
+    /// <summary>
+    /// Каталог с JSON-экспортами сканирований разных машин для сводного
+    /// отчёта по флоту: какие носители появлялись на нескольких компьютерах.
+    /// </summary>
+    public string? FleetDirectory { get; private set; }
+
     /// <summary>Показать справку и выйти.</summary>
     public bool ShowHelp { get; private set; }
 
@@ -99,6 +105,16 @@ public sealed class CliOptions
 
                     options.DiffBaseline = baseline;
                     options.DiffTarget = target;
+                    break;
+
+                case "--fleet":
+                    if (!TryTakeValue(args, ref i, out var fleetDirectory))
+                    {
+                        options.Error = CliStrings.Get("ErrFleetArg");
+                        return options;
+                    }
+
+                    options.FleetDirectory = fleetDirectory;
                     break;
 
                 case "--offline":
@@ -177,6 +193,16 @@ public sealed class CliOptions
             (options.ListSessions || options.DiffBaseline is not null))
         {
             options.Error = CliStrings.Get("ErrOfflineMix");
+        }
+
+        if (options.FleetDirectory is not null &&
+            (options.OfflineRoot is not null || options.DiffBaseline is not null ||
+             options.ListSessions || options.Verify ||
+             options.ReportDirectory is not null || options.ReportFormats.Count > 0))
+        {
+            // Флот читает готовые JSON-экспорты и ничего не сканирует: смешение
+            // с другими режимами почти всегда означает опечатку в скрипте.
+            options.Error = CliStrings.Get("ErrFleetMix");
         }
 
         if (options.Verify &&

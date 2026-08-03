@@ -246,6 +246,10 @@ Options:
                       disk image (e.g. F:\) or a copied Windows
                       folder; only registry hives are analyzed,
                       examined files are never modified
+  --fleet &lt;dir&gt;       fleet summary: read scan JSON exports from
+                      several machines and show removable media seen
+                      on more than one computer (with --json saves
+                      the summary to a file)
   --verify            verify evidence base integrity: recompute the
                       journal hash-chain and check session seals
                       against the database (with --json saves the
@@ -264,5 +268,29 @@ Exit codes:
 
 The result is always saved to the data\audit.sqlite database next to
 the executable — the same one used by the GUI application.</value>
+  </data>
+  <data name="ErrFleetArg" xml:space="preserve">
+    <value>--fleet requires a directory with scan JSON exports</value>
+  </data>
+  <data name="ErrFleetMix" xml:space="preserve">
+    <value>--fleet cannot be combined with other modes (except --json to save the summary)</value>
+  </data>
+  <data name="FleetDirectoryMissing" xml:space="preserve">
+    <value>Directory not found: {0}</value>
+  </data>
+  <data name="FleetFileSkipped" xml:space="preserve">
+    <value>File skipped (not a scan export): {0} — {1}</value>
+  </data>
+  <data name="FleetNoFiles" xml:space="preserve">
+    <value>No usable scan JSON exports found in {0}</value>
+  </data>
+  <data name="FleetHeader" xml:space="preserve">
+    <value>Fleet summary: scan exports: {0}, machines: {1}</value>
+  </data>
+  <data name="FleetDeviceLine" xml:space="preserve">
+    <value>    machines: {0} ({1}); first seen: {2}; last seen: {3}</value>
+  </data>
+  <data name="FleetJsonSaved" xml:space="preserve">
+    <value>Fleet summary saved: {0}</value>
   </data>
 </root>
