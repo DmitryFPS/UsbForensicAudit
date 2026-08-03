@@ -30,9 +30,6 @@ public partial class MainWindow : Window
     private readonly ICollectionView _externalUtilityRowsView;
     private readonly ICollectionView _devicesView;
     private readonly ICollectionView _networkView;
-    private string _lastExternalUtilityAnalysisCopyText = "";
-    private ExternalUtilityRow? _activeExternalUtilityRow;
-    private RunningExternalUtility? _lastCapturedExternalUtility;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly SemaphoreSlim _exclusiveOperation = new(1, 1);
     private readonly SemaphoreSlim _liveRefreshGate = new(1, 1);

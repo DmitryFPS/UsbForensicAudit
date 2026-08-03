@@ -50,7 +50,7 @@ public partial class MainWindow
             row.UtilityName,
             RunningExternalUtilitiesList.SelectedItem as RunningExternalUtility,
             _runningExternalUtilities,
-            _lastCapturedExternalUtility);
+            _vm.ExternalUtilities.LastCapturedUtility);
         if (runningUtility is null)
         {
             const string message =

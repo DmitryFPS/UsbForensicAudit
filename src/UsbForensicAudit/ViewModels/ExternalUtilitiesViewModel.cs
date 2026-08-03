@@ -38,6 +38,21 @@ public partial class ExternalUtilitiesViewModel : ObservableObject
 
     public ObservableCollection<HistoricalUtilityLaunch> HistoricalLaunches { get; } = [];
 
+    /// <summary>
+    /// Строка, разбор которой открыт на панели «Разбор». Может отличаться от
+    /// выделенной в таблице: пользователь мог сменить выделение, не открывая разбор.
+    /// </summary>
+    [ObservableProperty]
+    private ExternalUtilityRow? _activeRow;
+
+    /// <summary>Полный текст последнего разбора — для кнопки «Скопировать разбор».</summary>
+    [ObservableProperty]
+    private string _analysisCopyText = "";
+
+    /// <summary>Утилита, из окна которой считывали в последний раз — кандидат для procmon-трассировки.</summary>
+    [ObservableProperty]
+    private RunningExternalUtility? _lastCapturedUtility;
+
     /// <summary>Фиксирует доказательства procmon-трассировки для строки таблицы.</summary>
     public void RecordProcmonResult(
         ExternalUtilityRow row,

@@ -89,7 +89,7 @@ public partial class MainWindow
 
             AppendLog($"Считан результат {capture.DisplayName}: {_externalUtilityRows.Count} строк.");
             SaveExternalUtilitySnapshot(capture.DisplayName);
-            _lastCapturedExternalUtility = selected;
+            _vm.ExternalUtilities.LastCapturedUtility = selected;
             DataGridAutoSize.FitColumns(ExternalUtilityRowsGrid);
 
             var preferredRow = _externalUtilityRows.FirstOrDefault(r => r.IsOtherTracesSection)
@@ -230,11 +230,11 @@ public partial class MainWindow
     }
 
     private ExternalUtilityRow? GetExternalUtilityRowForActions() =>
-        ExternalUtilityRowsGrid.SelectedItem as ExternalUtilityRow ?? _activeExternalUtilityRow;
+        ExternalUtilityRowsGrid.SelectedItem as ExternalUtilityRow ?? _vm.ExternalUtilities.ActiveRow;
 
     private void ApplyExternalUtilityRowAssessment(ExternalUtilityRow row)
     {
-        _activeExternalUtilityRow = row;
+        _vm.ExternalUtilities.ActiveRow = row;
         var assessment = _vm.ExternalUtilities.Assess(row);
         ExternalUtilitiesViewModel.ApplyAssessmentToRow(row, assessment);
 
@@ -255,14 +255,14 @@ public partial class MainWindow
         ExternalUtilityBriefAnalysisText.Text = ExternalUtilitiesViewModel.BuildBriefAnalysis(assessment, row);
         ExternalUtilitySelectedRowSummaryText.Text =
             $"{row.SectionTitle}{Environment.NewLine}{row.FormattedDetailsText}";
-        _lastExternalUtilityAnalysisCopyText = assessment.FullExplanation;
+        _vm.ExternalUtilities.AnalysisCopyText = assessment.FullExplanation;
         CopyExternalUtilityAnalysisButton.IsEnabled = true;
         UpdateExternalUtilityControls();
     }
 
     private void ResetExternalUtilityAnalysisPanel()
     {
-        _activeExternalUtilityRow = null;
+        _vm.ExternalUtilities.ActiveRow = null;
         ExternalUtilityVerdictTitleText.Text = "Выберите строку на вкладке «Данные»";
         ExternalUtilityReportConclusionText.Text = "";
         ExternalUtilityReportConclusionProcmonText.Text = "";
@@ -275,7 +275,7 @@ public partial class MainWindow
         ExternalUtilityAuditMatchText.Text = "";
         ExternalUtilityBriefAnalysisText.Text = "";
         ExternalUtilitySelectedRowSummaryText.Text = "—";
-        _lastExternalUtilityAnalysisCopyText = "";
+        _vm.ExternalUtilities.AnalysisCopyText = "";
         CopyExternalUtilityAnalysisButton.IsEnabled = false;
     }
 
@@ -301,14 +301,14 @@ public partial class MainWindow
 
     private void CopyExternalUtilityAnalysisButton_Click(object sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(_lastExternalUtilityAnalysisCopyText))
+        if (string.IsNullOrWhiteSpace(_vm.ExternalUtilities.AnalysisCopyText))
         {
             return;
         }
 
         try
         {
-            Clipboard.SetText(_lastExternalUtilityAnalysisCopyText);
+            Clipboard.SetText(_vm.ExternalUtilities.AnalysisCopyText);
             ExternalUtilityStatusText.Text = "Текст разбора скопирован в буфер обмена.";
         }
         catch (Exception ex)
@@ -408,7 +408,7 @@ public partial class MainWindow
         FillManualFromRowButton.IsEnabled = isAdmin
                                               && !_vm.IsScanning
                                               && ExternalUtilityRowsGrid?.SelectedItem is ExternalUtilityRow;
-        CopyExternalUtilityAnalysisButton.IsEnabled = !string.IsNullOrWhiteSpace(_lastExternalUtilityAnalysisCopyText);
+        CopyExternalUtilityAnalysisButton.IsEnabled = !string.IsNullOrWhiteSpace(_vm.ExternalUtilities.AnalysisCopyText);
         OpenExternalUtilityAnalysisTabButton.IsEnabled = GetExternalUtilityRowForActions() is ExternalUtilityRow
                                                        || ExternalUtilityRowsGrid?.SelectedItem is ExternalUtilityRow;
         ProcmonTraceButton.IsEnabled = !_vm.IsProcmonTracing
