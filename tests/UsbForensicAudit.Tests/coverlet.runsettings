@@ -33,7 +33,6 @@
             **/MonitorAlertDelivery.cs,
             **/*Pdf*.cs,
             **/ForensicReportBuilder.cs,
-            **/ForensicReportContext.cs,
             **/ManualPdfGenerator.cs,
             **/ProcmonBootstrap.cs,
             **/ProcmonTraceService.cs,
