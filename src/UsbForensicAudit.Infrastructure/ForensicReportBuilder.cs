@@ -59,6 +59,9 @@ internal static class ForensicReportBuilder
             .answer.bad .v{color:#991b1b}
             .answer.plain{background:#eff6ff;border-color:#93c5fd}
             .answer.plain .v{color:#1e40af}
+            details.fold{margin:10px 0}
+            details.fold>summary{cursor:pointer;font-weight:600;color:#1d4ed8;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:13px}
+            details.fold[open]>summary{margin-bottom:8px}
             @media print{body{margin:12px} th{position:static} .answers{grid-template-columns:1fr 1fr 1fr}}
             </style></head><body>
             """);
@@ -131,6 +134,8 @@ internal static class ForensicReportBuilder
             AppendExternalUtilitiesSection(html, ctx.ExternalUtilitySnapshot);
         }
 
+        // Перед печатью все свёрнутые блоки раскрываются: бумажная копия обязана быть полной.
+        html.AppendLine("<script>window.addEventListener('beforeprint',function(){var a=document.querySelectorAll('details');for(var i=0;i<a.length;i++){a[i].open=true;}});</script>");
         html.AppendLine("</body></html>");
         return html.ToString();
     }
@@ -140,6 +145,16 @@ internal static class ForensicReportBuilder
     /// простым языком, со светофором серьёзности и подсказкой, с чего начать.
     /// Обычный читатель должен понять положение дел, не листая таблицы.
     /// </summary>
+    /// <summary>
+    /// Открывает сворачиваемый блок. Тяжёлые таблицы по умолчанию свёрнуты:
+    /// отчёт читается как страница выводов, полнота — по клику, а при печати
+    /// все блоки раскрываются скриптом автоматически.
+    /// </summary>
+    private static void OpenFold(StringBuilder html, string summary) =>
+        html.AppendLine($"<details class=\"fold\"><summary>{E(summary)}</summary>");
+
+    private static void CloseFold(StringBuilder html) => html.AppendLine("</details>");
+
     private static void AppendKeyAnswersSection(StringBuilder html, ForensicReportContext ctx)
     {
         html.AppendLine("<h2 id=\"answers\">Главное — ответы на вопросы расследования</h2>");
@@ -246,6 +261,7 @@ internal static class ForensicReportBuilder
         html.AppendLine($"<span class=\"muted\">{E(ctx.NetworkSummary.Describe())}</span>");
         html.AppendLine("</div>");
 
+        OpenFold(html, "Технические сводки: покрытие источников, устройства и доказательства по типам");
         html.AppendLine("<h3>Покрытие источников</h3><table><tr><th>Источник</th><th>Статус</th><th>Записей</th><th>Лимит</th><th>Ошибка/ограничение</th></tr>");
         foreach (var source in result.Coverage.Sources)
         {
@@ -269,6 +285,7 @@ internal static class ForensicReportBuilder
             html.AppendLine($"<tr><td>{E(item.Source)}</td><td>{item.Count}</td></tr>");
         }
         html.AppendLine("</table>");
+        CloseFold(html);
     }
 
     private static void AppendIncidentSection(StringBuilder html, ForensicReportContext ctx)
@@ -427,6 +444,7 @@ internal static class ForensicReportBuilder
             return;
         }
 
+        OpenFold(html, $"Показать все записи о признаках очистки ({ctx.CleanupFindings.Count})");
         html.AppendLine("<table><tr><th>Дата и время</th><th>Тип действия</th><th>Статус</th><th>Инициатор</th><th>Инструмент</th><th>Уверенность</th><th>Риск</th><th>Где искали</th><th>Что найдено</th><th>Подробности</th></tr>");
         foreach (var finding in ctx.CleanupFindings)
         {
@@ -437,6 +455,7 @@ internal static class ForensicReportBuilder
                 $"<td>{E(finding.AreaText)}</td><td>{E(finding.Finding)}</td><td>{E(finding.DetailsWithNote)}</td></tr>");
         }
         html.AppendLine("</table>");
+        CloseFold(html);
     }
 
     private static void AppendDevicesSection(StringBuilder html, ForensicReportContext ctx)
@@ -446,6 +465,7 @@ internal static class ForensicReportBuilder
         html.AppendLine("<p class=\"muted\">Таблица перечисляет все записи реестра, а колонка «Место в списке устройств» показывает, "
                         + "какие из них Windows завела на части одного и того же устройства. Такие записи свёрнуты в своё устройство "
                         + "и в списке программы отдельной строкой не стоят.</p>");
+        OpenFold(html, $"Показать полную таблицу записей реестра ({ctx.ReportableDevices.Count})");
         html.AppendLine("<table><tr><th>Canonical device</th><th>Место в списке устройств</th><th>Приносили ли с собой</th><th>Тип</th><th>Что это</th><th>Как подключалось</th><th>Внешнее или встроенное</th><th>На чём основан вывод</th><th>Технические коды</th><th>Назначение</th><th>Откуда</th><th>Имя</th><th>Производитель</th><th>Модель</th><th>VID/PID</th><th>Серийный номер</th><th>Когда подключали</th><th>Последняя активность</th><th>Когда отключали</th><th>Пояснение по датам</th><th>Расположение</th><th>Буквы дисков</th><th>Системный ID</th></tr>");
         foreach (var device in ctx.ReportableDevices)
         {
@@ -463,6 +483,7 @@ internal static class ForensicReportBuilder
                 $"<td>{E(device.LocationDisplayText)}</td><td>{E(device.DriveLetters)}</td><td>{E(device.DeviceInstanceId)}</td></tr>");
         }
         html.AppendLine("</table>");
+        CloseFold(html);
     }
 
     /// <summary>
@@ -495,6 +516,8 @@ internal static class ForensicReportBuilder
         html.AppendLine("<p>Для каждого устройства — полные идентификаторы и связанные доказательства из всех источников. "
                         + "Досье пишется на устройство, а не на запись реестра: записи, заведённые Windows на части "
                         + "того же устройства, перечислен�� внутри его досье, а полностью все записи стоят в таблице выше.</p>");
+
+        OpenFold(html, $"Показать досье устройств ({ctx.ListedDevices.Count})");
 
         foreach (var device in ctx.ListedDevices)
         {
@@ -546,6 +569,7 @@ internal static class ForensicReportBuilder
             AppendDeviceActivity(html, ctx.GetActivity(device));
             html.AppendLine("</section>");
         }
+        CloseFold(html);
     }
 
     /// <summary>
@@ -601,6 +625,7 @@ internal static class ForensicReportBuilder
     {
         html.AppendLine("<h2 id=\"timeline\">Хронология событий</h2>");
         html.AppendLine("<p>Полная временная шкала всех собранных доказательств (от новых к старым).</p>");
+        OpenFold(html, $"Показать все события ({ctx.Timeline.Count})");
         html.AppendLine("<table><tr><th>Дата и время</th><th>Категория</th><th>Источник</th><th>Сила / уверенность</th><th>Событие</th><th>Устройство</th><th>Описание</th><th>Пояснение</th></tr>");
         foreach (var evidence in ctx.Timeline)
         {
@@ -610,12 +635,14 @@ internal static class ForensicReportBuilder
                 $"<td>{E(evidence.SummaryText)}</td><td>{E(evidence.UserExplanationText)}</td></tr>");
         }
         html.AppendLine("</table>");
+        CloseFold(html);
     }
 
     private static void AppendEvidenceSection(StringBuilder html, ForensicReportContext ctx)
     {
         html.AppendLine("<h2 id=\"evidence\">Журнал доказательств</h2>");
         html.AppendLine("<p>Полный журнал с пояснениями и исходным текстом для детального анализа.</p>");
+        OpenFold(html, $"Показать полный журнал с исходным текстом ({ctx.Timeline.Count})");
         html.AppendLine("<table><tr><th>Дата и время</th><th>Категория</th><th>Источник</th><th>Strength / confidence</th><th>Уровень</th><th>Событие</th><th>Устройство</th><th>Описание</th><th>Пояснение</th><th>Provenance</th><th>Исходный текст</th></tr>");
         foreach (var evidence in ctx.Timeline)
         {
@@ -626,6 +653,7 @@ internal static class ForensicReportBuilder
                 $"<td>{E(evidence.UserExplanationText)}</td><td>{E(evidence.Provenance)}</td><td>{E(ReportText.ForDisplay(evidence.RawText, 4000))}</td></tr>");
         }
         html.AppendLine("</table>");
+        CloseFold(html);
     }
 
     /// <summary>
@@ -645,6 +673,7 @@ internal static class ForensicReportBuilder
             return;
         }
 
+        OpenFold(html, $"Показать все сетевые связи ({connections.Count})");
         html.AppendLine("<table><tr><th>Как связывались</th><th>С чем именно</th><th>Кто начал</th>"
                         + "<th>Что нашлось внутри</th><th>Первое подключение</th><th>Последнее подключение</th>"
                         + "<th>Чем защищено</th><th>Через что шла связь</th><th>Адреса этой машины</th>"
@@ -667,6 +696,7 @@ internal static class ForensicReportBuilder
         {
             AppendNetworkConnectionCard(html, connection);
         }
+        CloseFold(html);
     }
 
     private static void AppendNetworkConnectionCard(StringBuilder html, NetworkConnectionRecord connection)
@@ -740,6 +770,8 @@ internal static class ForensicReportBuilder
             return;
         }
 
+        OpenFold(html, "Показать снимок обстановки полностью");
+
         if (env.Warnings.Count > 0)
         {
             html.AppendLine("<ul>");
@@ -790,6 +822,7 @@ internal static class ForensicReportBuilder
             }
             html.AppendLine("</table>");
         }
+        CloseFold(html);
     }
 
     private static void AppendWarningsSection(StringBuilder html, AuditResult result)
@@ -835,6 +868,8 @@ internal static class ForensicReportBuilder
         html.AppendLine("<h2 id=\"external-utils\">Сторонние утилиты</h2>");
         html.AppendLine($"<p>Снимок окна/разбора: {E(DateDisplay.FormatMoscow(snapshot.CapturedAtUtc))}. Утилита: {E(snapshot.UtilityName ?? "не указана")}.</p>");
 
+        OpenFold(html, "Показать данные сторонних утилит полностью");
+
         if (snapshot.HistoricalLaunches.Count > 0)
         {
             html.AppendLine("<h3>Исторические запуски USB-утилит</h3><table><tr><th>Дата</th><th>Утилита</th><th>Источник</th><th>Описание</th></tr>");
@@ -855,6 +890,7 @@ internal static class ForensicReportBuilder
             }
             html.AppendLine("</table>");
         }
+        CloseFold(html);
     }
 
     private static string E(string? value) => WebUtility.HtmlEncode(value ?? "");
