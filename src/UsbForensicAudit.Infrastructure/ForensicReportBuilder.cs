@@ -284,33 +284,11 @@ internal static class ForensicReportBuilder
             html.AppendLine("<section class=\"card\">");
             html.AppendLine($"<h3>{E(device.DisplayName)}</h3>");
             html.AppendLine("<p>");
-            html.AppendLine($"<b>Тип:</b> {E(device.CategoryText)}<br>");
-            html.AppendLine($"<b>Назначение:</b> {E(device.UserMeaning)}<br>");
-            html.AppendLine($"<b>Источник записи:</b> {E(device.SourceText)}<br>");
-            html.AppendLine($"<b>Тип записи:</b> {E(device.DeviceTypeText)}<br>");
-            html.AppendLine($"<b>Приносили ли с собой:</b> {E(device.ExternalityText)}<br>");
-            html.AppendLine($"<b>Что это:</b> {E(device.DeviceKindText)}<br>");
-            html.AppendLine($"<b>Как подключалось:</b> {E(device.TransportDisplayText)}<br>");
-            html.AppendLine($"<b>Внешнее или встроенное:</b> {E(device.OriginDisplayText)} "
-                            + $"({E(DeviceKindResolver.DescribeConfidence(device.ClassificationConfidence))})<br>");
-            html.AppendLine($"<b>На чём основан вывод:</b> {E(device.ClassificationEvidenceText)}<br>");
-            html.AppendLine($"<b>Технические коды классификации:</b> {E(device.ClassificationCodesText)}<br>");
-            html.AppendLine($"<b>Производитель:</b> {E(device.ManufacturerText)}<br>");
-            html.AppendLine($"<b>Модель:</b> {E(device.ModelText)}<br>");
-            html.AppendLine($"<b>VID/PID:</b> {E(device.VidPidText)}<br>");
-            html.AppendLine($"<b>Серийный номер:</b> {E(device.SerialText)}<br>");
-            html.AppendLine($"<b>Доверие к идентификаторам:</b> {E(device.IdentityTrustText)}<br>");
-            html.AppendLine($"<b>Container ID:</b> {E(device.ContainerId)}<br>");
-            html.AppendLine($"<b>Canonical device:</b> {E(device.CanonicalDeviceId)} ({E(device.IdentityConfidence)})<br>");
-            html.AppendLine($"<b>Связанные source IDs:</b> {E(string.Join("; ", device.LinkedSourceIds))}<br>");
-            html.AppendLine($"<b>Когда подключали:</b> {E(device.FirstConnectedText)}<br>");
-            html.AppendLine($"<b>Последняя активность:</b> {E(device.LastSeenText)}<br>");
-            html.AppendLine($"<b>Когда отключали:</b> {E(device.LastDisconnectedText)}<br>");
-            html.AppendLine($"<b>Пояснение по датам:</b> {E(device.DateConfidenceText)}<br>");
-            html.AppendLine($"<b>Расположение:</b> {E(device.LocationDisplayText)}<br>");
-            html.AppendLine($"<b>Буквы дисков:</b> {E(device.DriveLetters)}<br>");
-            html.AppendLine($"<b>Подключено сейчас:</b> {(device.IsCurrentlyConnected ? "да" : "нет")}<br>");
-            html.AppendLine($"<b>Системный ID:</b> {E(device.DeviceInstanceId)}");
+            foreach (var field in DeviceCardModel.FieldsOf(device))
+            {
+                html.AppendLine($"<b>{E(field.Label)}:</b> {E(field.Value)}<br>");
+            }
+
             html.AppendLine("</p>");
 
             AppendCompositionBlock(html, ctx, device);
@@ -332,14 +310,16 @@ internal static class ForensicReportBuilder
             }
             else
             {
-                html.AppendLine("<table><tr><th>Дата и время</th><th>Категория</th><th>Источник</th><th>Сила / уверенность</th><th>Событие</th><th>Описание</th></tr>");
+                html.AppendLine("<table><tr><th>"
+                                + string.Join("</th><th>", DeviceCardModel.EvidenceColumns.Select(c => E(c.Header)))
+                                + "</th></tr>");
                 foreach (var evidence in related)
                 {
-                    html.AppendLine(
-                        $"<tr><td>{E(evidence.TimestampText)}</td><td>{E(evidence.EvidenceCategoryText)}</td>" +
-                        $"<td>{E(evidence.SourceText)}</td><td>{E(evidence.EvidenceStrength)} / {E(evidence.Confidence)}</td><td>{E(evidence.EventId)}</td>" +
-                        $"<td>{E(evidence.SummaryText)}</td></tr>");
+                    html.AppendLine("<tr><td>"
+                                    + string.Join("</td><td>", DeviceCardModel.EvidenceRowOf(evidence).Select(E))
+                                    + "</td></tr>");
                 }
+
                 html.AppendLine("</table>");
             }
 

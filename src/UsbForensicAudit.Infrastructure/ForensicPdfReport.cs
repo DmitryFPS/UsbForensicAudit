@@ -353,25 +353,7 @@ internal static class ForensicPdfReport
                 block.Item().Text(T($"{device.CategoryText}  |  {device.SourceText}")).FontSize(8).FontColor(Colors.Grey.Darken2);
             });
 
-            AddKeyValueGrid(column,
-            [
-                ("Назначение", device.UserMeaning),
-                ("Производитель", device.ManufacturerText),
-                ("Модель", device.ModelText),
-                ("VID/PID", device.VidPidText),
-                ("Серийный номер", device.SerialText),
-                ("Container ID", device.ContainerId),
-                ("Canonical device", $"{device.CanonicalDeviceId} ({device.IdentityConfidence})"),
-                ("Связанные source IDs", string.Join("; ", device.LinkedSourceIds)),
-                ("Подключали", device.FirstConnectedText),
-                ("Последняя активность", device.LastSeenText),
-                ("Отключали", device.LastDisconnectedText),
-                ("Пояснение по датам", device.DateConfidenceText),
-                ("Расположение", device.LocationDisplayText),
-                ("Буквы дисков", device.DriveLetters),
-                ("Подключено сейчас", device.IsCurrentlyConnected ? "да" : "нет"),
-                ("Системный ID", device.DeviceInstanceId)
-            ]);
+            AddKeyValueGrid(column, DeviceCardModel.CompactFieldsOf(device));
 
             // Записи, свёрнутые в это устройство. У сопряжённого телефона это
             // перечень его услуг: по нему видно, что через соединение было
@@ -407,24 +389,7 @@ internal static class ForensicPdfReport
             }
             else
             {
-                AddDataTable(column,
-                [
-                    ("Дата и время", 1.2f),
-                    ("Категория", 1.1f),
-                    ("Источник", 1.1f),
-                    ("Сила / уверенность", 1f),
-                    ("Событие", 0.7f),
-                    ("Описание", 2.9f)
-                ],
-                related.Select(e => new[]
-                {
-                    e.TimestampText,
-                    e.EvidenceCategoryText,
-                    e.SourceText,
-                    $"{e.EvidenceStrength} / {e.Confidence}",
-                    e.EventId,
-                    e.SummaryText
-                }));
+                AddDataTable(column, DeviceCardModel.EvidenceColumns, related.Select(DeviceCardModel.EvidenceRowOf));
             }
 
             AppendDeviceActivity(column, ctx.GetActivity(device));
