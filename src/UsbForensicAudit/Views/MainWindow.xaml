@@ -11,7 +11,7 @@
         MinHeight="720"
         MinWidth="1120"
         FontFamily="Segoe UI"
-        Background="{StaticResource Bg}">
+        Background="#07111F">
     <Window.Resources>
         <SolidColorBrush x:Key="Bg" Color="#07111F"/>
         <SolidColorBrush x:Key="Panel" Color="#0B1728"/>
