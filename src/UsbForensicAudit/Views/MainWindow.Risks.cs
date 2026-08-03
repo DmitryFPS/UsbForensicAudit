@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace UsbForensicAudit;
 
@@ -40,6 +41,8 @@ public partial class MainWindow
         // политика задана: пустой столбец лишь занимал бы место.
         PolicyColumn.Visibility = policy.PolicyDefined ? Visibility.Visible : Visibility.Collapsed;
 
+        UpdateOverviewAnswers(result, exfiltration, policy);
+
         if (exfiltration.HasFindings)
         {
             DataGridAutoSize.FitColumns(ExfiltrationGrid);
@@ -54,6 +57,71 @@ public partial class MainWindow
         {
             DataGridAutoSize.FitColumns(MitreGrid);
         }
+    }
+
+    /// <summary>
+    /// Карточки-ответы на вкладке «Обзор»: те же три вопроса расследования,
+    /// что и в отчётах, с цветной кромкой-светофором. Пользователь видит
+    /// положение дел сразу после сканирования, не открывая другие вкладки.
+    /// </summary>
+    private void UpdateOverviewAnswers(AuditResult result, ExfiltrationSummary exfiltration, DevicePolicySummary policy)
+    {
+        var ok = (Brush)FindResource("Ok");
+        var warn = (Brush)FindResource("Warn");
+        var danger = (Brush)FindResource("Danger");
+        var accent = (Brush)FindResource("Accent2");
+        var textMain = (Brush)FindResource("TextMain");
+
+        // Вопрос 1: что подключали.
+        var external = result.Devices
+            .Where(x => x.IsExternalDevice && !DeviceComposition.IsFoldedByDefault(x))
+            .ToArray();
+        var lastSeen = external
+            .Select(x => x.LastSeenUtc)
+            .Where(x => x is not null)
+            .OrderByDescending(x => x)
+            .FirstOrDefault();
+        AnswerDevicesBar.Background = policy.HasViolations ? danger : accent;
+        AnswerDevicesVerdict.Foreground = policy.HasViolations ? danger : textMain;
+        AnswerDevicesVerdict.Text = external.Length == 0
+            ? "Следов внешних носителей не найдено"
+            : $"Да — внешних устройств: {external.Length}";
+        AnswerDevicesNote.Text = external.Length == 0
+            ? "Отсутствие следов не доказывает отсутствие подключений."
+            : (lastSeen is not null ? $"Последняя активность: {DateDisplay.FormatMoscow(lastSeen.Value)}. " : "")
+              + (policy.HasViolations
+                  ? $"Нарушений политики: {policy.Violations.Count} — вкладка «Риски»."
+                  : "Подробности — на вкладке «USB устройства».");
+
+        // Вопрос 2: уходили ли данные.
+        AnswerExfilBar.Background = exfiltration.ConfirmedCount > 0 ? danger : exfiltration.HasFindings ? warn : ok;
+        AnswerExfilVerdict.Foreground = exfiltration.ConfirmedCount > 0 ? danger : exfiltration.HasFindings ? warn : textMain;
+        AnswerExfilVerdict.Text = exfiltration.ConfirmedCount > 0
+            ? $"Да — подтверждено файлов: {exfiltration.ConfirmedCount}"
+            : exfiltration.HasFindings
+                ? $"Возможно — признаков: {exfiltration.OutboundCount}"
+                : "Признаков выноса данных не найдено";
+        AnswerExfilNote.Text = exfiltration.HasFindings
+            ? "Список файлов — вкладка «Риски» и отчёты."
+            : "Проверены следы копирования на съёмные носители.";
+
+        // Вопрос 3: чистили ли следы.
+        var suspicious = result.CleanupFindings.Count(x => x.IsSuspicious);
+        var highRisk = result.CleanupFindings.Count(x =>
+            x.IsSuspicious && x.Severity.Equals("High", StringComparison.OrdinalIgnoreCase));
+        var attention = result.CleanupFindings.Count(x => x.NeedsAttention);
+        AnswerCleanupBar.Background = highRisk > 0 ? danger : suspicious > 0 || attention > 0 ? warn : ok;
+        AnswerCleanupVerdict.Foreground = highRisk > 0 ? danger : suspicious > 0 || attention > 0 ? warn : textMain;
+        AnswerCleanupVerdict.Text = highRisk > 0
+            ? $"Да, вероятно — высокого риска: {highRisk}"
+            : suspicious > 0
+                ? $"Возможно — подозрительных: {suspicious}"
+                : attention > 0
+                    ? $"Явной очистки нет, требуют внимания: {attention}"
+                    : "Признаков очистки не найдено";
+        AnswerCleanupNote.Text = suspicious > 0 || attention > 0
+            ? "Разбор — вкладка «Следы очистки», там же заметки эксперта."
+            : "Проверены журналы, реестр и следы утилит очистки.";
     }
 
     /// <summary>

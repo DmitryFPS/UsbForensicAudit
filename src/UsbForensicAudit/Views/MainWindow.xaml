@@ -23,6 +23,7 @@
         <SolidColorBrush x:Key="Accent2" Color="#6FA8FF"/>
         <SolidColorBrush x:Key="Warn" Color="#F59E0B"/>
         <SolidColorBrush x:Key="Danger" Color="#EF4444"/>
+        <SolidColorBrush x:Key="Ok" Color="#22C55E"/>
         <SolidColorBrush x:Key="PanelDeep" Color="#0D1322"/>
         <SolidColorBrush x:Key="AccentSoft" Color="#7FB4FF"/>
         <SolidColorBrush x:Key="TextSoft" Color="#D7E0F0"/>
@@ -253,9 +254,56 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <Border Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,14">
+
+                    <UniformGrid Grid.Row="0" Columns="3" Margin="0,0,0,14">
+                        <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Margin="0,0,14,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="4"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border x:Name="AnswerDevicesBar" Background="{StaticResource Accent2}" CornerRadius="12,0,0,12"/>
+                                <StackPanel Grid.Column="1" Margin="14,12,14,12">
+                                    <TextBlock Text="ПОДКЛЮЧАЛИ ЛИ ВНЕШНИЕ НОСИТЕЛИ?" Foreground="{StaticResource TextMuted}" FontSize="11"/>
+                                    <TextBlock x:Name="AnswerDevicesVerdict" Text="Выполните сканирование" Foreground="{StaticResource TextMain}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                    <TextBlock x:Name="AnswerDevicesNote" Text="" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Margin="0,0,14,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="4"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border x:Name="AnswerExfilBar" Background="{StaticResource Stroke}" CornerRadius="12,0,0,12"/>
+                                <StackPanel Grid.Column="1" Margin="14,12,14,12">
+                                    <TextBlock Text="УХОДИЛИ ЛИ ДАННЫЕ?" Foreground="{StaticResource TextMuted}" FontSize="11"/>
+                                    <TextBlock x:Name="AnswerExfilVerdict" Text="Выполните сканирование" Foreground="{StaticResource TextMain}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                    <TextBlock x:Name="AnswerExfilNote" Text="" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="4"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border x:Name="AnswerCleanupBar" Background="{StaticResource Stroke}" CornerRadius="12,0,0,12"/>
+                                <StackPanel Grid.Column="1" Margin="14,12,14,12">
+                                    <TextBlock Text="ЧИСТИЛИ ЛИ СЛЕДЫ?" Foreground="{StaticResource TextMuted}" FontSize="11"/>
+                                    <TextBlock x:Name="AnswerCleanupVerdict" Text="Выполните сканирование" Foreground="{StaticResource TextMain}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                    <TextBlock x:Name="AnswerCleanupNote" Text="" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </UniformGrid>
+
+                    <Border Grid.Row="1" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,14">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="Установка Windows: " Foreground="{StaticResource TextMuted}"/>
@@ -267,7 +315,7 @@
                                        Margin="0,6,0,0"/>
                         </StackPanel>
                     </Border>
-                    <UniformGrid Grid.Row="1" Columns="4" Margin="0,0,0,14">
+                    <UniformGrid Grid.Row="2" Columns="4" Margin="0,0,0,14">
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
                                 <TextBlock Text="Устройства" Foreground="{StaticResource TextMuted}"/>
@@ -296,7 +344,7 @@
                             </StackPanel>
                         </Border>
                     </UniformGrid>
-                    <Border Grid.Row="2" Background="{StaticResource PanelDeep}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="14" Padding="12">
+                    <Border Grid.Row="3" Background="{StaticResource PanelDeep}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="14" Padding="12">
                         <TextBox x:Name="ActivityLogTextBox"
                                  IsReadOnly="True"
                                  Background="Transparent"
