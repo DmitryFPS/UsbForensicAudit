@@ -45,6 +45,11 @@ public static class EvidencePackageBuilder
         // должен выглядеть готовым пакетом, если сборка прервётся.
         var temporaryPath = archivePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
 
+        // Имена внутри архива должны быть уникальны: два файла с одинаковым
+        // именем из разных папок иначе молча затёрли бы друг друга в ZIP, и
+        // одно доказательство пропало бы незаметно.
+        var usedEntryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         try
         {
             using (var zipStream = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
@@ -58,7 +63,7 @@ public static class EvidencePackageBuilder
                         continue;
                     }
 
-                    var entryName = Path.GetFileName(file);
+                    var entryName = UniqueEntryName(Path.GetFileName(file), usedEntryNames);
                     // Не CreateEntryFromFile: базу audit.sqlite держит открытой сам
                     // процесс (пул соединений), поэтому читаем с FileShare.ReadWrite.
                     // Хеш считается в том же проходе, что и копирование: манифест
@@ -113,6 +118,30 @@ public static class EvidencePackageBuilder
             IncludedFiles = included,
             MissingFiles = missing
         };
+    }
+
+    /// <summary>
+    /// Гарантирует уникальность имени в архиве: при коллизии добавляет « (2)»,
+    /// « (3)» и т.д. перед расширением. Так ни один доказательный файл не
+    /// затирается другим с тем же именем из другой папки.
+    /// </summary>
+    private static string UniqueEntryName(string name, HashSet<string> used)
+    {
+        if (used.Add(name))
+        {
+            return name;
+        }
+
+        var stem = Path.GetFileNameWithoutExtension(name);
+        var ext = Path.GetExtension(name);
+        for (var i = 2; ; i++)
+        {
+            var candidate = $"{stem} ({i}){ext}";
+            if (used.Add(candidate))
+            {
+                return candidate;
+            }
+        }
     }
 
     private static (string Sha256, long SizeBytes) CopyAndHash(Stream source, Stream target)

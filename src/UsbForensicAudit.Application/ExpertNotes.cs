@@ -17,11 +17,21 @@ public static class ExpertNotes
     {
         ArgumentNullException.ThrowIfNull(finding);
 
-        var material = $"{finding.TimestampUtc:O}|{finding.Area}|{finding.ActionKind}|{finding.Finding}";
+        // Разделитель экранируется: без этого символ '|' внутри поля мог бы
+        // сдвинуть границы и дать разным находкам один ключ (потеря заметки).
+        var material = string.Join(
+            "|",
+            finding.TimestampUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+            Escape(finding.Area),
+            Escape(finding.ActionKind),
+            Escape(finding.Finding));
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)))[..32];
     }
 
-    /// <summary>Проставляет сохранённые заметки на находки результата по ключу.</summary>
+    private static string Escape(string? value) =>
+        (value ?? string.Empty).Replace("\\", "\\\\").Replace("|", "\\|");
+
+        /// <summary>Проставляет сохранённые заметки на находки результата по ключу.</summary>
     public static void Apply(IEnumerable<CleanupFinding> findings, IReadOnlyDictionary<string, string> notes)
     {
         ArgumentNullException.ThrowIfNull(findings);

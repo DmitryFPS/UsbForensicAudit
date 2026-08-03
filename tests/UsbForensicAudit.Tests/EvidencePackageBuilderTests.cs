@@ -75,6 +75,27 @@ public sealed class EvidencePackageBuilderTests : IDisposable
     }
 
     [Fact]
+    public void Same_filename_from_different_folders_is_not_overwritten()
+    {
+        // Два audit.sqlite из разных папок — в архиве должны стать двумя entry.
+        var subA = Directory.CreateDirectory(Path.Combine(_dir, "A")).FullName;
+        var subB = Directory.CreateDirectory(Path.Combine(_dir, "B")).FullName;
+        var fileA = Path.Combine(subA, "audit.sqlite");
+        var fileB = Path.Combine(subB, "audit.sqlite");
+        File.WriteAllText(fileA, "база A");
+        File.WriteAllText(fileB, "база B");
+        var archivePath = Path.Combine(_dir, "pkg-dup.zip");
+
+        var result = EvidencePackageBuilder.Build(archivePath, [fileA, fileB]);
+
+        Assert.Equal(2, result.IncludedFiles.Count);
+        using var archive = ZipFile.OpenRead(archivePath);
+        var dataEntries = archive.Entries.Where(e => e.Name != "manifest.json").ToArray();
+        Assert.Equal(2, dataEntries.Length);
+        Assert.Equal(2, dataEntries.Select(e => e.FullName).Distinct().Count());
+    }
+
+    [Fact]
     public void Missing_file_is_reported_not_thrown()
     {
         var present = WriteFile("present.txt", "тут");

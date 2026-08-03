@@ -11,13 +11,14 @@ namespace UsbForensicAudit.Tests;
 /// </summary>
 public sealed class MitreMapperTests
 {
-    private static CleanupFinding Suspicious(string finding, string area = "", string details = "") => new()
+    private static CleanupFinding Suspicious(string finding, string area = "", string details = "", string eventId = "") => new()
     {
         Assessment = "Suspicious",
         Severity = "High",
         Finding = finding,
         Area = area,
-        Details = details
+        Details = details,
+        EventId = eventId
     };
 
     [Fact]
@@ -75,6 +76,30 @@ public sealed class MitreMapperTests
     {
         var result = new AuditResult();
         result.CleanupFindings.Add(Suspicious("Удалён раздел реестра USBSTOR"));
+
+        var ids = MitreMapper.Map(result).Findings.Select(x => x.Technique.Id).ToArray();
+
+        Assert.Contains("T1070", ids);
+        Assert.DoesNotContain("T1070.001", ids);
+    }
+
+    [Fact]
+    public void Event_id_1102_maps_log_clearing_even_without_keywords()
+    {
+        var result = new AuditResult();
+        result.CleanupFindings.Add(Suspicious("Аномалия журнала", area: "Security", eventId: "1102"));
+
+        var ids = MitreMapper.Map(result).Findings.Select(x => x.Technique.Id).ToArray();
+
+        Assert.Contains("T1070.001", ids);
+    }
+
+    [Fact]
+    public void Bare_number_1102_in_text_does_not_map_log_clearing()
+    {
+        var result = new AuditResult();
+        // 1102 как часть ID записи/пути, без слов про очистку журнала — не вердикт.
+        result.CleanupFindings.Add(Suspicious("Удалён раздел реестра", details: "record 11021 offset 41102"));
 
         var ids = MitreMapper.Map(result).Findings.Select(x => x.Technique.Id).ToArray();
 

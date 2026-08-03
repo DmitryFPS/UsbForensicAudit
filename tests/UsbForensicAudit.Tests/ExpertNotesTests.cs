@@ -34,6 +34,25 @@ public sealed class ExpertNotesTests
     }
 
     [Fact]
+    public void Key_is_not_confused_by_pipe_in_fields()
+    {
+        // «|» — внутренний разделитель ключа; без экранирования сдвиг границ
+        // мог бы дать разным находкам одинаковый ключ.
+        var a = new CleanupFinding
+        {
+            TimestampUtc = new DateTimeOffset(2026, 5, 1, 10, 0, 0, TimeSpan.Zero),
+            Area = "Registry|X", ActionKind = "Deletion", Finding = "A"
+        };
+        var b = new CleanupFinding
+        {
+            TimestampUtc = new DateTimeOffset(2026, 5, 1, 10, 0, 0, TimeSpan.Zero),
+            Area = "Registry", ActionKind = "X|Deletion", Finding = "A"
+        };
+
+        Assert.NotEqual(ExpertNotes.KeyOf(a), ExpertNotes.KeyOf(b));
+    }
+
+    [Fact]
     public void Apply_restores_note_by_key()
     {
         var finding = Finding();

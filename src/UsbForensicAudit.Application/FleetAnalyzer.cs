@@ -46,7 +46,8 @@ public static class FleetAnalyzer
                 DisplayName = pair.Value.DisplayName,
                 Machines = pair.Value.Machines.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray(),
                 FirstSeenUtc = pair.Value.FirstSeenUtc,
-                LastSeenUtc = pair.Value.LastSeenUtc
+                LastSeenUtc = pair.Value.LastSeenUtc,
+                IdentifiedBySerial = pair.Key.StartsWith("SN:", StringComparison.Ordinal)
             })
             // Сначала перемещавшиеся между машинами и по большему числу машин —
             // с них начинают разбор.

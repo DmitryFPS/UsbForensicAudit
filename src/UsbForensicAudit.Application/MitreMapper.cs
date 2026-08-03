@@ -71,9 +71,44 @@ public static class MitreMapper
     private static bool MentionsEventLogClearing(CleanupFinding finding)
     {
         var haystack = $"{finding.Area} {finding.Finding} {finding.Details}";
-        // 1102 — очистка журнала безопасности; 104 — очистка System/прочих журналов.
-        return haystack.Contains("1102", StringComparison.Ordinal)
-               || haystack.Contains("журнал", StringComparison.OrdinalIgnoreCase)
-               && haystack.Contains("очищ", StringComparison.OrdinalIgnoreCase);
+
+        // Явное упоминание очистки журнала: «журнал … очищ…» — в любом поле.
+        // Скобки обязательны: без них && связывался бы раньше ||, и одно голое
+        // число «1102» в любом поле давало ложное срабатывание.
+        var mentionsClearedLog =
+            haystack.Contains("журнал", StringComparison.OrdinalIgnoreCase)
+            && haystack.Contains("очищ", StringComparison.OrdinalIgnoreCase);
+
+        // Код события 1102 (очистка журнала безопасности) засчитываем только как
+        // отдельный «токен», а не подстроку: иначе 1102 в пути или ID записи —
+        // ложный вердикт. Событие живёт в поле EventId (границы по не-цифрам).
+        var mentionsClearEventId = ContainsEventCode(finding.EventId, "1102");
+
+        return mentionsClearedLog || mentionsClearEventId;
+    }
+
+    /// <summary>Ищет код события как отдельный токен, а не как подстроку числа.</summary>
+    private static bool ContainsEventCode(string? field, string code)
+    {
+        if (string.IsNullOrEmpty(field))
+        {
+            return false;
+        }
+
+        var index = field.IndexOf(code, StringComparison.Ordinal);
+        while (index >= 0)
+        {
+            var before = index == 0 || !char.IsDigit(field[index - 1]);
+            var afterAt = index + code.Length;
+            var after = afterAt >= field.Length || !char.IsDigit(field[afterAt]);
+            if (before && after)
+            {
+                return true;
+            }
+
+            index = field.IndexOf(code, index + 1, StringComparison.Ordinal);
+        }
+
+        return false;
     }
 }

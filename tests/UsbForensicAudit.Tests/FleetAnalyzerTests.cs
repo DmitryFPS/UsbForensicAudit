@@ -89,4 +89,32 @@ public sealed class FleetAnalyzerTests
         Assert.Contains("Обработано машин: 2", summary.Verdict());
         Assert.Contains("на нескольких машинах: 1", summary.Verdict());
     }
+
+    [Fact]
+    public void Serial_match_is_flagged_as_same_instance()
+    {
+        var summary = FleetAnalyzer.Analyze(
+        [
+            Machine("PC-1", Flash("SN-X")),
+            Machine("PC-2", Flash("SN-X"))
+        ]);
+
+        var moved = Assert.Single(summary.CrossMachineDevices);
+        Assert.True(moved.IdentifiedBySerial);
+        Assert.Contains("серийному номеру", summary.Verdict());
+    }
+
+    [Fact]
+    public void Vidpid_only_match_is_flagged_as_model_not_instance()
+    {
+        // Разные экземпляры одной модели без серийника: не «перемещение».
+        var a = new UsbDeviceRecord { Vid = "AAAA", Pid = "BBBB", DeviceKind = DeviceKindResolver.Storage };
+        var b = new UsbDeviceRecord { Vid = "AAAA", Pid = "BBBB", DeviceKind = DeviceKindResolver.Storage };
+        var summary = FleetAnalyzer.Analyze([Machine("PC-1", a), Machine("PC-2", b)]);
+
+        var moved = Assert.Single(summary.CrossMachineDevices);
+        Assert.False(moved.IdentifiedBySerial);
+        Assert.Contains("VID:PID", moved.MatchBasisText);
+        Assert.Contains("по модели", summary.Verdict());
+    }
 }
