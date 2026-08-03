@@ -3,7 +3,7 @@
 Скопируйте команды по порядку в PowerShell (из корня репозитория).
 
 ```powershell
-cd C:\Users\adm\IdeaProjects\UsbForensicAudit
+cd <путь-к-репозиторию>
 ```
 
 ```powershell
