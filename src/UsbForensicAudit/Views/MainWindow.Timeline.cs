@@ -47,6 +47,9 @@ public partial class MainWindow
         // Лента группируется по дням: заголовок «1 мая 2026» перед событиями дня.
         _timelineView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(TimelineViewEntry.DayText)));
         TimelineGrid.ItemsSource = _timelineView;
+        // Как и остальные таблицы: без отложенной подгонки DataGrid, заполненный
+        // на невидимой вкладке, рисует столбцы минимальной ширины — «слипшимися».
+        DataGridAutoSize.FitColumns(TimelineGrid);
         UpdateTimelineCount();
     }
 
