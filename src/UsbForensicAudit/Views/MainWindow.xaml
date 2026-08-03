@@ -441,16 +441,21 @@
                             <TextBlock Text="Здесь список USB и Type-C устройств, которые Windows когда-либо видела на этом компьютере."
                                        Foreground="{StaticResource TextMain}"
                                        TextWrapping="Wrap"/>
-                            <TextBlock Text="Одно устройство Windows описывает несколькими записями: у телефона по Bluetooth это полтора десятка услуг, у веб-камеры — видеопоток и микрофон, у флешки — запись шины, накопителя и переносимого устройства. В списке стоит одно устройство одной строкой, остальные записи свёрнуты в него и видны по двойному щелчку. Ничего не потеряно — галочка ниже возвращает все записи."
-                                       Foreground="{StaticResource TextMuted}"
-                                       TextWrapping="Wrap"
-                                       Margin="0,6,0,0"/>
                             <TextBlock Text="{Binding ExternalDeviceSummary}"
                                        Foreground="{StaticResource AccentSoft}"
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
-                            <TextBlock Text="Цвет строки отвечает на вопрос «устройство принесли с собой или оно всегда было внутри машины»."
+                            <Expander Foreground="{StaticResource Accent2}" Margin="0,8,0,0">
+                                <Expander.Header>
+                                    <TextBlock Text="Как читать эту таблицу и что значат цвета" Foreground="{StaticResource Accent2}" FontSize="12"/>
+                                </Expander.Header>
+                                <StackPanel Margin="0,6,0,0">
+<TextBlock Text="Одно устройство Windows описывает несколькими записями: у телефона по Bluetooth это полтора десятка услуг, у веб-камеры — видеопоток и микрофон, у флешки — запись шины, накопителя и переносимого устройства. В списке стоит одно устройство одной строкой, остальные записи свёрнуты в него и видны по двойному щелчку. Ничего не потеряно — галочка ниже возвращает все записи."
+                                       Foreground="{StaticResource TextMuted}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0"/>
+                            <TextBlock Text="Цвет в колонке «Внешнее устройство?» отвечает на вопрос «устройство принесли с собой или оно всегда было внутри машины»."
                                        Foreground="{StaticResource TextMain}"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
@@ -486,6 +491,9 @@
                                        Foreground="{StaticResource Accent2}"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Expander>
+                            
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <TextBlock Text="Фильтр transport/classification:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <ComboBox x:Name="DeviceFilterCombo" Width="250" SelectionChanged="DeviceFilterCombo_SelectionChanged">
@@ -527,10 +535,6 @@
                               MouseDoubleClick="DevicesGrid_MouseDoubleClick">
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
-                                <Setter Property="Background"
-                                        Value="{Binding Externality, Converter={StaticResource DeviceExternalityBrushConverter}, ConverterParameter=Background}"/>
-                                <Setter Property="Foreground"
-                                        Value="{Binding Externality, Converter={StaticResource DeviceExternalityBrushConverter}, ConverterParameter=Foreground}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsExternalDevice}" Value="True">
                                         <Setter Property="FontWeight" Value="SemiBold"/>
@@ -543,7 +547,15 @@
                             </Style>
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Внешнее устройство?" Binding="{Binding ExternalityText}" Width="200"/>
+                            <DataGridTextColumn Header="Внешнее устройство?" Binding="{Binding ExternalityText}" Width="200">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Foreground" Value="{Binding Externality, Converter={StaticResource DeviceExternalityBrushConverter}, ConverterParameter=Foreground}"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                             <DataGridTextColumn x:Name="PolicyColumn" Visibility="Collapsed" Header="Политика" Binding="{Binding PolicyBadgeText}" Width="150">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
@@ -631,7 +643,12 @@
                                        Foreground="{StaticResource Accent2}"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
-                            <TextBlock Text="Цвет строки отвечает на вопрос «каким способом связывались»."
+                            <Expander Foreground="{StaticResource Accent2}" Margin="0,8,0,0">
+                                <Expander.Header>
+                                    <TextBlock Text="Как читать эту таблицу и что значат цвета" Foreground="{StaticResource Accent2}" FontSize="12"/>
+                                </Expander.Header>
+                                <StackPanel Margin="0,6,0,0">
+<TextBlock Text="Цвет в колонке «Как связывались» отвечает на вопрос «каким способом связывались»."
                                        Foreground="{StaticResource TextMain}"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
@@ -661,6 +678,9 @@
                                        Foreground="{StaticResource TextMuted}"
                                        TextWrapping="Wrap"
                                        Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Expander>
+                            
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <TextBlock Text="Показывать:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <ComboBox x:Name="NetworkFilterCombo" Width="320" SelectionChanged="NetworkFilterCombo_SelectionChanged">
@@ -689,10 +709,6 @@
                               MouseDoubleClick="NetworkGrid_MouseDoubleClick">
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
-                                <Setter Property="Background"
-                                        Value="{Binding Kind, Converter={StaticResource NetworkConnectionBrushConverter}, ConverterParameter=Background}"/>
-                                <Setter Property="Foreground"
-                                        Value="{Binding Kind, Converter={StaticResource NetworkConnectionBrushConverter}, ConverterParameter=Foreground}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsOutsideReach}" Value="True">
                                         <Setter Property="FontWeight" Value="SemiBold"/>
@@ -705,7 +721,15 @@
                             </Style>
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Как связывались" Binding="{Binding KindText}" Width="180"/>
+                            <DataGridTextColumn Header="Как связывались" Binding="{Binding KindText}" Width="180">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Foreground" Value="{Binding Kind, Converter={StaticResource NetworkConnectionBrushConverter}, ConverterParameter=Foreground}"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                             <DataGridTextColumn Header="С чем именно" Binding="{Binding TargetText}" Width="280"/>
                             <DataGridTextColumn Header="Кто начал" Binding="{Binding DirectionText}" Width="160"/>
                             <DataGridTextColumn Header="Что нашлось внутри" Binding="{Binding ActivityText}" Width="180"/>
@@ -957,7 +981,10 @@
                     <DataGrid x:Name="TimelineGrid"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
-                              EnableRowVirtualization="True">
+                              EnableRowVirtualization="True"
+                              VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True">
                         <DataGrid.GroupStyle>
                             <GroupStyle>
                                 <GroupStyle.HeaderTemplate>
@@ -1017,7 +1044,12 @@
                             <TextBlock Text="Здесь все найденные признаки очистки — и подозрительные, и нормальные после переустановки Windows (полный аудит)."
                                        Foreground="{StaticResource TextMain}"
                                        TextWrapping="Wrap"/>
-                            <TextBlock Text="Колонки «Инициатор», «Инструмент» и «Уверенность» помогают отличить Windows, пользователя и утилиты вроде USBDeview/USBDetector. Prefetch сам по себе не доказывает очистку в ту же секунду."
+                            <Expander Foreground="{StaticResource Accent2}" Margin="0,8,0,0">
+                                <Expander.Header>
+                                    <TextBlock Text="Как читать эту таблицу и что значат цвета" Foreground="{StaticResource Accent2}" FontSize="12"/>
+                                </Expander.Header>
+                                <StackPanel Margin="0,6,0,0">
+<TextBlock Text="Колонки «Инициатор», «Инструмент» и «Уверенность» помогают отличить Windows, пользователя и утилиты вроде USBDeview/USBDetector. Prefetch сам по себе не доказывает очистку в ту же секунду."
                                        Foreground="{StaticResource TextMuted}"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
@@ -1033,6 +1065,9 @@
                                        Foreground="{StaticResource Accent2}"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Expander>
+                            
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <TextBlock Text="Установка Windows: " Foreground="{StaticResource TextMuted}"/>
                                 <TextBlock x:Name="CleanupOsInstallDateText" Text="не определена" Foreground="{StaticResource Accent2}" FontWeight="SemiBold"/>
