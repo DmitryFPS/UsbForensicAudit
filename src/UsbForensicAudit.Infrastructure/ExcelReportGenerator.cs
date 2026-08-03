@@ -1,13 +1,11 @@
 using ClosedXML.Excel;
+using static UsbForensicAudit.ExcelStyleHelper;
 
 namespace UsbForensicAudit;
 
 internal static class ExcelReportGenerator
 {
     private static readonly XLColor TitleColor = XLColor.FromHtml("#0D2136");
-    private static readonly XLColor HeaderColor = XLColor.FromHtml("#1F4E78");
-    private static readonly XLColor SectionColor = XLColor.FromHtml("#D9EAF7");
-    private static readonly XLColor BorderColor = XLColor.FromHtml("#AFC4D4");
     private static readonly XLColor RealUsbColor = XLColor.FromHtml("#DDF3E8");
     private static readonly XLColor StorageColor = XLColor.FromHtml("#FFF1C9");
     private static readonly XLColor UsbFlagsColor = XLColor.FromHtml("#E9E3FA");
@@ -16,8 +14,6 @@ internal static class ExcelReportGenerator
     private static readonly XLColor DangerColor = XLColor.FromHtml("#FDE2E6");
     private static readonly XLColor AlternatingRowColor = XLColor.FromHtml("#F5F8FB");
     private static readonly XLColor WhiteColor = XLColor.White;
-    private const double MinimumDataRowHeight = 21;
-    private const double MaximumDataRowHeight = 108;
 
     public static void GenerateFull(string path, ForensicReportContext context)
     {
@@ -812,25 +808,6 @@ internal static class ExcelReportGenerator
         }
     }
 
-    private static double EstimateRowHeight(
-        IEnumerable<(string Value, double Width)> values,
-        double minimum,
-        double maximum)
-    {
-        var lineCount = 1;
-        foreach (var (value, width) in values)
-        {
-            var usableWidth = Math.Max(8, width - 2);
-            var cellLines = value
-                .Replace("\r\n", "\n", StringComparison.Ordinal)
-                .Split('\n')
-                .Sum(line => Math.Max(1, (int)Math.Ceiling(line.Length / usableWidth)));
-            lineCount = Math.Max(lineCount, cellLines);
-        }
-
-        return Math.Clamp(9 + lineCount * 12, minimum, maximum);
-    }
-
     private static XLAlignmentHorizontalValues AlignmentFor(string header)
     {
         if (header.Contains("Дата", StringComparison.OrdinalIgnoreCase)
@@ -867,18 +844,6 @@ internal static class ExcelReportGenerator
         worksheet.PageSetup.Margins.Bottom = 0.45;
         worksheet.PageSetup.Margins.Left = 0.3;
         worksheet.PageSetup.Margins.Right = 0.3;
-    }
-
-    private static void ApplyThinBorder(IXLRange range)
-    {
-        range.Style.Border.TopBorder = XLBorderStyleValues.Thin;
-        range.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
-        range.Style.Border.LeftBorder = XLBorderStyleValues.Thin;
-        range.Style.Border.RightBorder = XLBorderStyleValues.Thin;
-        range.Style.Border.TopBorderColor = BorderColor;
-        range.Style.Border.BottomBorderColor = BorderColor;
-        range.Style.Border.LeftBorderColor = BorderColor;
-        range.Style.Border.RightBorderColor = BorderColor;
     }
 
     private static ExcelColumn<T> Column<T>(string header, double width, Func<T, string> value) =>

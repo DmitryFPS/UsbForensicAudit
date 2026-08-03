@@ -333,14 +333,12 @@ internal static class AnalystNotePdfReport
     // ------------------------------------------------------------------
     private static void SectionTitle(ColumnDescriptor column, string title)
     {
-        column.Item().PaddingTop(10).Text(T(title)).Bold().FontSize(SectionFont);
-        column.Item().LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten1);
+        PdfComponents.PlainTitle(column, T(title), SectionFont, paddingTop: 10, bold: true);
+        PdfComponents.TitleRule(column);
     }
 
-    private static void SubTitle(ColumnDescriptor column, string title)
-    {
-        column.Item().PaddingTop(5).Text(T(title)).SemiBold().FontSize(10.5f);
-    }
+    private static void SubTitle(ColumnDescriptor column, string title) =>
+        PdfComponents.PlainTitle(column, T(title), 10.5f, paddingTop: 5);
 
     private static void AddTable(
         ColumnDescriptor column,

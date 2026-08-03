@@ -366,12 +366,8 @@ internal static class ExecutiveBriefPdfReport
         yield return "При выявлении конкретного устройства запросить его у владельца для идентификации по серийному номеру.";
     }
 
-    private static void SubTitle(ColumnDescriptor column, string title)
-    {
-        column.Item().PaddingTop(4).Background(Colors.Grey.Lighten3).Border(0.5f).BorderColor(Colors.Grey.Lighten1)
-            .PaddingVertical(4).PaddingHorizontal(8)
-            .Text(T(title)).SemiBold().FontSize(10.5f).FontColor(Colors.Blue.Darken3);
-    }
+    private static void SubTitle(ColumnDescriptor column, string title) =>
+        PdfComponents.BoxedTitle(column, T(title), 10.5f, paddingVertical: 4, fontColor: Colors.Blue.Darken3);
 
     private static void AddMetricsTable(ColumnDescriptor column, IReadOnlyList<(string Label, string Value)> metrics)
     {

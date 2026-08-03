@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using static UsbForensicAudit.ExcelStyleHelper;
 
 namespace UsbForensicAudit;
 
@@ -10,13 +11,8 @@ namespace UsbForensicAudit;
 /// </summary>
 internal static class AnalystNoteExcelReport
 {
-    private static readonly XLColor HeaderColor = XLColor.FromHtml("#1F4E78");
-    private static readonly XLColor SectionColor = XLColor.FromHtml("#D9EAF7");
-    private static readonly XLColor BorderColor = XLColor.FromHtml("#AFC4D4");
     private static readonly XLColor WarningColor = XLColor.FromHtml("#FDE2E6");
     private static readonly XLColor CaveatColor = XLColor.FromHtml("#FFF1C9");
-    private const double MinimumDataRowHeight = 21;
-    private const double MaximumDataRowHeight = 108;
 
     public static void Generate(string path, ForensicReportContext ctx)
     {
@@ -438,37 +434,6 @@ internal static class AnalystNoteExcelReport
         var dataRange = sheet.Range(headerRow + 1, 1, lastRow, columnCount);
         dataRange.Style.Alignment.WrapText = true;
         dataRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
-    }
-
-    private static void ApplyThinBorder(IXLRange range)
-    {
-        range.Style.Border.TopBorder = XLBorderStyleValues.Thin;
-        range.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
-        range.Style.Border.LeftBorder = XLBorderStyleValues.Thin;
-        range.Style.Border.RightBorder = XLBorderStyleValues.Thin;
-        range.Style.Border.TopBorderColor = BorderColor;
-        range.Style.Border.BottomBorderColor = BorderColor;
-        range.Style.Border.LeftBorderColor = BorderColor;
-        range.Style.Border.RightBorderColor = BorderColor;
-    }
-
-    private static double EstimateRowHeight(
-        IEnumerable<(string Value, double Width)> values,
-        double minimum,
-        double maximum)
-    {
-        var lineCount = 1;
-        foreach (var (value, width) in values)
-        {
-            var usableWidth = Math.Max(8, width - 2);
-            var cellLines = value
-                .Replace("\r\n", "\n", StringComparison.Ordinal)
-                .Split('\n')
-                .Sum(line => Math.Max(1, (int)Math.Ceiling(line.Length / usableWidth)));
-            lineCount = Math.Max(lineCount, cellLines);
-        }
-
-        return Math.Clamp(9 + lineCount * 12, minimum, maximum);
     }
 
     private static string Clean(string? value)

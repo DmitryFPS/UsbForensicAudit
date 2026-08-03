@@ -740,17 +740,11 @@ internal static class ForensicPdfReport
         }
     }
 
-    private static void SectionTitle(ColumnDescriptor column, string title)
-    {
-        column.Item().PaddingTop(4).Background(Colors.Grey.Lighten3).Border(0.5f).BorderColor(Colors.Grey.Lighten1)
-            .PaddingVertical(5).PaddingHorizontal(8)
-            .Text(T(title)).SemiBold().FontSize(SectionFont);
-    }
+    private static void SectionTitle(ColumnDescriptor column, string title) =>
+        PdfComponents.BoxedTitle(column, T(title), SectionFont, paddingVertical: 5);
 
-    private static void SubTitle(ColumnDescriptor column, string title)
-    {
-        column.Item().PaddingTop(6).Text(T(title)).SemiBold().FontSize(9.5f);
-    }
+    private static void SubTitle(ColumnDescriptor column, string title) =>
+        PdfComponents.PlainTitle(column, T(title), 9.5f, paddingTop: 6);
 
     private static void StatBox(RowDescriptor row, string label, string value)
     {

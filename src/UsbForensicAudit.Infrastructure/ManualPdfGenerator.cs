@@ -588,15 +588,11 @@ public static class ManualPdfGenerator
             .Italic().FontColor(Colors.Grey.Darken1);
     }
 
-    private static void SectionTitle(ColumnDescriptor column, string title)
-    {
-        column.Item().PaddingTop(4).Text(title).SemiBold().FontSize(13).FontColor(Colors.Blue.Darken3);
-    }
+    private static void SectionTitle(ColumnDescriptor column, string title) =>
+        PdfComponents.PlainTitle(column, title, 13, paddingTop: 4, fontColor: Colors.Blue.Darken3);
 
-    private static void SubTitle(ColumnDescriptor column, string title)
-    {
-        column.Item().PaddingTop(2).Text(title).SemiBold().FontSize(11);
-    }
+    private static void SubTitle(ColumnDescriptor column, string title) =>
+        PdfComponents.PlainTitle(column, title, 11, paddingTop: 2);
 
     private static void Paragraph(ColumnDescriptor column, string text)
     {
