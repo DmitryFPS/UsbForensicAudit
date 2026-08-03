@@ -414,7 +414,7 @@
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Внешнее устройство?" Binding="{Binding ExternalityText}" Width="200"/>
-                            <DataGridTextColumn Header="Политика" Binding="{Binding PolicyBadgeText}" Width="150">
+                            <DataGridTextColumn x:Name="PolicyColumn" Visibility="Collapsed" Header="Политика" Binding="{Binding PolicyBadgeText}" Width="150">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="VerticalAlignment" Value="Center"/>
@@ -828,25 +828,25 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
+                        <RowDefinition x:Name="ExfiltrationRow" Height="0"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
+                        <RowDefinition x:Name="PolicyRow" Height="0"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
+                        <RowDefinition x:Name="MitreRow" Height="0"/>
                     </Grid.RowDefinitions>
 
                     <Border Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="14" Padding="18" Margin="0,0,0,10">
                         <StackPanel>
-                            <TextBlock Text="Ключевые вердикты последнего сканирования. Подробности по каждому блоку — в таблицах ниже и в отчётах."
+                            <TextBlock Text="Вкладка заполняется автоматически после сканирования: ниже появятся только те блоки, по которым что-то найдено. Ничего настраивать не нужно."
                                        Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,10"/>
-                            <TextBlock x:Name="RiskExfiltrationVerdictText" Foreground="#F5D98A" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,6" Text="Выполните сканирование, чтобы получить оценку выноса данных."/>
-                            <TextBlock x:Name="RiskPolicyVerdictText" Foreground="#C9E4FF" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,6" Text="Политика устройств: нет данных."/>
-                            <TextBlock x:Name="RiskMitreVerdictText" Foreground="#A78BFA" FontSize="14" TextWrapping="Wrap" Text="MITRE ATT&#38;CK: нет данных."/>
+                            <TextBlock x:Name="RiskExfiltrationVerdictText" Foreground="#F5D98A" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,6" Text="Выполните сканирование — оценка появится здесь автоматически."/>
+                            <TextBlock x:Name="RiskPolicyVerdictText" Foreground="#C9E4FF" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,6" Text=""/>
+                            <TextBlock x:Name="RiskMitreVerdictText" Foreground="#A78BFA" FontSize="14" TextWrapping="Wrap" Text=""/>
                         </StackPanel>
                     </Border>
 
-                    <TextBlock Grid.Row="1" Text="Вынос данных на съёмные носители" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold" Margin="4,0,0,6"/>
-                    <DataGrid Grid.Row="2" x:Name="ExfiltrationGrid" AutoGenerateColumns="False" IsReadOnly="True" Margin="0,0,0,12">
+                    <TextBlock Grid.Row="1" x:Name="ExfiltrationSectionHeader" Visibility="Collapsed" Text="Вынос данных на съёмные носители" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold" Margin="4,0,0,6"/>
+                    <DataGrid Grid.Row="2" x:Name="ExfiltrationGrid" Visibility="Collapsed" AutoGenerateColumns="False" IsReadOnly="True" Margin="0,0,0,12">
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
                                 <Style.Triggers>
@@ -865,8 +865,8 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <TextBlock Grid.Row="3" Text="Соответствие политике устройств (device-policy.json)" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold" Margin="4,0,0,6"/>
-                    <DataGrid Grid.Row="4" x:Name="PolicyGrid" AutoGenerateColumns="False" IsReadOnly="True" Margin="0,0,0,12">
+                    <TextBlock Grid.Row="3" x:Name="PolicySectionHeader" Visibility="Collapsed" Text="Соответствие политике устройств" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold" Margin="4,0,0,6"/>
+                    <DataGrid Grid.Row="4" x:Name="PolicyGrid" Visibility="Collapsed" AutoGenerateColumns="False" IsReadOnly="True" Margin="0,0,0,12">
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
                                 <Style.Triggers>
@@ -884,8 +884,8 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <TextBlock Grid.Row="5" Text="Сопоставление с MITRE ATT&#38;CK" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold" Margin="4,0,0,6"/>
-                    <DataGrid Grid.Row="6" x:Name="MitreGrid" AutoGenerateColumns="False" IsReadOnly="True">
+                    <TextBlock Grid.Row="5" x:Name="MitreSectionHeader" Visibility="Collapsed" Text="Сопоставление с MITRE ATT&#38;CK" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold" Margin="4,0,0,6"/>
+                    <DataGrid Grid.Row="6" x:Name="MitreGrid" Visibility="Collapsed" AutoGenerateColumns="False" IsReadOnly="True">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Техника" Binding="{Binding Technique.Id}" Width="110"/>
                             <DataGridTextColumn Header="Название" Binding="{Binding Technique.Name}" Width="300"/>
