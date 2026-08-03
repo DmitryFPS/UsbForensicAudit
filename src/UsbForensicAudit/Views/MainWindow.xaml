@@ -11,7 +11,7 @@
         MinHeight="720"
         MinWidth="1120"
         FontFamily="Segoe UI"
-        Background="#07111F">
+        Background="{StaticResource Bg}">
     <Window.Resources>
         <SolidColorBrush x:Key="Bg" Color="#07111F"/>
         <SolidColorBrush x:Key="Panel" Color="#0B1728"/>
@@ -23,6 +23,9 @@
         <SolidColorBrush x:Key="Accent2" Color="#38BDF8"/>
         <SolidColorBrush x:Key="Warn" Color="#FBBF24"/>
         <SolidColorBrush x:Key="Danger" Color="#FB7185"/>
+        <SolidColorBrush x:Key="PanelDeep" Color="#081320"/>
+        <SolidColorBrush x:Key="AccentSoft" Color="#4ADE9B"/>
+        <SolidColorBrush x:Key="TextSoft" Color="#D9E8F5"/>
         <local:CellExplanationToolTipConverter x:Key="CellExplanationToolTipConverter"/>
         <local:DeviceExternalityBrushConverter x:Key="DeviceExternalityBrushConverter"/>
         <local:NetworkConnectionBrushConverter x:Key="NetworkConnectionBrushConverter"/>
@@ -41,13 +44,13 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="ToolTip">
                         <Border Background="#142A43"
-                                BorderBrush="#38BDF8"
+                                BorderBrush="{StaticResource Accent2}"
                                 BorderThickness="1"
                                 CornerRadius="9"
                                 Padding="14"
                                 SnapsToDevicePixels="True">
                             <TextBlock Text="{TemplateBinding Content}"
-                                       Foreground="#E5F2FF"
+                                       Foreground="{StaticResource TextMain}"
                                        FontSize="13"
                                        LineHeight="19"
                                        TextWrapping="Wrap"/>
@@ -102,8 +105,8 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
                         <Border x:Name="TabBorder"
-                                Background="#0B1728"
-                                BorderBrush="#1F3B59"
+                                Background="{StaticResource Panel}"
+                                BorderBrush="{StaticResource Stroke}"
                                 BorderThickness="1"
                                 CornerRadius="8,8,0,0"
                                 Padding="{TemplateBinding Padding}">
@@ -212,8 +215,8 @@
                             Height="88"
                             Margin="0,0,18,0"
                             CornerRadius="18"
-                            Background="#0B1728"
-                            BorderBrush="#38BDF8"
+                            Background="{StaticResource Panel}"
+                            BorderBrush="{StaticResource Accent2}"
                             BorderThickness="1.5"
                             Padding="6">
                         <Image x:Name="HeaderLogoImage"
@@ -235,11 +238,11 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="ElevateButton" Content="Запуск от администратора" Click="ElevateButton_Click" Background="#1E3A5F" BorderBrush="#38BDF8"/>
-                    <Button x:Name="ScanButton" Content="Полное сканирование" Click="ScanButton_Click" Background="#14532D" BorderBrush="#38D996"/>
+                    <Button x:Name="ElevateButton" Content="Запуск от администратора" Click="ElevateButton_Click" Background="#1E3A5F" BorderBrush="{StaticResource Accent2}"/>
+                    <Button x:Name="ScanButton" Content="Полное сканирование" Click="ScanButton_Click" Background="#14532D" BorderBrush="{StaticResource Accent}"/>
                     <Button x:Name="MonitorButton" Content="Старт мониторинга" Click="MonitorButton_Click"/>
                     <Button x:Name="ShowActiveDevicesButton" Content="Окно USB" IsEnabled="False" Click="ShowActiveDevicesButton_Click"/>
-                    <Button x:Name="StopMonitorButton" Content="Стоп" IsEnabled="False" Click="StopMonitorButton_Click" Background="#3F1D2B" BorderBrush="#FB7185"/>
+                    <Button x:Name="StopMonitorButton" Content="Стоп" IsEnabled="False" Click="StopMonitorButton_Click" Background="#3F1D2B" BorderBrush="{StaticResource Danger}"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -252,7 +255,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <Border Grid.Row="0" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,14">
+                    <Border Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,14">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="Установка Windows: " Foreground="{StaticResource TextMuted}"/>
@@ -293,7 +296,7 @@
                             </StackPanel>
                         </Border>
                     </UniformGrid>
-                    <Border Grid.Row="2" Background="#081320" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="14" Padding="12">
+                    <Border Grid.Row="2" Background="{StaticResource PanelDeep}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="14" Padding="12">
                         <TextBox x:Name="ActivityLogTextBox"
                                  IsReadOnly="True"
                                  Background="Transparent"
@@ -309,7 +312,7 @@
 
             <TabItem Header="USB устройства">
                 <DockPanel Margin="4,14,4,4">
-                    <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
+                    <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
                         <StackPanel>
                             <TextBlock Text="Здесь список USB и Type-C устройств, которые Windows когда-либо видела на этом компьютере."
                                        Foreground="{StaticResource TextMain}"
@@ -319,7 +322,7 @@
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
                             <TextBlock Text="{Binding ExternalDeviceSummary}"
-                                       Foreground="#4ADE9B"
+                                       Foreground="{StaticResource AccentSoft}"
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
@@ -328,7 +331,7 @@
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
                             <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0">
-                                <Run Text="Зелёный" Foreground="#4ADE9B" FontWeight="SemiBold"/>
+                                <Run Text="Зелёный" Foreground="{StaticResource AccentSoft}" FontWeight="SemiBold"/>
                                 <Run Text="— внешний носитель или телефон: именно этим выносят данные."/>
                                 <LineBreak/>
                                 <Run Text="Синий" Foreground="#7DD3FC" FontWeight="SemiBold"/>
@@ -438,13 +441,13 @@
                 <TabControl Margin="4,14,4,4">
                     <TabItem Header="История связей">
                 <DockPanel Margin="0,8,0,0">
-                    <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
+                    <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
                         <StackPanel>
                             <TextBlock Text="Здесь связи этой машины с внешним миром: сети Wi-Fi и провод, туннели VPN, мобильный интернет, пары по Bluetooth, серверы с сетевыми папками, узлы удалённого рабочего стола и сайты."
                                        Foreground="{StaticResource TextMain}"
                                        TextWrapping="Wrap"/>
                             <TextBlock Text="{Binding NetworkSummary}"
-                                       Foreground="#4ADE9B"
+                                       Foreground="{StaticResource AccentSoft}"
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
@@ -457,7 +460,7 @@
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
                             <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0">
-                                <Run Text="Зелёный" Foreground="#4ADE9B" FontWeight="SemiBold"/>
+                                <Run Text="Зелёный" Foreground="{StaticResource AccentSoft}" FontWeight="SemiBold"/>
                                 <Run Text="— сервер с сетевыми папками: через них файлы уходят с машины и приходят на неё."/>
                                 <LineBreak/>
                                 <Run Text="Оранжевый" Foreground="#FFB870" FontWeight="SemiBold"/>
@@ -546,7 +549,7 @@
 
                     <TabItem Header="Обстановка сейчас">
                         <DockPanel Margin="0,8,0,0">
-                            <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
+                            <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
                                 <StackPanel>
                                     <TextBlock Text="Снимок того, что видно прямо сейчас: сети Wi-Fi в эфире и устройства в текущей сети. Это не история — список меняется каждую минуту."
                                                Foreground="{StaticResource TextMain}"
@@ -556,7 +559,7 @@
                                                TextWrapping="Wrap"
                                                Margin="0,6,0,0"/>
                                     <TextBlock Text="{Binding NetworkEnvironmentSummary}"
-                                               Foreground="#4ADE9B"
+                                               Foreground="{StaticResource AccentSoft}"
                                                FontWeight="SemiBold"
                                                TextWrapping="Wrap"
                                                Margin="0,6,0,0"/>
@@ -638,7 +641,7 @@
                                 </TabItem>
                                 <TabItem Header="История устройств (за сессию)">
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,8,0,8">
+                                        <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,8,0,8">
                                             <StackPanel>
                                                 <TextBlock Text="История активности устройств в сети, накопленная из повторных снимков. Каждое нажатие «Снять обстановку» добавляет наблюдения сюда, а не стирает прошлые: так видно, кто появлялся в сети, когда впервые и когда в последний раз."
                                                            Foreground="{StaticResource TextMain}"
@@ -670,7 +673,7 @@
                                 </TabItem>
                                 <TabItem Header="Подключения к Wi-Fi (журнал Windows)">
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,8,0,8">
+                                        <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,8,0,8">
                                             <StackPanel>
                                                 <TextBlock Text="Реальная история подключений самой машины к сетям Wi-Fi — из реестра и журналов Windows, а не из эфира. В отличие от снимка обстановки, это следы прошлого: к этим сетям машина действительно подключалась."
                                                            Foreground="{StaticResource TextMain}"
@@ -705,7 +708,7 @@
 
             <TabItem Header="Доказательства">
                 <DockPanel Margin="4,14,4,4">
-                    <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
+                    <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextMain}"
                                        TextWrapping="Wrap"
@@ -739,7 +742,7 @@
 
             <TabItem Header="Следы очистки">
                 <DockPanel Margin="4,14,4,4">
-                    <Border DockPanel.Dock="Top" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
+                    <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
                         <StackPanel>
                             <TextBlock Text="Здесь все найденные признаки очистки — и подозрительные, и нормальные после переустановки Windows (полный аудит)."
                                        Foreground="{StaticResource TextMain}"
@@ -807,7 +810,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <Border Grid.Row="0" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,10">
+                    <Border Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,10">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <Button x:Name="FindExternalUtilitiesButton" Content="Найти утилиты" Click="FindExternalUtilitiesButton_Click"/>
@@ -826,17 +829,17 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*" MinWidth="280"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="10">
+                                <Border Grid.Column="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="10">
                                     <DockPanel LastChildFill="True">
                                         <TextBlock DockPanel.Dock="Top" Text="Запущенные сейчас" Foreground="{StaticResource TextMain}" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                                        <ListBox x:Name="RunningExternalUtilitiesList" DisplayMemberPath="ListDisplay" SelectionChanged="RunningExternalUtilitiesList_SelectionChanged" Background="#081320" BorderThickness="0" Foreground="#D9E8F5"/>
+                                        <ListBox x:Name="RunningExternalUtilitiesList" DisplayMemberPath="ListDisplay" SelectionChanged="RunningExternalUtilitiesList_SelectionChanged" Background="{StaticResource PanelDeep}" BorderThickness="0" Foreground="{StaticResource TextSoft}"/>
                                     </DockPanel>
                                 </Border>
-                                <GridSplitter Grid.Column="1" Width="6" Background="#1F3B59" ShowsPreview="True"/>
-                                <Border Grid.Column="2" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="10">
+                                <GridSplitter Grid.Column="1" Width="6" Background="{StaticResource Stroke}" ShowsPreview="True"/>
+                                <Border Grid.Column="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="10">
                                     <DockPanel LastChildFill="True">
                                         <TextBlock DockPanel.Dock="Top" Text="Ранее запускались (по сканированию)" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                                        <ListBox x:Name="HistoricalUtilityLaunchesList" DisplayMemberPath="ListDisplay" Background="#081320" BorderThickness="0" Foreground="#D9E8F5"/>
+                                        <ListBox x:Name="HistoricalUtilityLaunchesList" DisplayMemberPath="ListDisplay" Background="{StaticResource PanelDeep}" BorderThickness="0" Foreground="{StaticResource TextSoft}"/>
                                     </DockPanel>
                                 </Border>
                             </Grid>
@@ -858,7 +861,7 @@
                                     <StackPanel>
                                         <TextBlock x:Name="ExternalUtilitySectionInfoTitle" Text="Выберите раздел или считайте данные из утилиты" Foreground="{StaticResource Accent2}" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                         <TextBlock x:Name="ExternalUtilitySectionInfoSummary" Foreground="{StaticResource TextMain}" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                                        <TextBlock x:Name="ExternalUtilitySectionInfoReliability" Foreground="#FBBF24" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                        <TextBlock x:Name="ExternalUtilitySectionInfoReliability" Foreground="{StaticResource Warn}" TextWrapping="Wrap" Margin="0,6,0,0"/>
                                     </StackPanel>
                                 </Border>
                                 <DataGrid Grid.Row="2" x:Name="ExternalUtilityRowsGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserResizeColumns="True" SelectionMode="Single" SelectionUnit="FullRow" ClipboardCopyMode="IncludeHeader" SelectionChanged="ExternalUtilityRowsGrid_SelectionChanged">
@@ -895,7 +898,7 @@
                                 <StackPanel>
                                     <Border Background="#101E30" BorderBrush="#264A70" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,0,0,10">
                                         <StackPanel>
-                                            <TextBlock x:Name="ExternalUtilityVerdictTitleText" Text="Выберите строку на вкладке «Данные»" Foreground="#38D996" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                            <TextBlock x:Name="ExternalUtilityVerdictTitleText" Text="Выберите строку на вкладке «Данные»" Foreground="{StaticResource Accent}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                             <TextBlock Text="По строке:" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="0,8,0,2"/>
                                             <TextBlock x:Name="ExternalUtilityReportConclusionText" Foreground="#F5D98A" FontSize="13" TextWrapping="Wrap"/>
                                             <TextBlock Text="Procmon (жёсткое доказательство):" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="0,8,0,2"/>
@@ -913,24 +916,24 @@
                                             <TextBlock x:Name="ExternalUtilityOriginText" Foreground="{StaticResource TextMain}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                                             <TextBlock x:Name="ExternalUtilityAuditMatchText" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,0"/>
                                             <TextBlock Text="Кратко:" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="0,8,0,2"/>
-                                            <TextBlock x:Name="ExternalUtilityBriefAnalysisText" Foreground="#D9E8F5" FontSize="12" TextWrapping="Wrap"/>
+                                            <TextBlock x:Name="ExternalUtilityBriefAnalysisText" Foreground="{StaticResource TextSoft}" FontSize="12" TextWrapping="Wrap"/>
                                             <Button x:Name="CopyExternalUtilityAnalysisButton" Content="Копировать разбор" Click="CopyExternalUtilityAnalysisButton_Click" Padding="10,4" HorizontalAlignment="Left" Margin="0,10,0,0"/>
                                         </StackPanel>
                                     </Border>
-                                    <Border Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="10" Padding="12">
+                                    <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="10" Padding="12">
                                         <StackPanel>
                                             <TextBlock Text="Строка из утилиты" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="0,0,0,6"/>
-                                            <TextBlock x:Name="ExternalUtilitySelectedRowSummaryText" Text="—" Foreground="#D9E8F5" FontFamily="Consolas, Segoe UI" FontSize="12" TextWrapping="Wrap"/>
+                                            <TextBlock x:Name="ExternalUtilitySelectedRowSummaryText" Text="—" Foreground="{StaticResource TextSoft}" FontFamily="Consolas, Segoe UI" FontSize="12" TextWrapping="Wrap"/>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
                         <TabItem Header="Ручной ввод">
-                            <Border Margin="0,10,0,0" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="12" Padding="14">
+                            <Border Margin="0,10,0,0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="14">
                                 <StackPanel>
                                     <TextBlock Text="Вставьте одну строку из USBDetector/USBDeview или скопируйте её с вкладки «Данные»." Foreground="{StaticResource TextMuted}" TextWrapping="Wrap"/>
-                                    <TextBox x:Name="ExternalUtilityManualInput" MinHeight="100" AcceptsReturn="True" TextWrapping="Wrap" Background="#081320" Foreground="#D9E8F5" BorderBrush="#1F3B59" Margin="0,10,0,0"/>
+                                    <TextBox x:Name="ExternalUtilityManualInput" MinHeight="100" AcceptsReturn="True" TextWrapping="Wrap" Background="{StaticResource PanelDeep}" Foreground="{StaticResource TextSoft}" BorderBrush="{StaticResource Stroke}" Margin="0,10,0,0"/>
                                     <Button x:Name="AnalyzeManualUtilityButton" Content="Разобрать вставку" Click="AnalyzeManualUtilityButton_Click" HorizontalAlignment="Left" Margin="0,10,0,0"/>
                                 </StackPanel>
                             </Border>
@@ -940,7 +943,7 @@
             </TabItem>
 
             <TabItem Header="Отчет">
-                <Border Margin="4,14,4,4" Background="#0B1728" BorderBrush="#1F3B59" BorderThickness="1" CornerRadius="14" Padding="22">
+                <Border Margin="4,14,4,4" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="14" Padding="22">
                     <StackPanel>
                         <TextBlock Text="Полные отчёты содержат все данные для расследования. Сводные отчёты показывают ключевые цифры, инциденты и значимые устройства. Аналитическая записка — связный рассказ с общей хронологией событий. Доступны PDF и Excel."
                                    Foreground="{StaticResource TextMain}"
@@ -948,11 +951,11 @@
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,14"/>
                         <WrapPanel>
-                            <Button x:Name="PdfReportButton" Content="Полный PDF" Click="PdfReportButton_Click" IsEnabled="False" Background="#14532D" BorderBrush="#38D996"/>
+                            <Button x:Name="PdfReportButton" Content="Полный PDF" Click="PdfReportButton_Click" IsEnabled="False" Background="#14532D" BorderBrush="{StaticResource Accent}"/>
                             <Button x:Name="AnalystNotePdfReportButton" Content="Аналитическая записка (PDF)" Click="AnalystNotePdfReportButton_Click" IsEnabled="False" Background="#3B2A5A" BorderBrush="#A78BFA"/>
-                            <Button x:Name="BriefPdfReportButton" Content="Сводный PDF" Click="BriefPdfReportButton_Click" IsEnabled="False" Background="#1E3A5F" BorderBrush="#38BDF8"/>
-                            <Button x:Name="ExcelReportButton" Content="Полный Excel" Click="ExcelReportButton_Click" IsEnabled="False" Background="#14532D" BorderBrush="#38D996"/>
-                            <Button x:Name="BriefExcelReportButton" Content="Сводный Excel" Click="BriefExcelReportButton_Click" IsEnabled="False" Background="#1E3A5F" BorderBrush="#38BDF8"/>
+                            <Button x:Name="BriefPdfReportButton" Content="Сводный PDF" Click="BriefPdfReportButton_Click" IsEnabled="False" Background="#1E3A5F" BorderBrush="{StaticResource Accent2}"/>
+                            <Button x:Name="ExcelReportButton" Content="Полный Excel" Click="ExcelReportButton_Click" IsEnabled="False" Background="#14532D" BorderBrush="{StaticResource Accent}"/>
+                            <Button x:Name="BriefExcelReportButton" Content="Сводный Excel" Click="BriefExcelReportButton_Click" IsEnabled="False" Background="#1E3A5F" BorderBrush="{StaticResource Accent2}"/>
                             <Button x:Name="AnalystNoteExcelReportButton" Content="Аналитическая записка (Excel)" Click="AnalystNoteExcelReportButton_Click" IsEnabled="False" Background="#3B2A5A" BorderBrush="#A78BFA"/>
                             <Button Content="Открыть папку данных" Click="OpenDataFolderButton_Click"/>
                         </WrapPanel>
@@ -962,7 +965,7 @@
             </TabItem>
         </TabControl>
 
-        <StatusBar Grid.Row="2" Background="#081320" Foreground="#8EA7BF" BorderBrush="#1F3B59" BorderThickness="0,1,0,0">
+        <StatusBar Grid.Row="2" Background="{StaticResource PanelDeep}" Foreground="{StaticResource TextMuted}" BorderBrush="{StaticResource Stroke}" BorderThickness="0,1,0,0">
             <StatusBarItem>
                 <TextBlock x:Name="StatusText" Text="Готово"/>
             </StatusBarItem>
