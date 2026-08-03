@@ -52,6 +52,7 @@ internal sealed class ForensicReportContext
             .ToArray();
         NetworkSummary = NetworkConnectionSummary.Create(NetworkConnections);
         NetworkEnvironment = result.NetworkEnvironment;
+        Exfiltration = ExfiltrationAnalyzer.Analyze(result);
     }
 
     public AuditResult Result { get; }
@@ -94,6 +95,9 @@ internal sealed class ForensicReportContext
 
     /// <summary>Единственный источник чисел о сетевых связях для всех отчётов.</summary>
     public NetworkConnectionSummary NetworkSummary { get; }
+
+    /// <summary>Сводка «ушли ли данные наружу» — файлы, вынесенные на съёмные носители.</summary>
+    public ExfiltrationSummary Exfiltration { get; }
 
     /// <summary>Снимок Wi-Fi в эфире и соседей по сети на момент съёмки.</summary>
     public NetworkEnvironmentSnapshot NetworkEnvironment { get; }

@@ -65,6 +65,7 @@ internal static class ForensicReportBuilder
         html.AppendLine("<nav class=\"toc\"><b>Содержание</b><ul>");
         html.AppendLine("<li><a href=\"#summary\">1. Сводка для расследования</a></li>");
         html.AppendLine("<li><a href=\"#incidents\">2. Возможные инциденты</a></li>");
+        html.AppendLine("<li><a href=\"#exfiltration\">Вынос данных на съёмные носители</a></li>");
         html.AppendLine("<li><a href=\"#cleanup\">3. Все признаки очистки</a></li>");
         html.AppendLine("<li><a href=\"#devices\">4. USB-устройства</a></li>");
         html.AppendLine("<li><a href=\"#dossiers\">5. Досье устройств</a></li>");
@@ -81,6 +82,7 @@ internal static class ForensicReportBuilder
 
         AppendSummarySection(html, ctx);
         AppendIncidentSection(html, ctx);
+        AppendExfiltrationSection(html, ctx);
         AppendCleanupSection(html, ctx);
         AppendDevicesSection(html, ctx);
         AppendDossiersSection(html, ctx);
@@ -116,6 +118,7 @@ internal static class ForensicReportBuilder
         html.AppendLine($"<span class=\"muted\">{E(ctx.CleanupVerdict())}</span><br>");
         html.AppendLine($"<span class=\"muted\">{E(ctx.ActivityVerdict())}</span><br>");
         html.AppendLine($"<span class=\"muted\">{E(ctx.TransferVerdict())}</span><br>");
+        html.AppendLine($"<span class=\"muted\">{E(ctx.Exfiltration.Verdict())}</span><br>");
         html.AppendLine($"<span class=\"muted\">{E(ctx.NetworkSummary.Describe())}</span>");
         html.AppendLine("</div>");
 
@@ -194,6 +197,29 @@ internal static class ForensicReportBuilder
                 $"<td class=\"{E(finding.Severity.ToLowerInvariant())}\">{E(finding.SeverityText)}</td>" +
                 $"<td>{E(finding.InitiatorText)}</td><td>{E(finding.PossibleToolText)}</td>" +
                 $"<td>{E(finding.Finding)}</td><td>{E(finding.Details)}</td></tr>");
+        }
+        html.AppendLine("</table>");
+    }
+
+    private static void AppendExfiltrationSection(StringBuilder html, ForensicReportContext ctx)
+    {
+        var exf = ctx.Exfiltration;
+        html.AppendLine("<h2 id=\"exfiltration\">Вынос данных на съёмные носители</h2>");
+        html.AppendLine($"<p class=\"note\">{E(exf.Verdict())}</p>");
+        if (!exf.HasFindings)
+        {
+            return;
+        }
+
+        html.AppendLine("<p>Файлы, для которых есть признаки копирования с этого компьютера на съёмный носитель. "
+                        + "Подтверждённые журналом изменений NTFS — самый сильный довод; совпадение имён требует ручной проверки.</p>");
+        html.AppendLine("<table><tr><th>Файл</th><th>Устройство</th><th>Когда</th><th>Уверенность</th><th>На чём основано</th></tr>");
+        foreach (var item in exf.OutboundFiles)
+        {
+            var rowClass = item.IsConfirmed ? "suspicious" : "";
+            html.AppendLine(
+                $"<tr class=\"{rowClass}\"><td>{E(item.FileName)}</td><td>{E(item.DeviceDisplayName)}</td>" +
+                $"<td>{E(item.WhenText)}</td><td>{E(item.ConfidenceText)}</td><td>{E(item.Basis)}</td></tr>");
         }
         html.AppendLine("</table>");
     }
