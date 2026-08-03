@@ -22,6 +22,7 @@ public static class PdfFontHelper
 
             QuestPDF.Settings.License = LicenseType.Community;
 
+            var registeredCount = 0;
             foreach (var fileName in new[]
                      {
                          "segoeui.ttf",
@@ -34,18 +35,30 @@ public static class PdfFontHelper
                          "calibrib.ttf"
                      })
             {
-                RegisterFontFile(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts", fileName));
+                if (RegisterFontFile(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts", fileName)))
+                {
+                    registeredCount++;
+                }
+            }
+
+            if (registeredCount == 0)
+            {
+                // Урезанная установка Windows (Server Core и т.п.): PDF отрисуется
+                // fallback-шрифтом QuestPDF и может потерять кириллицу.
+                AppLog.Info(
+                    "PdfFontHelper: не зарегистрирован ни один системный шрифт "
+                    + $"({DefaultFamily}/Arial/Calibri) — кириллица в PDF-отчётах может не отображаться.");
             }
 
             _registered = true;
         }
     }
 
-    private static void RegisterFontFile(string path)
+    private static bool RegisterFontFile(string path)
     {
         if (!File.Exists(path))
         {
-            return;
+            return false;
         }
 
         try
@@ -53,10 +66,14 @@ public static class PdfFontHelper
             var bytes = File.ReadAllBytes(path);
             using var stream = new MemoryStream(bytes);
             FontManager.RegisterFont(stream);
+            return true;
         }
-        catch
+        catch (Exception exception)
         {
-            // Игнорируем повторную регистрацию или нечитаемые файлы шрифтов.
+            // Нечитаемый или повреждённый файл шрифта не должен срывать генерацию PDF,
+            // но и молчать о нём нельзя — деградация видна только по логу.
+            AppLog.Error(exception, $"PdfFontHelper: не удалось зарегистрировать шрифт {path}");
+            return false;
         }
     }
 }
