@@ -58,6 +58,14 @@ public partial class MainViewModel : ObservableObject
     private bool _isProcmonTracing;
 
     /// <summary>
+    /// Идёт ли live-мониторинг USB. Источник истины для логики: раньше это
+    /// состояние выводилось из IsEnabled кнопки «Стоп», что связывало логику
+    /// с визуальным состоянием контрола.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isMonitoringActive;
+
+    /// <summary>
     /// Сколько в таблице устройств, которые принесли с собой. Без этой строки
     /// приходится считать цветные строки глазами.
     /// </summary>

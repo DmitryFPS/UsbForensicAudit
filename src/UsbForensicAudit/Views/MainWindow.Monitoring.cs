@@ -20,6 +20,7 @@ public partial class MainWindow
             _monitor.Start();
             _ = InitializeUnknownDeviceDetectorAsync();
             ShowAndRefreshActiveDevicesWindow();
+            _vm.IsMonitoringActive = true;
             MonitorButton.IsEnabled = false;
             StopMonitorButton.IsEnabled = true;
             ShowActiveDevicesButton.IsEnabled = true;
@@ -45,6 +46,7 @@ public partial class MainWindow
         _deviceChangeNotifier.Stop();
         _monitor.Stop();
         _unknownDeviceDetector = null;
+        _vm.IsMonitoringActive = false;
         MonitorButton.IsEnabled = true;
         StopMonitorButton.IsEnabled = false;
         ShowActiveDevicesButton.IsEnabled = false;
@@ -218,9 +220,9 @@ public partial class MainWindow
     {
         // Снимок берётся, пока идёт мониторинг, даже если окно активных
         // устройств закрыто: алерт о неизвестном устройстве должен сработать
-        // в любом случае.
-        var shouldRefresh = await Dispatcher.InvokeAsync(() => StopMonitorButton.IsEnabled);
-        if (!shouldRefresh)
+        // в любом случае. Состояние читается из ViewModel, а не из IsEnabled
+        // кнопки — логика не должна зависеть от визуального состояния контрола.
+        if (!_vm.IsMonitoringActive)
         {
             return;
         }
