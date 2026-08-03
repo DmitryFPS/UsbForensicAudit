@@ -25,6 +25,9 @@ jobs:
       - name: Restore locked dependencies
         run: dotnet restore UsbForensicAudit.sln --locked-mode
 
+      - name: Verify code formatting
+        run: dotnet format UsbForensicAudit.sln --verify-no-changes --no-restore
+
       - name: Build with warnings as errors
         run: dotnet build UsbForensicAudit.sln -c Release --no-restore
 
