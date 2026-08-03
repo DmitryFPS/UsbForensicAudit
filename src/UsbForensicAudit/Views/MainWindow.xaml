@@ -772,7 +772,7 @@
                                 <TextBlock Text="Устройство:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="16,0,8,0"/>
                                 <ComboBox x:Name="TimelineDeviceCombo" Width="280" SelectionChanged="TimelineFilter_Changed"/>
                                 <TextBlock Text="Поиск:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="16,0,8,0"/>
-                                <TextBox x:Name="TimelineSearchBox" Width="240" TextChanged="TimelineFilter_Changed"/>
+                                <TextBox x:Name="TimelineSearchBox" Width="240" TextChanged="TimelineFilter_Changed" Background="{StaticResource PanelDeep}" Foreground="{StaticResource TextSoft}" CaretBrush="{StaticResource TextSoft}" BorderBrush="{StaticResource Stroke}" Padding="6,3"/>
                                 <TextBlock x:Name="TimelineCountText" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="16,0,0,0"/>
                             </StackPanel>
                         </StackPanel>
@@ -850,7 +850,7 @@
                                        Foreground="{StaticResource TextMain}" Margin="0,0,0,6"/>
                             <DockPanel>
                                 <Button DockPanel.Dock="Right" x:Name="SaveExpertNoteButton" Content="Сохранить заметку" Click="SaveExpertNoteButton_Click" Margin="10,0,0,0" VerticalAlignment="Top"/>
-                                <TextBox x:Name="ExpertNoteTextBox" AcceptsReturn="True" TextWrapping="Wrap" Height="56" VerticalScrollBarVisibility="Auto"/>
+                                <TextBox x:Name="ExpertNoteTextBox" AcceptsReturn="True" TextWrapping="Wrap" Height="56" VerticalScrollBarVisibility="Auto" Background="{StaticResource PanelDeep}" Foreground="{StaticResource TextSoft}" CaretBrush="{StaticResource TextSoft}" BorderBrush="{StaticResource Stroke}" Padding="6,4"/>
                             </DockPanel>
                             <TextBlock x:Name="ExpertNoteStatusText" Foreground="{StaticResource TextMuted}" Margin="0,6,0,0" TextWrapping="Wrap"/>
                         </StackPanel>
