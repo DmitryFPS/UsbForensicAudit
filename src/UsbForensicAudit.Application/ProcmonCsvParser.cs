@@ -234,8 +234,11 @@ public static class ProcmonCsvParser
 
         if (DateTime.TryParseExact(text.Trim(), formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var todayTime))
         {
-            var today = DateTime.Today;
-            return new DateTimeOffset(today.Year, today.Month, today.Day, todayTime.Hour, todayTime.Minute, todayTime.Second, todayTime.Millisecond, TimeSpan.Zero);
+            // Procmon пишет «Time of Day» в локальном времени. Раньше значение помечалось
+            // смещением UTC (TimeSpan.Zero), из-за чего метка уезжала на величину часового
+            // пояса при сравнении с остальными артефактами аудита.
+            var local = DateTime.Today.AddTicks(todayTime.TimeOfDay.Ticks);
+            return new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local));
         }
 
         return DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsed)

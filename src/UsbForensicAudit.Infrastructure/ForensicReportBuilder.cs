@@ -446,6 +446,13 @@ internal sealed class ForensicReportContext
 
 internal static class ForensicReportBuilder
 {
+    /// <summary>
+    /// Предел строк на одну сетевую связь в HTML: без него отчёт на машине
+    /// с тысячами обращений разрастается до сотен мегабайт (PDF уже ограничен
+    /// аналогичной константой MaxNetworkRowsInPdf). Полные данные — в Excel.
+    /// </summary>
+    private const int MaxNetworkRowsInHtml = 200;
+
     public const string ReportTitle = "Аудит USB — полный отчёт для расследования";
 
     public static string BuildHtml(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null)
@@ -918,10 +925,15 @@ internal static class ForensicReportBuilder
         if (connection.Visits.Count > 0)
         {
             html.AppendLine($"<h4>Куда ходили ({connection.Visits.Count})</h4>");
+            if (connection.Visits.Count > MaxNetworkRowsInHtml)
+            {
+                html.AppendLine($"<p class=\"note\">Показаны первые {MaxNetworkRowsInHtml} обращений из {connection.Visits.Count}; полный список — в Excel-отчёте.</p>");
+            }
+
             html.AppendLine("<table><tr><th>Когда</th><th>Что делали</th><th>Папка, адрес или узел</th>"
                             + "<th>Подпись</th><th>Кто</th><th>Сколько раз</th><th>Что означает время</th>"
                             + "<th>Откуда взято</th><th>Ссылка на источник</th></tr>");
-            foreach (var visit in connection.Visits)
+            foreach (var visit in connection.Visits.Take(MaxNetworkRowsInHtml))
             {
                 html.AppendLine(
                     $"<tr><td>{E(visit.WhenText)}</td><td>{E(visit.KindText)}</td><td>{E(visit.TargetText)}</td>" +
@@ -935,10 +947,15 @@ internal static class ForensicReportBuilder
         if (connection.Sessions.Count > 0)
         {
             html.AppendLine($"<h4>Сеансы связи ({connection.Sessions.Count})</h4>");
+            if (connection.Sessions.Count > MaxNetworkRowsInHtml)
+            {
+                html.AppendLine($"<p class=\"note\">Показаны первые {MaxNetworkRowsInHtml} сеансов из {connection.Sessions.Count}; полный список — в Excel-отчёте.</p>");
+            }
+
             html.AppendLine("<table><tr><th>Подключение</th><th>Отключение</th><th>Сколько держалось</th>"
                             + "<th>Чем закончилось</th><th>Подробности</th><th>Учётная запись</th>"
                             + "<th>Откуда взято</th></tr>");
-            foreach (var session in connection.Sessions)
+            foreach (var session in connection.Sessions.Take(MaxNetworkRowsInHtml))
             {
                 html.AppendLine(
                     $"<tr><td>{E(session.StartedText)}</td><td>{E(session.EndedText)}</td>" +

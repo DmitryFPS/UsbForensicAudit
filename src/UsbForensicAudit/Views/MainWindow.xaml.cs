@@ -426,6 +426,10 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _lifetimeCancellation.Cancel();
+        // Явная отписка: время жизни окна не должно зависеть от того,
+        // отписывает ли WmiUsbMonitor.Dispose внешних подписчиков.
+        _monitor.DeviceChanged -= Monitor_DeviceChanged;
+        _monitor.RefreshRequested -= Monitor_RefreshRequested;
         _deviceChangeNotifier.Dispose();
         _monitor.Dispose();
         _activeDevicesWindow?.Close();
