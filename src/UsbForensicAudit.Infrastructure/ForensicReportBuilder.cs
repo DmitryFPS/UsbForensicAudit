@@ -14,9 +14,9 @@ internal static class ForensicReportBuilder
 
     public const string ReportTitle = "Аудит USB — полный отчёт для расследования";
 
-    public static string BuildHtml(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null)
+    public static string BuildHtml(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null, DevicePolicy? policy = null)
     {
-        var ctx = ForensicReportContext.Create(result, externalUtilitySnapshot);
+        var ctx = ForensicReportContext.Create(result, externalUtilitySnapshot, policy);
         var html = new StringBuilder();
         html.AppendLine("<!doctype html><html lang=\"ru\"><head><meta charset=\"utf-8\">");
         html.AppendLine($"<title>{E(ReportTitle)}</title>");
@@ -66,6 +66,7 @@ internal static class ForensicReportBuilder
         html.AppendLine("<li><a href=\"#summary\">1. Сводка для расследования</a></li>");
         html.AppendLine("<li><a href=\"#incidents\">2. Возможные инциденты</a></li>");
         html.AppendLine("<li><a href=\"#exfiltration\">Вынос данных на съёмные носители</a></li>");
+        html.AppendLine("<li><a href=\"#policy\">Соответствие политике устройств</a></li>");
         html.AppendLine("<li><a href=\"#cleanup\">3. Все признаки очистки</a></li>");
         html.AppendLine("<li><a href=\"#devices\">4. USB-устройства</a></li>");
         html.AppendLine("<li><a href=\"#dossiers\">5. Досье устройств</a></li>");
@@ -83,6 +84,7 @@ internal static class ForensicReportBuilder
         AppendSummarySection(html, ctx);
         AppendIncidentSection(html, ctx);
         AppendExfiltrationSection(html, ctx);
+        AppendPolicySection(html, ctx);
         AppendCleanupSection(html, ctx);
         AppendDevicesSection(html, ctx);
         AppendDossiersSection(html, ctx);
@@ -119,6 +121,10 @@ internal static class ForensicReportBuilder
         html.AppendLine($"<span class=\"muted\">{E(ctx.ActivityVerdict())}</span><br>");
         html.AppendLine($"<span class=\"muted\">{E(ctx.TransferVerdict())}</span><br>");
         html.AppendLine($"<span class=\"muted\">{E(ctx.Exfiltration.Verdict())}</span><br>");
+        if (ctx.PolicySummary.PolicyDefined)
+        {
+            html.AppendLine($"<span class=\"muted\">{E(ctx.PolicySummary.Verdict())}</span><br>");
+        }
         html.AppendLine($"<span class=\"muted\">{E(ctx.NetworkSummary.Describe())}</span>");
         html.AppendLine("</div>");
 
@@ -220,6 +226,33 @@ internal static class ForensicReportBuilder
             html.AppendLine(
                 $"<tr class=\"{rowClass}\"><td>{E(item.FileName)}</td><td>{E(item.DeviceDisplayName)}</td>" +
                 $"<td>{E(item.WhenText)}</td><td>{E(item.ConfidenceText)}</td><td>{E(item.Basis)}</td></tr>");
+        }
+        html.AppendLine("</table>");
+    }
+
+    private static void AppendPolicySection(StringBuilder html, ForensicReportContext ctx)
+    {
+        var policy = ctx.PolicySummary;
+        if (!policy.PolicyDefined)
+        {
+            return;
+        }
+
+        html.AppendLine("<h2 id=\"policy\">Соответствие политике устройств</h2>");
+        var noteClass = policy.HasViolations ? "danger" : "note";
+        html.AppendLine($"<p class=\"{noteClass}\">{E(policy.Verdict())}</p>");
+        if (policy.Items.Count == 0)
+        {
+            return;
+        }
+
+        html.AppendLine("<table><tr><th>Устройство</th><th>VID/PID</th><th>Серийный номер</th><th>Решение политики</th></tr>");
+        foreach (var item in policy.Items)
+        {
+            var rowClass = item.IsViolation ? "suspicious" : "";
+            html.AppendLine(
+                $"<tr class=\"{rowClass}\"><td>{E(item.DeviceDisplayName)}</td><td>{E(item.VidPidText)}</td>" +
+                $"<td>{E(item.SerialText)}</td><td>{E(item.DecisionText)}</td></tr>");
         }
         html.AppendLine("</table>");
     }

@@ -2,7 +2,7 @@ namespace UsbForensicAudit;
 
 internal sealed class ForensicReportContext
 {
-    public ForensicReportContext(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null)
+    public ForensicReportContext(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null, DevicePolicy? policy = null)
     {
         Result = result;
         ExternalUtilitySnapshot = externalUtilitySnapshot;
@@ -53,6 +53,9 @@ internal sealed class ForensicReportContext
         NetworkSummary = NetworkConnectionSummary.Create(NetworkConnections);
         NetworkEnvironment = result.NetworkEnvironment;
         Exfiltration = ExfiltrationAnalyzer.Analyze(result);
+        // policy == null на реальном прогоне: политику берём из файла рядом с
+        // программой. Тесты передают политику явно и на диск не ходят.
+        PolicySummary = DevicePolicyEvaluator.Evaluate(result, policy ?? DevicePolicyProvider.LoadDefault());
     }
 
     public AuditResult Result { get; }
@@ -98,6 +101,9 @@ internal sealed class ForensicReportContext
 
     /// <summary>Сводка «ушли ли данные наружу» — файлы, вынесенные на съёмные носители.</summary>
     public ExfiltrationSummary Exfiltration { get; }
+
+    /// <summary>Соответствие политике допустимых устройств (device-policy.json).</summary>
+    public DevicePolicySummary PolicySummary { get; }
 
     /// <summary>Снимок Wi-Fi в эфире и соседей по сети на момент съёмки.</summary>
     public NetworkEnvironmentSnapshot NetworkEnvironment { get; }
@@ -152,8 +158,8 @@ internal sealed class ForensicReportContext
         }
     }
 
-    public static ForensicReportContext Create(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null) =>
-        new(result, externalUtilitySnapshot);
+    public static ForensicReportContext Create(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null, DevicePolicy? policy = null) =>
+        new(result, externalUtilitySnapshot, policy);
 
     private readonly Dictionary<string, DeviceActivityHistory> _activityCache = new(StringComparer.OrdinalIgnoreCase);
 
