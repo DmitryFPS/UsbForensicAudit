@@ -73,6 +73,18 @@ internal static class ExecutiveBriefPdfReport
         var userName = string.IsNullOrWhiteSpace(result.UserName) ? "не определено" : result.UserName;
         var adminRights = result.IsAdministrator ? "да" : "нет";
 
+        SubTitle(column, "Главное — ответы на вопросы расследования");
+        AnswerLine(column, DevicesAnswer(ctx),
+            ctx.PolicySummary.HasViolations ? Colors.Red.Darken2 : Colors.Blue.Darken2);
+        AnswerLine(column, ExfiltrationAnswer(ctx),
+            ctx.Exfiltration.ConfirmedCount > 0 ? Colors.Red.Darken2
+            : ctx.Exfiltration.HasFindings ? Colors.Orange.Darken3 : Colors.Green.Darken2);
+        AnswerLine(column, CleanupAnswer(ctx),
+            ctx.HighRiskCount > 0 ? Colors.Red.Darken2
+            : ctx.SuspiciousCount > 0 || ctx.AttentionCount > 0 ? Colors.Orange.Darken3
+            : Colors.Green.Darken2);
+        column.Item().PaddingBottom(6);
+
         SubTitle(column, "1. Общие сведения");
         AddTwoColumnTable(column,
         [
@@ -373,6 +385,34 @@ internal static class ExecutiveBriefPdfReport
         yield return "Не удалять папку данных программы до завершения расследования.";
         yield return "При выявлении конкретного устройства запросить его у владельца для идентификации по серийному номеру.";
     }
+
+    private static string DevicesAnswer(ForensicReportContext ctx)
+    {
+        var externalCount = ctx.ListedDevices.Count(x => x.IsExternalDevice);
+        return externalCount == 0
+            ? "Подключали ли внешние носители? Следов не найдено."
+            : $"Подключали ли внешние носители? Да — внешних устройств: {externalCount}."
+              + (ctx.PolicySummary.HasViolations ? $" Нарушений политики: {ctx.PolicySummary.Violations.Count}." : "");
+    }
+
+    private static string ExfiltrationAnswer(ForensicReportContext ctx) =>
+        ctx.Exfiltration.ConfirmedCount > 0
+            ? $"Уходили ли данные? Да — подтверждено файлов: {ctx.Exfiltration.ConfirmedCount}."
+            : ctx.Exfiltration.HasFindings
+                ? $"Уходили ли данные? Возможно — признаков: {ctx.Exfiltration.OutboundCount}."
+                : "Уходили ли данные? Признаков не найдено.";
+
+    private static string CleanupAnswer(ForensicReportContext ctx) =>
+        ctx.HighRiskCount > 0
+            ? $"Чистили ли следы? Да, вероятно — находок высокого риска: {ctx.HighRiskCount}."
+            : ctx.SuspiciousCount > 0
+                ? $"Чистили ли следы? Возможно — подозрительных находок: {ctx.SuspiciousCount}."
+                : ctx.AttentionCount > 0
+                    ? $"Чистили ли следы? Явной очистки нет, требуют внимания: {ctx.AttentionCount}."
+                    : "Чистили ли следы? Признаков не найдено.";
+
+    private static void AnswerLine(ColumnDescriptor column, string text, string color) =>
+        column.Item().PaddingBottom(3).Text(T(text)).FontSize(11).Bold().FontColor(color);
 
     private static void SubTitle(ColumnDescriptor column, string title) =>
         PdfComponents.BoxedTitle(column, T(title), 10.5f, paddingVertical: 4, fontColor: Colors.Blue.Darken3);

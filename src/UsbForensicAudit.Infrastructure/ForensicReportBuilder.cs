@@ -42,8 +42,24 @@ internal static class ForensicReportBuilder
             .suspicious{background:#fff1f2}
             .card{border:1px solid #d1d5db;border-radius:10px;padding:14px 16px;margin:14px 0;background:#fff}
             .muted{color:#6b7280}
-            .toc ul{margin:8px 0 0;padding-left:18px}
-            @media print{body{margin:12px} th{position:static}}
+            .toc ol{margin:8px 0 0;padding-left:22px}
+            body{counter-reset:sec}
+            h2{counter-increment:sec}
+            h2::before{content:counter(sec) ". "}
+            .answers{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0}
+            .answer{border:2px solid;border-radius:12px;padding:14px 16px}
+            .answer .q{font-size:12px;color:#6b7280;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em}
+            .answer .v{font-size:17px;font-weight:700;margin-bottom:6px;line-height:1.3}
+            .answer .n{font-size:12px;color:#374151}
+            .answer.ok{background:#f0fdf4;border-color:#86efac}
+            .answer.ok .v{color:#166534}
+            .answer.attn{background:#fffbeb;border-color:#fcd34d}
+            .answer.attn .v{color:#92400e}
+            .answer.bad{background:#fef2f2;border-color:#fca5a5}
+            .answer.bad .v{color:#991b1b}
+            .answer.plain{background:#eff6ff;border-color:#93c5fd}
+            .answer.plain .v{color:#1e40af}
+            @media print{body{margin:12px} th{position:static} .answers{grid-template-columns:1fr 1fr 1fr}}
             </style></head><body>
             """);
 
@@ -62,31 +78,39 @@ internal static class ForensicReportBuilder
         html.AppendLine($"<b>Окончание сканирования:</b> {E(DateDisplay.FormatMoscow(result.FinishedAtUtc))}<br>");
         html.AppendLine($"<b>Длительность:</b> {E(ctx.ScanDurationText)}<br>");
         html.AppendLine($"<b>Права администратора:</b> {(result.IsAdministrator ? "да" : "нет")}<br>");
-        html.AppendLine("<b>Область отчёта:</b> USB/Type-C, UASP, MTP/WPD и подтверждённые USB4/Thunderbolt tunnels; встроенные USB явно маркируются, внутренние SATA/NVMe без external topology evidence исключены.<br>");
+        html.AppendLine("<b>Область отчёта:</b> внешние устройства и носители (флешки, внешние диски, телефоны), подключавшиеся к этому компьютеру. Встроенные части самого компьютера помечены отдельно и в выводы не попадают.<br>");
+        html.AppendLine("<span class=\"muted\">Технически: USB/Type-C, UASP, MTP/WPD и подтверждённые USB4/Thunderbolt-туннели; внутренние SATA/NVMe без признаков внешней топологии исключены.</span><br>");
         html.AppendLine($"<span class=\"muted\">{E(result.OsInstallGraceNote)}</span><br>");
         html.AppendLine($"<span class=\"muted\">{E(result.ReferenceImage.Describe())}</span>");
         html.AppendLine("</div>");
 
-        html.AppendLine("<nav class=\"toc\"><b>Содержание</b><ul>");
-        html.AppendLine("<li><a href=\"#summary\">1. Сводка для расследования</a></li>");
-        html.AppendLine("<li><a href=\"#incidents\">2. Возможные инциденты</a></li>");
+        html.AppendLine("<nav class=\"toc\"><b>Содержание</b><ol>");
+        html.AppendLine("<li><a href=\"#answers\">Главное — ответы на вопросы расследования</a></li>");
+        html.AppendLine("<li><a href=\"#summary\">Сводка для расследования</a></li>");
+        html.AppendLine("<li><a href=\"#incidents\">Возможные инциденты</a></li>");
         html.AppendLine("<li><a href=\"#exfiltration\">Вынос данных на съёмные носители</a></li>");
+        html.AppendLine("<li><a href=\"#usb-exec-hashes\">Хеши исполняемых файлов со съёмных носителей</a></li>");
         html.AppendLine("<li><a href=\"#mitre\">Сопоставление с MITRE ATT&amp;CK</a></li>");
-        html.AppendLine("<li><a href=\"#policy\">Соответствие политике устройств</a></li>");
-        html.AppendLine("<li><a href=\"#cleanup\">3. Все признаки очистки</a></li>");
-        html.AppendLine("<li><a href=\"#devices\">4. USB-устройства</a></li>");
-        html.AppendLine("<li><a href=\"#dossiers\">5. Досье устройств</a></li>");
-        html.AppendLine("<li><a href=\"#timeline\">6. Хронология событий</a></li>");
-        html.AppendLine("<li><a href=\"#evidence\">7. Журнал доказательств</a></li>");
-        html.AppendLine("<li><a href=\"#network\">8. Сетевые подключения и куда по ним ходили</a></li>");
-        html.AppendLine("<li><a href=\"#warnings\">9. Предупреждения и ограничения</a></li>");
-        html.AppendLine("<li><a href=\"#methodology\">10. Источники данных</a></li>");
+        if (ctx.PolicySummary.PolicyDefined)
+        {
+            html.AppendLine("<li><a href=\"#policy\">Соответствие политике устройств</a></li>");
+        }
+        html.AppendLine("<li><a href=\"#cleanup\">Все признаки очистки</a></li>");
+        html.AppendLine("<li><a href=\"#devices\">USB-устройства</a></li>");
+        html.AppendLine("<li><a href=\"#dossiers\">Досье устройств</a></li>");
+        html.AppendLine("<li><a href=\"#timeline\">Хронология событий</a></li>");
+        html.AppendLine("<li><a href=\"#evidence\">Журнал доказательств</a></li>");
+        html.AppendLine("<li><a href=\"#network\">Сетевые подключения и куда по ним ходили</a></li>");
+        html.AppendLine("<li><a href=\"#network-environment\">Обстановка вокруг машины (снимок)</a></li>");
+        html.AppendLine("<li><a href=\"#warnings\">Предупреждения и ограничения сбора</a></li>");
+        html.AppendLine("<li><a href=\"#methodology\">Источники данных</a></li>");
         if (ctx.ExternalUtilitySnapshot is not null && (ctx.ExternalUtilitySnapshot.Rows.Count > 0 || ctx.ExternalUtilitySnapshot.HistoricalLaunches.Count > 0))
         {
-            html.AppendLine("<li><a href=\"#external-utils\">11. Сторонние утилиты</a></li>");
+            html.AppendLine("<li><a href=\"#external-utils\">Сторонние утилиты</a></li>");
         }
-        html.AppendLine("</ul></nav>");
+        html.AppendLine("</ol></nav>");
 
+        AppendKeyAnswersSection(html, ctx);
         AppendSummarySection(html, ctx);
         AppendIncidentSection(html, ctx);
         AppendExfiltrationSection(html, ctx);
@@ -111,10 +135,94 @@ internal static class ForensicReportBuilder
         return html.ToString();
     }
 
+    /// <summary>
+    /// Первая секция отчёта — прямые ответы на три вопроса расследования
+    /// простым языком, со светофором серьёзности и подсказкой, с чего начать.
+    /// Обычный читатель должен понять положение дел, не листая таблицы.
+    /// </summary>
+    private static void AppendKeyAnswersSection(StringBuilder html, ForensicReportContext ctx)
+    {
+        html.AppendLine("<h2 id=\"answers\">Главное — ответы на вопросы расследования</h2>");
+        html.AppendLine("<div class=\"answers\">");
+
+        // Вопрос 1: что подключали.
+        var externalDevices = ctx.ListedDevices.Where(x => x.IsExternalDevice).ToArray();
+        var lastSeen = externalDevices
+            .Select(x => x.LastSeenUtc)
+            .Where(x => x is not null)
+            .OrderByDescending(x => x)
+            .FirstOrDefault();
+        var devicesClass = ctx.PolicySummary.HasViolations ? "bad" : externalDevices.Length > 0 ? "plain" : "ok";
+        var devicesVerdict = externalDevices.Length == 0
+            ? "Следов внешних носителей не найдено"
+            : $"Да — внешних устройств: {externalDevices.Length}";
+        var devicesNote = externalDevices.Length == 0
+            ? "Ни флешек, ни внешних дисков, ни телефонов среди следов нет. Отсутствие следов не доказывает отсутствие подключений."
+            : (lastSeen is not null
+                ? $"Последняя активность внешнего устройства: {DateDisplay.FormatMoscow(lastSeen.Value)}."
+                : "Точное время последней активности определить не удалось.")
+              + (ctx.PolicySummary.HasViolations
+                  ? $" Нарушений политики устройств: {ctx.PolicySummary.Violations.Count} — см. раздел о политике."
+                  : " Подробности — в разделах об устройствах и досье.");
+        AppendAnswerCard(html, devicesClass, "Подключали ли внешние носители?", devicesVerdict, devicesNote);
+
+        // Вопрос 2: уходили ли данные.
+        var exf = ctx.Exfiltration;
+        var exfClass = exf.ConfirmedCount > 0 ? "bad" : exf.HasFindings ? "attn" : "ok";
+        var exfVerdict = exf.ConfirmedCount > 0
+            ? $"Да — подтверждено файлов: {exf.ConfirmedCount}"
+            : exf.HasFindings
+                ? $"Возможно — признаков: {exf.OutboundCount}"
+                : "Признаков выноса данных не найдено";
+        AppendAnswerCard(html, exfClass, "Уходили ли данные на носители?", exfVerdict, exf.Verdict());
+
+        // Вопрос 3: чистили ли следы.
+        var cleanupClass = ctx.HighRiskCount > 0 ? "bad" : ctx.SuspiciousCount > 0 || ctx.AttentionCount > 0 ? "attn" : "ok";
+        var cleanupVerdict = ctx.HighRiskCount > 0
+            ? $"Да, вероятно — находок высокого риска: {ctx.HighRiskCount}"
+            : ctx.SuspiciousCount > 0
+                ? $"Возможно — подозрительных находок: {ctx.SuspiciousCount}"
+                : ctx.AttentionCount > 0
+                    ? $"Явной очистки нет, но есть {ctx.AttentionCount} наход(ок), требующих внимания"
+                    : "Признаков очистки следов не найдено";
+        AppendAnswerCard(html, cleanupClass, "Чистили ли следы?", cleanupVerdict, ctx.CleanupVerdict());
+
+        html.AppendLine("</div>");
+
+        var startPoints = new List<string>();
+        if (ctx.HighRiskCount > 0)
+        {
+            startPoints.Add($"находки высокого риска ({ctx.HighRiskCount}) — раздел «Возможные инциденты»");
+        }
+
+        if (exf.ConfirmedCount > 0)
+        {
+            startPoints.Add($"файлы с подтверждённым копированием на носитель ({exf.ConfirmedCount}) — раздел «Вынос данных»");
+        }
+
+        if (ctx.PolicySummary.HasViolations)
+        {
+            startPoints.Add($"нарушения политики устройств ({ctx.PolicySummary.Violations.Count}) — раздел о политике");
+        }
+
+        html.AppendLine(startPoints.Count > 0
+            ? $"<div class=\"note\"><b>С чего начать проверку:</b> {E(string.Join("; ", startPoints))}.</div>"
+            : "<div class=\"note\"><b>С чего начать:</b> явных приоритетных зацепок нет — просмотрите хронологию событий и список устройств, затем сводку.</div>");
+    }
+
+    private static void AppendAnswerCard(StringBuilder html, string cssClass, string question, string verdict, string note)
+    {
+        html.AppendLine($"<div class=\"answer {cssClass}\">");
+        html.AppendLine($"<div class=\"q\">{E(question)}</div>");
+        html.AppendLine($"<div class=\"v\">{E(verdict)}</div>");
+        html.AppendLine($"<div class=\"n\">{E(note)}</div>");
+        html.AppendLine("</div>");
+    }
+
     private static void AppendSummarySection(StringBuilder html, ForensicReportContext ctx)
     {
         var result = ctx.Result;
-        html.AppendLine("<h2 id=\"summary\">1. Сводка для расследования</h2>");
+        html.AppendLine("<h2 id=\"summary\">Сводка для расследования</h2>");
         html.AppendLine("<div class=\"note\">");
         html.AppendLine($"<b>Физических устройств:</b> {ctx.Counts.PhysicalDevices}<br>");
         html.AppendLine($"<span class=\"muted\">{E(ctx.Counts.Describe())}</span><br>");
@@ -165,7 +273,7 @@ internal static class ForensicReportBuilder
 
     private static void AppendIncidentSection(StringBuilder html, ForensicReportContext ctx)
     {
-        html.AppendLine("<h2 id=\"incidents\">2. Возможные инциденты</h2>");
+        html.AppendLine("<h2 id=\"incidents\">Возможные инциденты</h2>");
         html.AppendLine($"<p class=\"note\">{E(ctx.CleanupVerdict())}</p>");
         if (ctx.SuspiciousFindings.Count == 0)
         {
@@ -312,7 +420,7 @@ internal static class ForensicReportBuilder
 
     private static void AppendCleanupSection(StringBuilder html, ForensicReportContext ctx)
     {
-        html.AppendLine("<h2 id=\"cleanup\">3. Все признаки очистки</h2>");
+        html.AppendLine("<h2 id=\"cleanup\">Все признаки очистки</h2>");
         if (ctx.CleanupFindings.Count == 0)
         {
             html.AppendLine("<p>Записей не найдено.</p>");
@@ -333,7 +441,7 @@ internal static class ForensicReportBuilder
 
     private static void AppendDevicesSection(StringBuilder html, ForensicReportContext ctx)
     {
-        html.AppendLine("<h2 id=\"devices\">4. USB-устройства</h2>");
+        html.AppendLine("<h2 id=\"devices\">USB-устройства</h2>");
         html.AppendLine("<p class=\"muted\">В отчёт включены реальные USB/Type-C устройства, подтверждённые связанные USB-диски и остаточные следы usbflags. Внутренние SATA/NVMe-диски и ОЗУ не относятся к USB и исключены.</p>");
         html.AppendLine("<p class=\"muted\">Таблица перечисляет все записи реестра, а колонка «Место в списке устройств» показывает, "
                         + "какие из них Windows завела на части одного и того же устройства. Такие записи свёрнуты в своё устройство "
@@ -383,7 +491,7 @@ internal static class ForensicReportBuilder
 
     private static void AppendDossiersSection(StringBuilder html, ForensicReportContext ctx)
     {
-        html.AppendLine("<h2 id=\"dossiers\">5. Досье устройств</h2>");
+        html.AppendLine("<h2 id=\"dossiers\">Досье устройств</h2>");
         html.AppendLine("<p>Для каждого устройства — полные идентификаторы и связанные доказательства из всех источников. "
                         + "Досье пишется на устройство, а не на запись реестра: записи, заведённые Windows на части "
                         + "того же устройства, перечислен�� внутри его досье, а полностью все записи стоят в таблице выше.</p>");
@@ -491,7 +599,7 @@ internal static class ForensicReportBuilder
 
     private static void AppendTimelineSection(StringBuilder html, ForensicReportContext ctx)
     {
-        html.AppendLine("<h2 id=\"timeline\">6. Хронология событий</h2>");
+        html.AppendLine("<h2 id=\"timeline\">Хронология событий</h2>");
         html.AppendLine("<p>Полная временная шкала всех собранных доказательств (от новых к старым).</p>");
         html.AppendLine("<table><tr><th>Дата и время</th><th>Категория</th><th>Источник</th><th>Сила / уверенность</th><th>Событие</th><th>Устройство</th><th>Описание</th><th>Пояснение</th></tr>");
         foreach (var evidence in ctx.Timeline)
@@ -506,7 +614,7 @@ internal static class ForensicReportBuilder
 
     private static void AppendEvidenceSection(StringBuilder html, ForensicReportContext ctx)
     {
-        html.AppendLine("<h2 id=\"evidence\">7. Журнал доказательств</h2>");
+        html.AppendLine("<h2 id=\"evidence\">Журнал доказательств</h2>");
         html.AppendLine("<p>Полный журнал с пояснениями и исходным текстом для детального анализа.</p>");
         html.AppendLine("<table><tr><th>Дата и время</th><th>Категория</th><th>Источник</th><th>Strength / confidence</th><th>Уровень</th><th>Событие</th><th>Устройство</th><th>Описание</th><th>Пояснение</th><th>Provenance</th><th>Исходный текст</th></tr>");
         foreach (var evidence in ctx.Timeline)
@@ -529,7 +637,7 @@ internal static class ForensicReportBuilder
     private static void AppendNetworkSection(StringBuilder html, ForensicReportContext ctx)
     {
         var connections = ctx.NetworkConnections;
-        html.AppendLine("<h2 id=\"network\">8. Сетевые подключения и куда по ним ходили</h2>");
+        html.AppendLine("<h2 id=\"network\">Сетевые подключения и куда по ним ходили</h2>");
         html.AppendLine($"<p class=\"note\">{E(ctx.NetworkSummary.Describe())}</p>");
         if (connections.Count == 0)
         {
@@ -624,7 +732,7 @@ internal static class ForensicReportBuilder
     private static void AppendNetworkEnvironmentSection(StringBuilder html, ForensicReportContext ctx)
     {
         var env = ctx.NetworkEnvironment;
-        html.AppendLine("<h2 id=\"network-environment\">9. Обстановка вокруг машины (снимок)</h2>");
+        html.AppendLine("<h2 id=\"network-environment\">Обстановка вокруг машины (снимок)</h2>");
         html.AppendLine($"<p class=\"note\">{E(env.Describe())}</p>");
         if (env.IsEmpty)
         {
@@ -686,7 +794,7 @@ internal static class ForensicReportBuilder
 
     private static void AppendWarningsSection(StringBuilder html, AuditResult result)
     {
-        html.AppendLine("<h2 id=\"warnings\">10. Предупреждения и ограничения сбора</h2>");
+        html.AppendLine("<h2 id=\"warnings\">Предупреждения и ограничения сбора</h2>");
         if (result.SourceWarnings.Count == 0)
         {
             html.AppendLine("<p class=\"note\">Предупреждений нет — все основные источники прочитаны успешно.</p>");
@@ -703,7 +811,7 @@ internal static class ForensicReportBuilder
 
     private static void AppendMethodologySection(StringBuilder html)
     {
-        html.AppendLine("<h2 id=\"methodology\">11. Источники данных</h2>");
+        html.AppendLine("<h2 id=\"methodology\">Источники данных</h2>");
         html.AppendLine("""
             <ul>
             <li>Реестр Windows: USB, USBSTOR, SCSI/UASP, WPD/MTP, USB4 и только релевантные Thunderbolt PCI instances, MountedDevices.</li>
@@ -724,7 +832,7 @@ internal static class ForensicReportBuilder
 
     private static void AppendExternalUtilitiesSection(StringBuilder html, ExternalUtilityReportSnapshot snapshot)
     {
-        html.AppendLine("<h2 id=\"external-utils\">11. Сторонние утилиты</h2>");
+        html.AppendLine("<h2 id=\"external-utils\">Сторонние утилиты</h2>");
         html.AppendLine($"<p>Снимок окна/разбора: {E(DateDisplay.FormatMoscow(snapshot.CapturedAtUtc))}. Утилита: {E(snapshot.UtilityName ?? "не указана")}.</p>");
 
         if (snapshot.HistoricalLaunches.Count > 0)

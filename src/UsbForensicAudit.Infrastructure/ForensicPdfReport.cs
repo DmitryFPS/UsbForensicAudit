@@ -128,6 +128,9 @@ internal static class ForensicPdfReport
             column.Item().PageBreak();
         }
 
+        SectionTitle(column, "Главное — ответы на вопросы расследования");
+        AppendKeyAnswers(column, ctx);
+
         SectionTitle(column, "1. Сводка для расследования");
 
         column.Item().Row(row =>
@@ -187,6 +190,44 @@ internal static class ForensicPdfReport
             [("Источник", 4f), ("Записей", 1f)],
             ctx.EvidenceBySource.Select(x => new[] { x.Source, x.Count.ToString() }));
     }
+
+    /// <summary>
+    /// Прямые ответы на три вопроса расследования простым языком — первое,
+    /// что видит читатель PDF. Цвет строки отражает серьёзность вывода.
+    /// </summary>
+    private static void AppendKeyAnswers(ColumnDescriptor column, ForensicReportContext ctx)
+    {
+        var externalCount = ctx.ListedDevices.Count(x => x.IsExternalDevice);
+        var devicesText = externalCount == 0
+            ? "Подключали ли внешние носители? Следов не найдено."
+            : $"Подключали ли внешние носители? Да — внешних устройств: {externalCount}."
+              + (ctx.PolicySummary.HasViolations ? $" Нарушений политики: {ctx.PolicySummary.Violations.Count}." : "");
+        AnswerLine(column, devicesText, ctx.PolicySummary.HasViolations ? Colors.Red.Darken2 : Colors.Blue.Darken2);
+
+        var exf = ctx.Exfiltration;
+        var exfText = exf.ConfirmedCount > 0
+            ? $"Уходили ли данные? Да — подтверждено файлов: {exf.ConfirmedCount}."
+            : exf.HasFindings
+                ? $"Уходили ли данные? Возможно — признаков: {exf.OutboundCount}."
+                : "Уходили ли данные? Признаков не найдено.";
+        AnswerLine(column, exfText,
+            exf.ConfirmedCount > 0 ? Colors.Red.Darken2 : exf.HasFindings ? Colors.Orange.Darken3 : Colors.Green.Darken2);
+
+        var cleanupText = ctx.HighRiskCount > 0
+            ? $"Чистили ли следы? Да, вероятно — находок высокого риска: {ctx.HighRiskCount}."
+            : ctx.SuspiciousCount > 0
+                ? $"Чистили ли следы? Возможно — подозрительных находок: {ctx.SuspiciousCount}."
+                : ctx.AttentionCount > 0
+                    ? $"Чистили ли следы? Явной очистки нет, требуют внимания: {ctx.AttentionCount}."
+                    : "Чистили ли следы? Признаков не найдено.";
+        AnswerLine(column, cleanupText,
+            ctx.HighRiskCount > 0 ? Colors.Red.Darken2
+            : ctx.SuspiciousCount > 0 || ctx.AttentionCount > 0 ? Colors.Orange.Darken3
+            : Colors.Green.Darken2);
+    }
+
+    private static void AnswerLine(ColumnDescriptor column, string text, string color) =>
+        column.Item().PaddingBottom(3).Text(T(text)).FontSize(11).Bold().FontColor(color);
 
     private static void AppendIncidentSection(ColumnDescriptor column, ForensicReportContext ctx, bool pageBreakBefore)
     {
