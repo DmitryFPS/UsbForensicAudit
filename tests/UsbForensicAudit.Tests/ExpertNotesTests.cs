@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Xunit;
 
 namespace UsbForensicAudit.Tests;
@@ -41,6 +42,30 @@ public sealed class ExpertNotesTests
         ExpertNotes.Apply([finding, Finding(finding: "Без заметки")], notes);
 
         Assert.Equal("Проверено: чистил админ по заявке.", finding.ExpertNote);
+    }
+
+    [Fact]
+    public void Storage_roundtrip_saves_updates_and_deletes_notes()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "ufa-notes-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var storage = new AuditStorage(directory);
+            storage.SaveExpertNote("k1", "первичная заметка");
+            storage.SaveExpertNote("k2", "временная");
+            storage.SaveExpertNote("k2", "");
+
+            var notes = storage.LoadExpertNotes();
+            Assert.Equal("первичная заметка", notes["k1"]);
+            Assert.False(notes.ContainsKey("k2"));
+
+            storage.SaveExpertNote("k1", "обновлённая заметка");
+            Assert.Equal("обновлённая заметка", storage.LoadExpertNotes()["k1"]);
+        }
+        finally
+        {
+            try { Directory.Delete(directory, recursive: true); } catch { /* мусор в temp не критичен */ }
+        }
     }
 
     [Fact]
