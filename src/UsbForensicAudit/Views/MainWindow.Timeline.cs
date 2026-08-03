@@ -44,6 +44,8 @@ public partial class MainWindow
         {
             Filter = TimelineFilterPredicate
         };
+        // Лента группируется по дням: заголовок «1 мая 2026» перед событиями дня.
+        _timelineView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(TimelineViewEntry.DayText)));
         TimelineGrid.ItemsSource = _timelineView;
         UpdateTimelineCount();
     }

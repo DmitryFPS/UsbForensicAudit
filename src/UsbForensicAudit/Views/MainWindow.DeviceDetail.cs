@@ -39,8 +39,41 @@ public partial class MainWindow
                 .Where(field => !string.IsNullOrWhiteSpace(field.Value))
                 .Select(field => $"{field.Label}: {field.Value}"));
 
+        PopulateDeviceEvents(device);
+
         DeviceDetailPanel.Visibility = Visibility.Visible;
         DeviceDetailColumn.Width = new GridLength(360);
+    }
+
+    /// <summary>
+    /// Мини-лента: последние события, где упомянуто это устройство. Совпадение
+    /// ищется по серийнику, системному ID и имени — той же подсказке DeviceHint,
+    /// по которой доказательства связываются с устройствами в остальном коде.
+    /// </summary>
+    private void PopulateDeviceEvents(UsbDeviceRecord device)
+    {
+        var evidence = _vm.LastResult?.Evidence;
+        if (evidence is null)
+        {
+            DeviceDetailEventsHeader.Visibility = Visibility.Collapsed;
+            DeviceDetailEvents.ItemsSource = null;
+            return;
+        }
+
+        var keys = new[] { device.Serial, device.DeviceInstanceId, device.DisplayName }
+            .Where(x => !string.IsNullOrWhiteSpace(x) && x.Length > 3)
+            .ToArray();
+
+        var events = evidence
+            .Where(x => !string.IsNullOrWhiteSpace(x.DeviceHint)
+                        && keys.Any(k => x.DeviceHint.Contains(k, StringComparison.OrdinalIgnoreCase)))
+            .OrderByDescending(x => x.TimestampUtc)
+            .Take(10)
+            .Select(x => $"{x.TimestampText} — {x.SummaryText}")
+            .ToArray();
+
+        DeviceDetailEventsHeader.Visibility = events.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        DeviceDetailEvents.ItemsSource = events;
     }
 
     private void CloseDeviceDetailButton_Click(object sender, RoutedEventArgs e) => HideDeviceDetail();

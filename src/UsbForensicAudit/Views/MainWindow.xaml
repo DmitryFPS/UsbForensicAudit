@@ -134,6 +134,41 @@
             </Setter>
         </Style>
 
+        <!-- Карточка отчёта: кнопка с заголовком и пояснением, как в дизайн-системе. -->
+        <Style x:Key="ReportCard" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="Background" Value="#141C30"/>
+            <Setter Property="BorderBrush" Value="#263354"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Margin" Value="0,8,10,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="MinWidth" Value="235"/>
+            <Setter Property="MaxWidth" Value="235"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                Padding="14,11">
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#1B2742"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="TabControl">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -558,7 +593,19 @@
                             <TextBlock DockPanel.Dock="Top" x:Name="DeviceDetailPolicy" Margin="0,8,0,4" FontWeight="SemiBold" Visibility="Collapsed"/>
                             <Button DockPanel.Dock="Bottom" Content="Открыть полное досье" Click="OpenDeviceDetailsButton_Click" Margin="0,10,0,0" HorizontalAlignment="Stretch"/>
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
-                                <TextBlock x:Name="DeviceDetailFields" Foreground="{StaticResource TextSoft}" FontSize="12" TextWrapping="Wrap" LineHeight="19"/>
+                                <StackPanel>
+                                    <TextBlock x:Name="DeviceDetailFields" Foreground="{StaticResource TextSoft}" FontSize="12" TextWrapping="Wrap" LineHeight="19"/>
+                                    <TextBlock x:Name="DeviceDetailEventsHeader" Text="Последние события устройства" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="0,12,0,4" Visibility="Collapsed"/>
+                                    <ItemsControl x:Name="DeviceDetailEvents">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border BorderBrush="{StaticResource Stroke}" BorderThickness="0,0,0,1" Padding="0,4">
+                                                    <TextBlock Text="{Binding}" Foreground="{StaticResource TextSoft}" FontSize="11" TextWrapping="Wrap"/>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
                             </ScrollViewer>
                         </DockPanel>
                     </Border>
@@ -852,7 +899,28 @@
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
                               CellStyle="{StaticResource ExplainedDataGridCellStyle}"
+                              RowDetailsVisibilityMode="VisibleWhenSelected"
                               ItemsSource="{Binding Evidence}">
+                        <DataGrid.RowDetailsTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource PanelDeep}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="8" Margin="24,6,24,10" Padding="12">
+                                    <StackPanel>
+                                        <TextBlock Text="Исходный текст записи" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="0,0,0,4"/>
+                                        <TextBox Text="{Binding RawText, Mode=OneWay}"
+                                                 IsReadOnly="True"
+                                                 Background="Transparent"
+                                                 Foreground="{StaticResource TextSoft}"
+                                                 BorderThickness="0"
+                                                 TextWrapping="Wrap"
+                                                 MaxHeight="180"
+                                                 VerticalScrollBarVisibility="Auto"
+                                                 FontFamily="Cascadia Mono, Consolas"
+                                                 FontSize="11"/>
+                                        <TextBlock Text="{Binding Provenance, StringFormat='Provenance: {0}'}" Foreground="{StaticResource TextMuted}" FontSize="10" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </DataGrid.RowDetailsTemplate>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampText}" Width="180"/>
                             <DataGridTextColumn Header="Что произошло" Binding="{Binding EvidenceCategoryText}" Width="Auto"/>
@@ -890,6 +958,20 @@
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
                               EnableRowVirtualization="True">
+                        <DataGrid.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource PanelDeep}" BorderBrush="{StaticResource Stroke}" BorderThickness="0,0,0,1" Padding="10,7">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource Accent}" FontWeight="SemiBold" FontSize="13"/>
+                                                <TextBlock Text="{Binding ItemCount, StringFormat=' · событий: {0}'}" Foreground="{StaticResource TextMuted}" FontSize="12" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </DataGrid.GroupStyle>
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
                                 <Style.Triggers>
@@ -901,7 +983,25 @@
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampText}" Width="170"/>
-                            <DataGridTextColumn Header="Тип" Binding="{Binding Kind}" Width="150"/>
+                            <DataGridTextColumn Header="Тип" Binding="{Binding Kind}" Width="150">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Kind}" Value="Очистка следов">
+                                                <Setter Property="Foreground" Value="{StaticResource Danger}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Kind}" Value="Сеть">
+                                                <Setter Property="Foreground" Value="{StaticResource Accent2}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Kind}" Value="USB и активность">
+                                                <Setter Property="Foreground" Value="{StaticResource Ok}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                             <DataGridTextColumn Header="Источник" Binding="{Binding Source}" Width="220"/>
                             <DataGridTextColumn Header="Устройство / объект" Binding="{Binding Device}" Width="260"/>
                             <DataGridTextColumn Header="Что произошло" Binding="{Binding Description}" Width="*"/>
@@ -1207,17 +1307,74 @@
                                    FontSize="16"
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,14"/>
+                        <TextBlock Text="КОРОТКО" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="0,4,0,0"/>
                         <WrapPanel>
-                            <Button x:Name="ManagerPdfReportButton" Content="Для руководителя (1 стр.)" Click="ManagerPdfReportButton_Click" IsEnabled="False"/>
-                            <Button x:Name="PdfReportButton" Content="Полный PDF" Click="PdfReportButton_Click" IsEnabled="False"/>
-                            <Button x:Name="AnalystNotePdfReportButton" Content="Аналитическая записка (PDF)" Click="AnalystNotePdfReportButton_Click" IsEnabled="False"/>
-                            <Button x:Name="BriefPdfReportButton" Content="Сводный PDF" Click="BriefPdfReportButton_Click" IsEnabled="False"/>
-                            <Button x:Name="ExcelReportButton" Content="Полный Excel" Click="ExcelReportButton_Click" IsEnabled="False"/>
-                            <Button x:Name="BriefExcelReportButton" Content="Сводный Excel" Click="BriefExcelReportButton_Click" IsEnabled="False"/>
-                            <Button x:Name="AnalystNoteExcelReportButton" Content="Аналитическая записка (Excel)" Click="AnalystNoteExcelReportButton_Click" IsEnabled="False"/>
-                            <Button x:Name="TimelineCsvButton" Content="Таймлайн (CSV)" Click="TimelineCsvButton_Click" IsEnabled="False"/>
-                            <Button x:Name="EvidencePackageButton" Content="Пакет доказательств (ZIP)" Click="EvidencePackageButton_Click" IsEnabled="False"/>
-                            <Button Content="Открыть папку данных" Click="OpenDataFolderButton_Click"/>
+                            <Button x:Name="ManagerPdfReportButton" Click="ManagerPdfReportButton_Click" IsEnabled="False" Style="{StaticResource ReportCard}">
+                                <StackPanel>
+                                    <TextBlock Text="Для руководителя — 1 страница" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap"/>
+                                    <TextBlock Text="Только выводы человеческим языком, без техники" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="BriefPdfReportButton" Click="BriefPdfReportButton_Click" IsEnabled="False" Style="{StaticResource ReportCard}">
+                                <StackPanel>
+                                    <TextBlock Text="Сводный PDF" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap"/>
+                                    <TextBlock Text="Ключевые цифры, инциденты и значимые устройства" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="BriefExcelReportButton" Click="BriefExcelReportButton_Click" IsEnabled="False" Style="{StaticResource ReportCard}">
+                                <StackPanel>
+                                    <TextBlock Text="Сводный Excel" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap"/>
+                                    <TextBlock Text="Та же сводка — в таблицах Excel" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Button>
+                        </WrapPanel>
+                        <TextBlock Text="ПОЛНОСТЬЮ" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="0,14,0,0"/>
+                        <WrapPanel>
+                            <Button x:Name="PdfReportButton" Click="PdfReportButton_Click" IsEnabled="False" Style="{StaticResource ReportCard}">
+                                <StackPanel>
+                                    <TextBlock Text="Полный PDF" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap"/>
+                                    <TextBlock Text="Все данные расследования: устройства, досье, хронология" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="ExcelReportButton" Click="ExcelReportButton_Click" IsEnabled="False" Style="{StaticResource ReportCard}">
+                                <StackPanel>
+                                    <TextBlock Text="Полный Excel" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap"/>
+                                    <TextBlock Text="Все таблицы — для собственного анализа и фильтров" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="AnalystNotePdfReportButton" Click="AnalystNotePdfReportButton_Click" IsEnabled="False" Style="{StaticResource ReportCard}">
+                                <StackPanel>
+                                    <TextBlock Text="Аналитическая записка (PDF)" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap"/>
+                                    <TextBlock Text="Связный рассказ с общей хронологией событий" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="AnalystNoteExcelReportButton" Click="AnalystNoteExcelReportButton_Click" IsEnabled="False" Style="{StaticResource ReportCard}">
+                                <StackPanel>
+                                    <TextBlock Text="Аналитическая записка (Excel)" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap"/>
+                                    <TextBlock Text="Та же записка — по листу на раздел" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Button>
+                        </WrapPanel>
+                        <TextBlock Text="ДЛЯ ПЕРЕДАЧИ" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="0,14,0,0"/>
+                        <WrapPanel>
+                            <Button x:Name="EvidencePackageButton" Click="EvidencePackageButton_Click" IsEnabled="False" Style="{StaticResource ReportCard}">
+                                <StackPanel>
+                                    <TextBlock Text="Пакет доказательств (ZIP)" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap"/>
+                                    <TextBlock Text="Отчёты + сырьё + манифест SHA-256 — для следователя" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="TimelineCsvButton" Click="TimelineCsvButton_Click" IsEnabled="False" Style="{StaticResource ReportCard}">
+                                <StackPanel>
+                                    <TextBlock Text="Таймлайн (CSV)" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap"/>
+                                    <TextBlock Text="Хронология для Timeline Explorer и Excel" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="OpenDataFolderCard" Click="OpenDataFolderButton_Click" Style="{StaticResource ReportCard}">
+                                <StackPanel>
+                                    <TextBlock Text="Открыть папку данных" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap"/>
+                                    <TextBlock Text="Все созданные отчёты и база доказательств" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Button>
                         </WrapPanel>
                         <TextBlock x:Name="ReportStatusText" Foreground="{StaticResource TextMuted}" Margin="0,16,0,0" TextWrapping="Wrap"/>
                     </StackPanel>

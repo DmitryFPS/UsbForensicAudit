@@ -13,6 +13,10 @@ public sealed class TimelineViewEntry
     public bool IsAlarm { get; init; }
 
     public string TimestampText => DateDisplay.FormatMoscow(TimestampUtc);
+
+    /// <summary>Заголовок дня для группировки ленты («1 мая 2026»).</summary>
+    public string DayText => DateDisplay.ToMoscow(TimestampUtc)
+        .ToString("d MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("ru-RU"));
 }
 
 /// <summary>
