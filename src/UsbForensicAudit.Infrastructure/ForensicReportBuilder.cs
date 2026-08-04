@@ -224,7 +224,7 @@ internal static class ForensicReportBuilder
 
         html.AppendLine(startPoints.Count > 0
             ? $"<div class=\"note\"><b>С чего начать проверку:</b> {E(string.Join("; ", startPoints))}.</div>"
-            : "<div class=\"note\"><b>С чего начать:</b> яв��ых приоритетных зацепок нет — просмотрите хронологию событий и список устройств, затем сводку.</div>");
+            : "<div class=\"note\"><b>С чего начать:</b> явных приоритетных зацепок нет — просмотрите хронологию событий и список устройств, затем сводку.</div>");
     }
 
     private static void AppendAnswerCard(StringBuilder html, string cssClass, string question, string verdict, string note)
@@ -474,7 +474,7 @@ internal static class ForensicReportBuilder
         html.AppendLine("<table><tr><th>Canonical device</th><th>Место в списке устройств</th><th>Приносили ли с собой</th><th>Тип</th><th>Что это</th><th>Как подключалось</th><th>Внешнее или встроенное</th><th>На чём основан вывод</th><th>Технические коды</th><th>Назначение</th><th>Откуда</th><th>Имя</th><th>Производитель</th><th>Модель</th><th>VID/PID</th><th>Серийный номер</th><th>Когда подключали</th><th>Последняя активность</th><th>Когда отключали</th><th>Пояснение по датам</th><th>Расположение</th><th>Буквы дисков</th><th>Системный ID</th></tr>");
         foreach (var device in ctx.ReportableDevices)
         {
-            var place = DeviceComposition.IsFoldedByDefault(device) ? "свёрнут�� в своё устройство" : "отдельная строка";
+            var place = DeviceComposition.IsFoldedByDefault(device) ? "свёрнута в своё устройство" : "отдельная строка";
             html.AppendLine(
                 $"<tr><td>{E(device.CanonicalDeviceId)}{(device.IsCanonicalPrimary ? " (primary)" : "")}</td>" +
                 $"<td>{E(place)}</td>" +
@@ -504,7 +504,7 @@ internal static class ForensicReportBuilder
             return;
         }
 
-        html.AppendLine($"<h4>Записи Windows об этом устройств�� ({parts.Count})</h4>");
+        html.AppendLine($"<h4>Записи Windows об этом устройстве ({parts.Count})</h4>");
         html.AppendLine("<table><tr><th>Имя</th><th>Что это за запись</th><th>Системный ID</th></tr>");
         foreach (var part in parts)
         {
@@ -520,7 +520,7 @@ internal static class ForensicReportBuilder
         html.AppendLine("<h2 id=\"dossiers\">Досье устройств</h2>");
         html.AppendLine("<p>Для каждого устройства — полные идентификаторы и связанные доказательства из всех источников. "
                         + "Досье пишется на устройство, а не на запись реестра: записи, заведённые Windows на части "
-                        + "того же устройства, перечислен�� внутри его досье, а полностью все записи стоят в таблице выше.</p>");
+                        + "того же устройства, перечислены внутри его досье, а полностью все записи стоят в таблице выше.</p>");
 
         OpenFold(html, $"Показать досье устройств ({ctx.ListedDevices.Count})");
 

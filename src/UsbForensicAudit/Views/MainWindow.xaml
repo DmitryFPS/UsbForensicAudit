@@ -343,7 +343,7 @@
                                 </Grid.ColumnDefinitions>
                                 <Border x:Name="AnswerDevicesBar" Background="{StaticResource Accent2}" CornerRadius="12,0,0,12"/>
                                 <StackPanel Grid.Column="1" Margin="14,12,14,12">
-                                    <TextBlock Text="ПОДКЛЮЧАЛИ ЛИ ВНЕШНИЕ НО��ИТ��ЛИ?" Foreground="{StaticResource TextMuted}" FontSize="11"/>
+                                    <TextBlock Text="ПОДКЛЮЧАЛИ ЛИ ВНЕШНИЕ НОСИТЕЛИ?" Foreground="{StaticResource TextMuted}" FontSize="11"/>
                                     <TextBlock x:Name="AnswerDevicesVerdict" Text="Выполните сканирование" Foreground="{StaticResource TextMain}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                     <TextBlock x:Name="AnswerDevicesNote" Text="" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                 </StackPanel>
@@ -463,7 +463,7 @@
                                 <Run Text="Зелёный" Foreground="{StaticResource AccentSoft}" FontWeight="SemiBold"/>
                                 <Run Text="— внешний носитель или телефон: именно этим выносят данные."/>
                                 <LineBreak/>
-                                <Run Text="Сини��" Foreground="#7DD3FC" FontWeight="SemiBold"/>
+                                <Run Text="Синий" Foreground="#7DD3FC" FontWeight="SemiBold"/>
                                 <Run Text="— другое внешнее устройство: пара по Bluetooth, карта памяти, устройство по Type-C или USB4, принесённый разветвитель."/>
                                 <LineBreak/>
                                 <Run Text="Жёлтый" Foreground="#FACC15"/>
@@ -631,7 +631,7 @@
                 <DockPanel Margin="0,8,0,0">
                     <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock Text="Здесь связи этой машины с ��нешним миром: сети Wi-Fi и провод, туннели VPN, мобильный интернет, пары по Bluetooth, серверы с сетевыми папками, узлы удалённого рабочего стола и сайты."
+                            <TextBlock Text="Здесь связи этой машины с внешним миром: сети Wi-Fi и провод, туннели VPN, мобильный интернет, пары по Bluetooth, серверы с сетевыми папками, узлы удалённого рабочего стола и сайты."
                                        Foreground="{StaticResource TextMain}"
                                        TextWrapping="Wrap"/>
                             <TextBlock Text="{Binding NetworkSummary}"
@@ -1166,7 +1166,7 @@
                             </Style>
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="��стройство" Binding="{Binding DeviceDisplayName}" Width="320"/>
+                            <DataGridTextColumn Header="Устройство" Binding="{Binding DeviceDisplayName}" Width="320"/>
                             <DataGridTextColumn Header="VID / PID" Binding="{Binding VidPidText}" Width="160"/>
                             <DataGridTextColumn Header="Серийный номер" Binding="{Binding SerialText}" Width="200"/>
                             <DataGridTextColumn Header="Решение политики" Binding="{Binding DecisionText}" Width="*"/>
