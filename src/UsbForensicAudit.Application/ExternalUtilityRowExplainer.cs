@@ -615,7 +615,10 @@ public static class ExternalUtilityRowExplainer
             "dd.MM.yyyy HH:mm",
             "dd.MM.yyyy H:mm",
             "dd.MM.yyyy HH:mm:ss",
-            "dd.MM.yyyy"
+            "dd.MM.yyyy",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd HH:mm",
+            "yyyy-MM-dd"
         };
 
         if (DateTime.TryParseExact(text.Trim(), formats, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsed))
@@ -624,6 +627,10 @@ public static class ExternalUtilityRowExplainer
             return true;
         }
 
-        return DateTimeOffset.TryParse(text, CultureInfo.CurrentCulture, DateTimeStyles.AssumeLocal, out date);
+        // Свободный разбор с текущей локалью НЕ используется: «03/08/2026» — это
+        // 3 августа в ru-RU и 8 марта в en-US. Дата из такой строки участвует в
+        // выводе «утилита была до установки ОС», и неоднозначное прочтение могло
+        // перевернуть вердикт. Строка вне явных форматов считается непрочитанной.
+        return false;
     }
 }

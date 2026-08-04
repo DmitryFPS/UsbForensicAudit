@@ -29,7 +29,7 @@ internal static class AnalystNoteExcelReport
         workbook.Properties.Subject = "Подключаемые устройства и сетевая активность — связный рассказ";
         workbook.Properties.Author = "UsbForensicAudit";
         workbook.Properties.Company = "UsbForensicAudit";
-        workbook.Properties.Comments = "Все даты представлены в московском времени (МСК).";
+        workbook.Properties.Comments = $"Все даты представлены в {DateDisplay.ZoneDescription}.";
 
         AddSummarySheet(workbook, ctx);
         AddDevicesSheet(workbook, ctx);

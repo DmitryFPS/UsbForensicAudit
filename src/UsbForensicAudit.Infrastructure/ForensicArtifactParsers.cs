@@ -337,7 +337,13 @@ internal static partial class ForensicArtifactParsers
                 var path = Encoding.Unicode.GetString(payload.Slice(2, pathLength)).TrimEnd('\0');
                 if (LooksLikeWindowsPath(path))
                 {
-                    entries.Add(new ShimcacheEntry(path, FindPlausibleFileTime(payload[(2 + pathLength)..]), false));
+                    // В документированном формате 10ts метка LastModified (FILETIME) лежит
+                    // сразу после строки пути — по фиксированному смещению 2 + pathLength.
+                    // Раньше здесь был перебор всех смещений «до первой правдоподобной
+                    // даты», который на произвольных байтах даёт ложную дату в ~7% случаев.
+                    // Если 8 байт по спецификации не декодируются в разумную дату —
+                    // у записи честно нет даты (null), а не выдуманная.
+                    entries.Add(new ShimcacheEntry(path, ReadFileTime(payload, 2 + pathLength), false));
                 }
             }
             offset = found + 12 + (int)entrySize;
@@ -696,19 +702,6 @@ internal static partial class ForensicArtifactParsers
             }
         }
         return -1;
-    }
-
-    private static DateTimeOffset? FindPlausibleFileTime(ReadOnlySpan<byte> data)
-    {
-        for (var offset = 0; offset + 8 <= data.Length; offset++)
-        {
-            var timestamp = ReadFileTime(data, offset);
-            if (timestamp is not null)
-            {
-                return timestamp;
-            }
-        }
-        return null;
     }
 
     private static DateTimeOffset? ReadFileTime(ReadOnlySpan<byte> data, int offset)

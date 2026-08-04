@@ -13,17 +13,30 @@ public sealed class ConnectionSession
     public string EndProvenance { get; set; } = "";
 
     /// <summary>
+    /// Начало сеанса неизвестно: журнал сохранил только отключение (парное
+    /// подключение вытеснено из лога по кругу). Сам факт отключения ценен:
+    /// он доказывает, что ДО этого момента устройство было подключено.
+    /// Раньше такие отключения выбрасывались целиком.
+    /// </summary>
+    public bool IsStartUnknown { get; set; }
+
+    /// <summary>
     /// Сеанс не закрыт: события отключения нет. Устройство либо подключено до
     /// сих пор, либо журнал события не сохранил.
     /// </summary>
     public bool IsOpen => !EndUtc.HasValue;
 
-    public TimeSpan? Duration => EndUtc.HasValue ? EndUtc.Value - StartUtc : null;
+    public TimeSpan? Duration => EndUtc.HasValue && !IsStartUnknown ? EndUtc.Value - StartUtc : null;
 
     public string DurationText
     {
         get
         {
+            if (IsStartUnknown)
+            {
+                return "начало неизвестно";
+            }
+
             if (Duration is not { } duration)
             {
                 return "не закрыт";

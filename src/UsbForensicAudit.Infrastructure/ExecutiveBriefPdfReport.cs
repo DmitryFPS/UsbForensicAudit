@@ -59,7 +59,7 @@ internal static class ExecutiveBriefPdfReport
                 });
 
                 page.Footer().AlignCenter().Text(T(
-                        $"Сформировано: {DateDisplay.FormatMoscow(DateTimeOffset.UtcNow)}  |  Даты в отчёте — московское время (МСК)"))
+                        $"Сформировано: {DateDisplay.FormatMoscow(DateTimeOffset.UtcNow)}  |  Даты в отчёте — в {DateDisplay.ZoneDescription}"))
                     .FontSize(7.5f)
                     .FontColor(Colors.Grey.Darken1);
             });

@@ -106,6 +106,35 @@ public class DeviceActivityTests
     }
 
     /// <summary>
+    /// Регрессия: Amcache и Shimcache — артефакты присутствия файла, а не
+    /// исполнения (их заполняет фоновый сканер совместимости). Раньше они
+    /// показывались как «Запускали программу», и в истории появлялись
+    /// запуски, которых не было.
+    /// </summary>
+    [Fact]
+    public void Amcache_and_shimcache_are_presence_not_launch()
+    {
+        var device = FlashDrive("E:", "D16CE60D");
+        var amcache = new EvidenceRecord
+        {
+            TimestampUtc = Moment,
+            Source = "Amcache Parsed",
+            DeviceHint = @"E:\Tools\usbdeview.exe"
+        };
+        var shimcache = new EvidenceRecord
+        {
+            TimestampUtc = Moment.AddMinutes(5),
+            Source = "Shimcache/AppCompatCache Parsed",
+            DeviceHint = @"E:\Tools\other.exe"
+        };
+
+        var history = DeviceActivityBuilder.Build(device, [device], [amcache, shimcache]);
+
+        Assert.Equal(2, history.Entries.Count);
+        Assert.All(history.Entries, x => Assert.Equal(DeviceActivityKind.ProgramPresence, x.Kind));
+    }
+
+    /// <summary>
     /// У телефона по MTP нет ни буквы диска, ни серийного номера тома: проводник
     /// сохраняет путь по видимому имени устройства.
     /// </summary>

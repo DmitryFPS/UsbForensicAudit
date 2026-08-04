@@ -248,6 +248,37 @@ public class FileCopyAnalyzerTests
         Assert.Empty(result.Devices[0].CopyIndications);
     }
 
+    /// <summary>
+    /// Регрессия: раньше минимум 8 знаков применялся к имени целиком, и реальные
+    /// короткие имена («план.docx», «фото.jpg») не проходили фильтр — настоящие
+    /// переносы не попадали в признаки. Общие имена резались по префиксу, и
+    /// «Документы_отдела_2026.xlsx» пропадал из анализа целиком.
+    /// </summary>
+    [Fact]
+    public void Short_and_prefixed_names_are_kept_while_purely_generic_ones_are_dropped()
+    {
+        // Короткие осмысленные имена — остаются (включая двузначные «db», «1С»).
+        Assert.Equal("план.docx", CopyIndicationFinder.FileName(@"E:\Работа\план.docx"));
+        Assert.Equal("фото.jpg", CopyIndicationFinder.FileName(@"E:\Съёмка\фото.jpg"));
+        Assert.Equal("db.rar", CopyIndicationFinder.FileName(@"E:\Базы\db.rar"));
+
+        // Имена, начинающиеся с общего слова, но осмысленные — остаются.
+        Assert.Equal("Документы_отдела_2026.xlsx",
+            CopyIndicationFinder.FileName(@"E:\Обмен\Документы_отдела_2026.xlsx"));
+        Assert.Equal("копия_договора_поставки.pdf",
+            CopyIndicationFinder.FileName(@"E:\Обмен\копия_договора_поставки.pdf"));
+
+        // Чисто общие имена и общие имена со счётчиком — отбрасываются.
+        Assert.Equal("", CopyIndicationFinder.FileName(@"E:\Temp\документ1.docx"));
+        Assert.Equal("", CopyIndicationFinder.FileName(@"E:\Temp\copy (2).docx"));
+        Assert.Equal("", CopyIndicationFinder.FileName(@"E:\Temp\новый документ.docx"));
+        Assert.Equal("", CopyIndicationFinder.FileName(@"E:\Temp\image003.png"));
+
+        // Однобуквенная основа и мусорные расширения — по-прежнему отбрасываются.
+        Assert.Equal("", CopyIndicationFinder.FileName(@"E:\Temp\1.rar"));
+        Assert.Equal("", CopyIndicationFinder.FileName(@"E:\Temp\файл.превышение"));
+    }
+
     [Fact]
     public void The_same_file_is_not_matched_with_itself()
     {

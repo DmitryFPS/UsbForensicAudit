@@ -37,11 +37,14 @@ public sealed class FileChangeJournalCollector : IFileSystemChangeCollector
         @"\AppData\Local\Temporary Internet Files\", @"\AppData\LocalLow\", @"\Windows.old\"
     ];
 
+    // «.dat» здесь сознательно НЕТ: выгрузки 1С, базы и экспорт данных часто
+    // имеют именно это расширение, и раньше такие файлы — вполне себе предмет
+    // выноса — выпадали из журнала как «служебные».
     private static readonly string[] IgnoredExtensions =
     [
         ".tmp", ".temp", ".log", ".etl", ".evtx", ".dmp", ".pf", ".db-wal", ".db-shm", ".journal",
         ".lock", ".partial", ".crdownload", ".~tmp", ".bak~", ".ldb", ".idx", ".manifest", ".cat",
-        ".mui", ".pri", ".pdb", ".nls", ".blf", ".regtrans-ms", ".chk", ".dat"
+        ".mui", ".pri", ".pdb", ".nls", ".blf", ".regtrans-ms", ".chk"
     ];
 
     private readonly IPrivilegeChecker _privileges;
@@ -140,10 +143,26 @@ public sealed class FileChangeJournalCollector : IFileSystemChangeCollector
 
         state.RecordsRead = read;
         state.RecordsKept = kept;
-        if (read >= MaxRecordsPerVolume)
+
+        // Ошибка чтения — не то же самое, что конец журнала: раньше обрыв
+        // проглатывался молча, и «переносов не найдено» звучало увереннее,
+        // чем позволяли данные.
+        if (reader.ReadError.Length > 0)
         {
-            state.Note = $"Достигнут лимит {MaxRecordsPerVolume} записей журнала: более старые события не читались.";
-            warnings.Add($"Журнал изменений {driveLetter}: достигнут лимит {MaxRecordsPerVolume} записей.");
+            state.Note = $"Журнал дочитан не до конца: {reader.ReadError}";
+            warnings.Add($"Журнал изменений {driveLetter}: чтение оборвалось ({reader.ReadError}). "
+                         + "Часть событий могла быть не прочитана.");
+        }
+
+        if (reader.SkippedOldestRecords)
+        {
+            // Пропущены именно старые записи: свежие события — включая недавнее
+            // копирование на носитель — дочитаны до конца журнала. Раньше было
+            // наоборот, и самые свежие события могли не читаться вовсе.
+            state.Note = $"Журнал больше лимита {MaxRecordsPerVolume} записей: "
+                         + "самые старые события пропущены, свежие прочитаны полностью.";
+            warnings.Add($"Журнал изменений {driveLetter}: журнал больше лимита, "
+                         + "самые старые события пропущены (свежие прочитаны полностью).");
         }
         else if (kept >= MaxKeptPerVolume)
         {
@@ -211,11 +230,13 @@ public sealed class FileChangeJournalCollector : IFileSystemChangeCollector
             return false;
         }
 
-        // Имена вида «~$отчёт.docx» и «AAAAA.tmp.1» создаются программами, а не
-        // человеком: в вопросе о переносе файлов они только шумят.
+        // Имена вида «~$отчёт.docx» создаются программами, а не человеком:
+        // в вопросе о переносе файлов они только шумят. Порог длины считается
+        // по основе имени, а не по имени с расширением: раньше «db.rar» или
+        // «1С.zip» (основа короче 5 знаков вместе с точкой) выпадали из журнала.
         return !name.StartsWith("~$", StringComparison.Ordinal)
                && !name.StartsWith('.')
-               && name.Length >= 5;
+               && dot >= 2;
     }
 
     internal static bool IsIgnoredPath(string path) =>
@@ -227,8 +248,11 @@ public sealed class FileChangeJournalCollector : IFileSystemChangeCollector
         : FileChangeKind.Deleted;
 
     /// <summary>
-    /// Съёмные носители пропускаются: их журнал говорит о том, что делали на
-    /// самом носителе, а вопрос стоит о появлении файлов на этой машине.
+    /// Съёмные и внешние носители пропускаются: их журнал говорит о том, что
+    /// делали на самом носителе, а вопрос стоит о появлении файлов на этой
+    /// машине. Проверки DriveType недостаточно: внешние USB-диски (HDD/SSD в
+    /// коробке) представляются системе как Fixed, поэтому шина проверяется
+    /// отдельно через свойства устройства.
     /// </summary>
     private static IEnumerable<string> InternalNtfsVolumes(List<string> warnings)
     {
@@ -261,10 +285,20 @@ public sealed class FileChangeJournalCollector : IFileSystemChangeCollector
                 continue;
             }
 
-            if (format.Equals("NTFS", StringComparison.OrdinalIgnoreCase))
+            if (!format.Equals("NTFS", StringComparison.OrdinalIgnoreCase))
             {
-                yield return drive.Name.TrimEnd('\\');
+                continue;
             }
+
+            if (VolumeBusClassifier.IsUsbAttached(drive.Name))
+            {
+                warnings.Add(
+                    $"Диск {drive.Name} подключён по USB и исключён из чтения журнала внутренних дисков: "
+                    + "его события говорят об активности на самом носителе, а не на этой машине.");
+                continue;
+            }
+
+            yield return drive.Name.TrimEnd('\\');
         }
     }
 }

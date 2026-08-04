@@ -63,12 +63,22 @@ public class ConnectionSessionBuilderTests
         Assert.Equal("не закрыт", session.DurationText);
     }
 
+    /// <summary>
+    /// Регрессия: отключение без парного подключения (журнал начался позже,
+    /// чем устройство вставили) раньше выбрасывалось целиком. Терялся сам
+    /// факт, что до этого момента устройство было в машине.
+    /// </summary>
     [Fact]
-    public void Removal_without_a_preceding_arrival_does_not_invent_a_session()
+    public void Removal_without_a_preceding_arrival_is_kept_with_unknown_start()
     {
         var sessions = ConnectionSessionBuilder.Build([(At(9), false, "removal")]);
 
-        Assert.Empty(sessions);
+        var session = Assert.Single(sessions);
+        Assert.True(session.IsStartUnknown);
+        Assert.Equal(At(9), session.EndUtc);
+        Assert.Equal("removal", session.EndProvenance);
+        Assert.Equal("начало неизвестно", session.DurationText);
+        Assert.Null(session.Duration);
     }
 
     [Fact]

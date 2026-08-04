@@ -382,6 +382,15 @@ public sealed class AuditResult
     /// </summary>
     public ReferenceImageTrace ReferenceImage { get; set; } = new();
 
+    /// <summary>
+    /// Результат построен по офлайн-источнику (образ диска или копия каталога
+    /// Windows чужой машины). Анализаторы не должны в этом случае читать живые
+    /// файлы машины аналитика (setupapi.dev.log, PCA и т.п.) — иначе артефакты
+    /// хоста смешаются с артефактами исследуемой системы.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsOfflineSource => SessionId.StartsWith("offline-", StringComparison.OrdinalIgnoreCase);
+
     [JsonIgnore]
     public string OsInstalledAtText => OsInstallInfo.FormatInstallDate(OsInstalledAtUtc);
 

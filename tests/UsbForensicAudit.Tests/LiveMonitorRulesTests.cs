@@ -70,6 +70,6 @@ public sealed class LiveMonitorRulesTests
         var alerts = LiveMonitorRules.Evaluate(
             [Device()], [], DevicePolicy.None, new HashSet<string>(StringComparer.Ordinal));
 
-        Assert.Empty(alerts.Where(x => x.Kind == MonitorAlertKind.PolicyViolation));
+        Assert.DoesNotContain(alerts, x => x.Kind == MonitorAlertKind.PolicyViolation);
     }
 }

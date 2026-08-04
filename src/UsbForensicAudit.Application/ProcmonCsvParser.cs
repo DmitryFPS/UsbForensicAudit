@@ -30,6 +30,12 @@ public static class ProcmonCsvParser
             return [];
         }
 
+        // Дата трассы восстанавливается из времени изменения самого CSV-файла:
+        // Procmon пишет только время суток, и раньше оно накладывалось на
+        // DateTime.Today — дату ЗАПУСКА АНАЛИЗА. Стоило открыть вчерашнюю
+        // трассу сегодня, и все события уезжали на сутки.
+        var traceAnchor = ReadTraceAnchor(csvPath);
+
         var headers = ParseCsvLine(lines[0]);
         var events = new List<ProcmonRegistryEvent>();
         for (var index = 1; index < lines.Length; index++)
@@ -45,7 +51,7 @@ public static class ProcmonCsvParser
                 continue;
             }
 
-            var mapped = MapRow(headers, fields);
+            var mapped = MapRow(headers, fields, traceAnchor);
             if (mapped is null)
             {
                 continue;
@@ -55,6 +61,24 @@ public static class ProcmonCsvParser
         }
 
         return events;
+    }
+
+    /// <summary>
+    /// Момент сохранения трассы — последняя достоверная точка, к которой можно
+    /// привязать «время суток» событий. Если файл недоступен для чтения метки,
+    /// остаётся текущий момент (трасса, скорее всего, только что экспортирована).
+    /// </summary>
+    private static DateTimeOffset ReadTraceAnchor(string csvPath)
+    {
+        try
+        {
+            var lastWrite = File.GetLastWriteTime(csvPath);
+            return new DateTimeOffset(lastWrite, TimeZoneInfo.Local.GetUtcOffset(lastWrite));
+        }
+        catch (Exception)
+        {
+            return DateTimeOffset.Now;
+        }
     }
 
     public static IReadOnlyList<ExternalUtilitySourceHit> ToSourceHits(
@@ -159,7 +183,10 @@ public static class ProcmonCsvParser
     private static bool IsRegistryOperation(string operation) =>
         operation.StartsWith("Reg", StringComparison.OrdinalIgnoreCase);
 
-    private static ProcmonRegistryEvent? MapRow(IReadOnlyList<string> headers, IReadOnlyList<string> fields)
+    private static ProcmonRegistryEvent? MapRow(
+        IReadOnlyList<string> headers,
+        IReadOnlyList<string> fields,
+        DateTimeOffset traceAnchor)
     {
         string Get(params string[] names)
         {
@@ -188,7 +215,7 @@ public static class ProcmonCsvParser
         }
 
         var timeText = Get("Time of Day", "Time");
-        var timestamp = ParseProcmonTime(timeText);
+        var timestamp = ParseProcmonTime(timeText, traceAnchor);
         var pidText = Get("PID");
         _ = int.TryParse(pidText, out var pid);
 
@@ -217,11 +244,13 @@ public static class ProcmonCsvParser
         return -1;
     }
 
-    private static DateTimeOffset ParseProcmonTime(string text)
+    private static DateTimeOffset ParseProcmonTime(string text, DateTimeOffset traceAnchor)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
-            return DateTimeOffset.Now;
+            // Не текущий момент, а момент сохранения трассы: событие без времени
+            // всё равно относится к периоду записи трассы, а не к моменту анализа.
+            return traceAnchor;
         }
 
         var formats = new[]
@@ -232,18 +261,25 @@ public static class ProcmonCsvParser
             "HH:mm:ss"
         };
 
-        if (DateTime.TryParseExact(text.Trim(), formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var todayTime))
+        if (DateTime.TryParseExact(text.Trim(), formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var timeOfDay))
         {
-            // Procmon пишет «Time of Day» в локальном времени. Раньше значение помечалось
-            // смещением UTC (TimeSpan.Zero), из-за чего метка уезжала на величину часового
-            // пояса при сравнении с остальными артефактами аудита.
-            var local = DateTime.Today.AddTicks(todayTime.TimeOfDay.Ticks);
-            return new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local));
+            // Procmon пишет «Time of Day» в локальном времени. Время суток
+            // накладывается на дату сохранения трассы, а не на дату анализа.
+            // Если время события больше времени якоря — событие было до полуночи,
+            // а трасса сохранена уже после неё: дата сдвигается на день назад.
+            var anchorLocal = traceAnchor.DateTime;
+            var candidate = anchorLocal.Date.AddTicks(timeOfDay.TimeOfDay.Ticks);
+            if (candidate > anchorLocal)
+            {
+                candidate = candidate.AddDays(-1);
+            }
+
+            return new DateTimeOffset(candidate, TimeZoneInfo.Local.GetUtcOffset(candidate));
         }
 
         return DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsed)
             ? parsed
-            : DateTimeOffset.Now;
+            : traceAnchor;
     }
 
     private static List<string> ParseCsvLine(string line)

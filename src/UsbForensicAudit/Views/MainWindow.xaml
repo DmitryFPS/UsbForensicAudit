@@ -343,7 +343,7 @@
                                 </Grid.ColumnDefinitions>
                                 <Border x:Name="AnswerDevicesBar" Background="{StaticResource Accent2}" CornerRadius="12,0,0,12"/>
                                 <StackPanel Grid.Column="1" Margin="14,12,14,12">
-                                    <TextBlock Text="ПОДКЛЮЧАЛИ ЛИ ВНЕШНИЕ НОСИТЕЛИ?" Foreground="{StaticResource TextMuted}" FontSize="11"/>
+                                    <TextBlock Text="ПОДКЛЮЧАЛИ ЛИ ВНЕШНИЕ НОСИТ��ЛИ?" Foreground="{StaticResource TextMuted}" FontSize="11"/>
                                     <TextBlock x:Name="AnswerDevicesVerdict" Text="Выполните сканирование" Foreground="{StaticResource TextMain}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                     <TextBlock x:Name="AnswerDevicesNote" Text="" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                 </StackPanel>
@@ -631,7 +631,7 @@
                 <DockPanel Margin="0,8,0,0">
                     <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock Text="Здесь связи этой машины с внешним миром: сети Wi-Fi и провод, туннели VPN, мобильный интернет, пары по Bluetooth, серверы с сетевыми папками, узлы удалённого рабочего стола и сайты."
+                            <TextBlock Text="Здесь связи этой машины с ��нешним миром: сети Wi-Fi и провод, туннели VPN, мобильный интернет, пары по Bluetooth, серверы с сетевыми папками, узлы удалённого рабочего стола и сайты."
                                        Foreground="{StaticResource TextMain}"
                                        TextWrapping="Wrap"/>
                             <TextBlock Text="{Binding NetworkSummary}"
@@ -1141,10 +1141,11 @@
                             </Style>
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Файл" Binding="{Binding FileName}" Width="360"/>
-                            <DataGridTextColumn Header="Устройство" Binding="{Binding DeviceDisplayName}" Width="240"/>
+                            <DataGridTextColumn Header="Файл" Binding="{Binding FileName}" Width="320"/>
+                            <DataGridTextColumn Header="Устройство" Binding="{Binding DeviceDisplayName}" Width="220"/>
+                            <DataGridTextColumn Header="Направление" Binding="{Binding DirectionText}" Width="240"/>
                             <DataGridTextColumn Header="Когда" Binding="{Binding WhenText}" Width="170"/>
-                            <DataGridTextColumn Header="Уверенность" Binding="{Binding ConfidenceText}" Width="220"/>
+                            <DataGridTextColumn Header="Уверенность" Binding="{Binding ConfidenceText}" Width="200"/>
                             <DataGridTextColumn Header="На чём основано" Binding="{Binding Basis}" Width="*"/>
                         </DataGrid.Columns>
                     </DataGrid>
@@ -1161,7 +1162,7 @@
                             </Style>
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Устройство" Binding="{Binding DeviceDisplayName}" Width="320"/>
+                            <DataGridTextColumn Header="��стройство" Binding="{Binding DeviceDisplayName}" Width="320"/>
                             <DataGridTextColumn Header="VID / PID" Binding="{Binding VidPidText}" Width="160"/>
                             <DataGridTextColumn Header="Серийный номер" Binding="{Binding SerialText}" Width="200"/>
                             <DataGridTextColumn Header="Решение политики" Binding="{Binding DecisionText}" Width="*"/>

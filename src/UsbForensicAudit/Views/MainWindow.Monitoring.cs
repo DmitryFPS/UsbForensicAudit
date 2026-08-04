@@ -12,9 +12,17 @@ public partial class MainWindow
     private UnknownDeviceDetector? _unknownDeviceDetector;
     private UnknownDeviceAlertWindow? _unknownDeviceAlertWindow;
 
-    /// <summary>Счётчик алертов за календарный день — для строки состояния.</summary>
+    /// <summary>
+    /// Счётчик алертов за календарный день — для строки состояния. «Сегодня»
+    /// считается в зоне отображения дат (DateDisplay): раньше граница суток
+    /// бралась по локальным часам, а времена алертов показывались в другой
+    /// зоне — счётчик сбрасывался не в ту полночь, которую видел пользователь.
+    /// </summary>
     private int _alertsToday;
-    private DateOnly _alertsDay = DateOnly.FromDateTime(DateTime.Now);
+    private DateOnly _alertsDay = CurrentAlertsDay();
+
+    private static DateOnly CurrentAlertsDay() =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, DateDisplay.DisplayZone).DateTime);
 
     private void MonitorButton_Click(object sender, RoutedEventArgs e)
     {
@@ -145,7 +153,7 @@ public partial class MainWindow
 
     private void RegisterMonitorAlerts(int count)
     {
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        var today = CurrentAlertsDay();
         if (today != _alertsDay)
         {
             _alertsDay = today;

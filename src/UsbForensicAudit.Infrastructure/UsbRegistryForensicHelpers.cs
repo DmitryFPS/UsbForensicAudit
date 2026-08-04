@@ -40,15 +40,21 @@ internal static class UsbRegistryForensicHelpers
 
         if (value is byte[] bytes)
         {
-            foreach (var offset in CandidateFileTimeOffsets(bytes.Length))
+            // Смещение определяется по ДЛИНЕ значения, а не перебором «первое
+            // правдоподобное»: ровно 8 байт — сырой FILETIME с нулевого байта,
+            // 12 байт — 4-байтовый заголовок типа, 16 байт — 8-байтовый.
+            // Раньше кандидаты пробовались по очереди для любой длины, и байты
+            // заголовка могли случайно декодироваться в «правдоподобную» дату,
+            // которая уходила в таймлайн как настоящая.
+            var offset = bytes.Length switch
             {
-                if (TryFromFileTime(BitConverter.ToInt64(bytes, offset), out timestamp))
-                {
-                    return true;
-                }
-            }
+                8 => 0,
+                12 => 4,
+                16 => 8,
+                _ => -1
+            };
 
-            return false;
+            return offset >= 0 && TryFromFileTime(BitConverter.ToInt64(bytes, offset), out timestamp);
         }
 
         if (value is string text)
@@ -81,26 +87,6 @@ internal static class UsbRegistryForensicHelpers
         }
 
         return false;
-    }
-
-    private static IEnumerable<int> CandidateFileTimeOffsets(int length)
-    {
-        // DEVPROP FILETIME is commonly stored as 8 raw bytes. Some exported/offline
-        // representations prepend a 4- or 8-byte type/header.
-        if (length >= 8)
-        {
-            yield return 0;
-        }
-
-        if (length >= 12)
-        {
-            yield return 4;
-        }
-
-        if (length >= 16)
-        {
-            yield return 8;
-        }
     }
 
     private static bool TryFromFileTime(long fileTime, out DateTimeOffset timestamp)

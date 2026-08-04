@@ -71,7 +71,7 @@ internal static class AnalystNotePdfReport
                     text.DefaultTextStyle(x => x.FontSize(7.5f)
                         .FontFamily(PdfFontHelper.DefaultFamily)
                         .FontColor(Colors.Grey.Darken1));
-                    text.Span(T($"Сформировано: {DateDisplay.FormatMoscow(DateTimeOffset.UtcNow)} — все даты МСК — стр. "));
+                    text.Span(T($"Сформировано: {DateDisplay.FormatMoscow(DateTimeOffset.UtcNow)} — все даты {DateDisplay.ZoneLabel} — стр. "));
                     text.CurrentPageNumber();
                     text.Span(" / ");
                     text.TotalPages();

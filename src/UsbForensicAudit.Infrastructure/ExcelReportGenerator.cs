@@ -74,7 +74,7 @@ internal static class ExcelReportGenerator
         workbook.Properties.Subject = subject;
         workbook.Properties.Author = "UsbForensicAudit";
         workbook.Properties.Company = "UsbForensicAudit";
-        workbook.Properties.Comments = "Все даты представлены в московском времени (МСК).";
+        workbook.Properties.Comments = $"Все даты представлены в {DateDisplay.ZoneDescription}.";
         return workbook;
     }
 

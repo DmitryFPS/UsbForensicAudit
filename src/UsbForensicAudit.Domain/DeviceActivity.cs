@@ -109,6 +109,15 @@ public static class DeviceActivityKind
     public const string FileDialog = "FileDialog";
     public const string FileDelete = "FileDelete";
     public const string ProgramRun = "ProgramRun";
+
+    /// <summary>
+    /// Файл программы был на диске, но сам факт запуска артефакт не доказывает.
+    /// Amcache и Shimcache заполняются фоновым сканером совместимости, а не
+    /// запуском: раньше они показывались как «Запускали программу», и в истории
+    /// появлялись «запуски», которых не было.
+    /// </summary>
+    public const string ProgramPresence = "ProgramPresence";
+
     public const string Search = "Search";
     public const string Mount = "Mount";
     public const string Connection = "Connection";
@@ -122,6 +131,7 @@ public static class DeviceActivityKind
         FileDialog => "Выбирали файл в окне открытия или сохранения",
         FileDelete => "Удаляли файл в корзину",
         ProgramRun => "Запускали программу",
+        ProgramPresence => "Файл программы был на диске (запуск не доказан)",
         Search => "Искали по содержимому",
         Mount => "Проводник запомнил подключение тома",
         Connection => "Подключение или отключение устройства",
@@ -139,10 +149,11 @@ public static class DeviceActivityKind
         FileDialog => 3,
         FileDelete => 4,
         ProgramRun => 5,
-        Search => 6,
-        Mount => 7,
-        Connection => 8,
-        _ => 9
+        ProgramPresence => 6,
+        Search => 7,
+        Mount => 8,
+        Connection => 9,
+        _ => 10
     };
 }
 
@@ -328,7 +339,7 @@ public sealed class DeviceActivityHistory
             return $"Следов работы с файлами не найдено: все {Entries.Count} записей — о самом устройстве "
                    + "(подключение, отключение, запомненный том), а не о папках и файлах. "
                    + $"Искали по признакам: {string.Join("; ", LinkKeys)}. Это значит, что артефакты "
-                   + "проводника не сохранили обращений к этому устройству либо были очищены.";
+                   + "проводника не сох��анили обращений к этому устройству либо были очищены.";
         }
 
         return $"Найдено {Entries.Count} действий: {string.Join(", ", parts)}. "

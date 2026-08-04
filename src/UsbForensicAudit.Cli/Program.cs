@@ -42,6 +42,10 @@ internal static class Program
 
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
+        // Даты в консоли и отчётах показываются в зоне машины аналитика,
+        // а не в жёстко зашитой московской.
+        DateDisplay.DisplayZone = TimeZoneInfo.Local;
+
         using var cancellation = new CancellationTokenSource();
         Console.CancelKeyPress += (_, eventArgs) =>
         {
@@ -366,7 +370,7 @@ internal static class Program
 
     /// <summary>
     /// Фоновый мониторинг USB без окна: события WMI (или резервный опрос),
-    /// сверка с базой известных устройств и политикой «свой/чужой». Алерты
+    /// сверка с базой известных устройств и политикой «свой/чужо��». Алерты
     /// уходят в консоль, alerts.jsonl, журнал приложений Windows и вебхук из
     /// monitor-config.json. Работает до Ctrl+C — подходит для планировщика
     /// задач и автозапуска.

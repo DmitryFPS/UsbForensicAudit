@@ -339,20 +339,46 @@ public sealed class TimelineEnricher
         return IsConnectionEvidence(evidence) || IsDisconnectEvidence(evidence);
     }
 
+    /// <summary>
+    /// Подстроки, которые содержат «слова отключения», но отключением не являются.
+    /// Они вырезаются из текста ДО проверки, чтобы событие подключения не было
+    /// ложно классифицировано как отключение (это ломало сеансы и FirstConnected):
+    /// - "RemovalPolicy" — штатное свойство в XML почти любого PnP-события установки;
+    /// - "removed from ... queue" — формулировка событий установки драйвера;
+    /// - "удаленн..." (двойное «н») — «удалённый доступ/устройство» (remote), а не «удалено».
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex FalseDisconnectContext = new(
+        @"removal\s*policy|removed\s+from\s+(?:the\s+)?[\w\s]{0,30}queue|удал[её]нн\w*",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase
+        | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
+    /// Слова отключения ищутся по границам слов, а не подстрокой: раньше
+    /// "удален" совпадало внутри «удаленного доступа», а "removal" — внутри
+    /// "RemovalPolicy", и подключения превращались в отключения.
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex DisconnectWordPattern = new(
+        @"\bdisconnect(?:ed|ion)?\b|\bremov(?:ed|al)\b|\buninstall(?:ed|ation)?\b|отключ|\bудал[её]н(?:[оаы])?\b|извлеч|извлек",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase
+        | System.Text.RegularExpressions.RegexOptions.Compiled);
+
     private static bool IsDisconnectEvidence(EvidenceRecord evidence)
     {
         return evidence.EvidenceCategory.Contains("Отключение", StringComparison.OrdinalIgnoreCase)
                || evidence.EvidenceCategory.StartsWith(EndpointProtectionCategories.Disconnect, StringComparison.OrdinalIgnoreCase)
-               || evidence.Summary.Contains("disconnect", StringComparison.OrdinalIgnoreCase)
-               || evidence.Summary.Contains("removed", StringComparison.OrdinalIgnoreCase)
-               || evidence.Summary.Contains("removal", StringComparison.OrdinalIgnoreCase)
-               || evidence.Summary.Contains("uninstall", StringComparison.OrdinalIgnoreCase)
-               || evidence.Summary.Contains("отключ", StringComparison.OrdinalIgnoreCase)
-               || evidence.Summary.Contains("удален", StringComparison.OrdinalIgnoreCase)
-               || evidence.RawText.Contains("disconnect", StringComparison.OrdinalIgnoreCase)
-               || evidence.RawText.Contains("removed", StringComparison.OrdinalIgnoreCase)
-               || evidence.RawText.Contains("отключ", StringComparison.OrdinalIgnoreCase)
-               || evidence.RawText.Contains("удален", StringComparison.OrdinalIgnoreCase);
+               || HasDisconnectWording(evidence.Summary)
+               || HasDisconnectWording(evidence.RawText);
+    }
+
+    private static bool HasDisconnectWording(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return false;
+        }
+
+        var cleaned = FalseDisconnectContext.Replace(text, " ");
+        return DisconnectWordPattern.IsMatch(cleaned);
     }
 
     private static string ClassifyEvidence(EvidenceRecord evidence)

@@ -15,9 +15,13 @@ public static class CopyIndicationFinder
 
     /// <summary>
     /// Слишком общие имена вроде «Документ1.docx» совпадают случайно, поэтому
-    /// имя должно быть достаточно длинным и иметь расширение.
+    /// имя (без расширения) должно быть осмысленной длины и иметь расширение.
+    /// Раньше минимум 8 знаков применялся к имени ЦЕЛИКОМ вместе с расширением —
+    /// реальные «план.docx», «db.rar» или «смета.xls» не проходили фильтр, и
+    /// настоящие переносы не попадали в признаки. Порог в 2 знака отсекает
+    /// только однобуквенные основы («1.rar»), совпадающие слишком часто.
     /// </summary>
-    private const int MinimumFileNameLength = 8;
+    private const int MinimumStemLength = 2;
 
     private static readonly string[] GenericNames =
     [
@@ -110,19 +114,45 @@ public static class CopyIndicationFinder
         var trimmed = path.Trim().TrimEnd('\\', '/');
         var separator = trimmed.LastIndexOfAny(['\\', '/']);
         var name = separator >= 0 ? trimmed[(separator + 1)..] : trimmed;
-        if (name.Length < MinimumFileNameLength || !name.Contains('.'))
+        if (!name.Contains('.'))
         {
             return "";
         }
 
-        var extension = name[(name.LastIndexOf('.') + 1)..];
-        if (extension.Length is < 2 or > 5 || !extension.All(char.IsLetterOrDigit))
+        var dotIndex = name.LastIndexOf('.');
+        var stem = name[..dotIndex];
+        var extension = name[(dotIndex + 1)..];
+        if (stem.Length < MinimumStemLength
+            || extension.Length is < 2 or > 5
+            || !extension.All(char.IsLetterOrDigit))
         {
             return "";
         }
 
-        return GenericNames.Any(x => name.StartsWith(x, StringComparison.OrdinalIgnoreCase))
-            ? ""
-            : name;
+        // Общее имя режется только когда основа состоит ИЗ ОДНИХ общих слов и
+        // счётчиков: «документ1», «copy 2», «новый документ». Раньше резалось
+        // любое имя, НАЧИНАЮЩЕЕСЯ с общего слова: «Документы_отдела_2026.xlsx»
+        // или «копия_договора_поставки.pdf» пропадали из признаков целиком.
+        return IsGenericStem(stem) ? "" : name;
+    }
+
+    private static bool IsGenericStem(string stem)
+    {
+        var rest = stem.Trim();
+        while (rest.Length > 0)
+        {
+            var matched = GenericNames.FirstOrDefault(x =>
+                rest.StartsWith(x, StringComparison.OrdinalIgnoreCase));
+            if (matched is null)
+            {
+                // Хвост из цифр, пробелов, дефисов и скобок — счётчик «(2)», «-3».
+                return rest.All(ch =>
+                    char.IsDigit(ch) || ch is ' ' or '-' or '_' or '(' or ')' or '.');
+            }
+
+            rest = rest[matched.Length..].TrimStart(' ', '-', '_');
+        }
+
+        return true;
     }
 }

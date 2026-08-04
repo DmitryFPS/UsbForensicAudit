@@ -28,16 +28,20 @@ public static class MitreMapper
         }
 
         // T1052.001 — вынос данных на USB: подтверждённые/вероятные признаки
-        // копирования файлов с компьютера на носитель.
+        // копирования файлов с компьютера на носитель. Переносы с неопределённым
+        // направлением тоже считаются: это подтверждённые по времени совпадения.
         var exfiltration = ExfiltrationAnalyzer.Analyze(result);
-        if (exfiltration.HasFindings)
+        if (exfiltration.HasAnyIndication)
         {
+            var undirectedNote = exfiltration.UndirectedCount > 0
+                ? $" Ещё {exfiltration.UndirectedCount} перенос(ов) подтверждены по времени без определённого направления."
+                : "";
             findings.Add(new MitreFinding
             {
                 Technique = MitreTechnique.ExfiltrationOverUsb,
-                EvidenceCount = exfiltration.OutboundCount,
+                EvidenceCount = exfiltration.OutboundCount + exfiltration.UndirectedCount,
                 Rationale = $"Признаки выноса файлов на носитель: {exfiltration.OutboundCount} "
-                            + $"(подтверждено журналом: {exfiltration.ConfirmedCount})."
+                            + $"(подтверждено журналом: {exfiltration.ConfirmedCount})." + undirectedNote
             });
         }
 

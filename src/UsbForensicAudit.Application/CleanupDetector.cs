@@ -12,7 +12,15 @@ public sealed class CleanupDetector
     public IReadOnlyList<CleanupFinding> Analyze(AuditResult result)
     {
         var findings = new List<CleanupFinding>();
-        AnalyzeSetupApi(findings, result);
+
+        // Проверка setupapi.dev.log читает живой C:\Windows машины аналитика.
+        // Для офлайн-результата это чужие артефакты: вывод «файл отсутствует /
+        // пересоздан / мал» относился бы к хосту, а не к исследуемой системе.
+        if (!result.IsOfflineSource)
+        {
+            AnalyzeSetupApi(findings, result);
+        }
+
         AnalyzeEventLogEvidence(result, findings);
         AnalyzeCleanerEvidence(result, findings);
         AnalyzeExecutionGaps(result, findings);

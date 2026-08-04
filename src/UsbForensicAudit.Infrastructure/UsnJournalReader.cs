@@ -86,7 +86,35 @@ public sealed class UsnJournalReader : IDisposable
     }
 
     /// <summary>
-    /// Перебирает записи журнала от самой старой к самой новой.
+    /// Средний размер записи журнала для оценки, сколько байт занимают
+    /// <c>maxRecords</c> записей. Заголовок V2 — 64 байта плюс имя файла в
+    /// UTF-16: типичная запись занимает 100–150 байт.
+    /// </summary>
+    private const int AssumedAverageRecordBytes = 128;
+
+    /// <summary>
+    /// Были ли пропущены самые старые записи из-за лимита чтения. Пропуск
+    /// старых записей — правильное поведение: свежие события важнее для
+    /// вопроса «что делали с флешкой недавно».
+    /// </summary>
+    public bool SkippedOldestRecords { get; private set; }
+
+    /// <summary>
+    /// Текст ошибки, оборвавшей чтение, если журнал дочитан не до конца.
+    /// Раньше любая ошибка чтения, кроме «запись затёрта», молча выдавалась
+    /// за нормальный конец журнала — обрыв нельзя было отличить от полного
+    /// прочтения, и вывод «переносов не найдено» выглядел увереннее, чем был.
+    /// </summary>
+    public string ReadError { get; private set; } = "";
+
+    /// <summary>
+    /// Перебирает записи журнала от старых к новым, гарантированно дочитывая
+    /// до самых свежих. Номера USN — байтовые смещения в потоке журнала,
+    /// поэтому при журнале больше лимита чтение начинается не с самой старой
+    /// записи, а с вычисленной позиции ближе к концу. Раньше чтение шло от
+    /// самой старой записи с обрывом на <c>maxRecords</c>: на большом журнале
+    /// самые свежие события — включая недавнее копирование на носитель —
+    /// не дочитывались вовсе.
     /// </summary>
     public IEnumerable<UsnJournalEntry> Read(int maxRecords, CancellationToken cancellationToken = default)
     {
@@ -97,12 +125,47 @@ public sealed class UsnJournalReader : IDisposable
 
         var buffer = new byte[ReadBufferSize];
         var nextUsn = journal.FirstUsn;
-        var produced = 0;
 
-        while (produced < maxRecords && !cancellationToken.IsCancellationRequested)
+        var byteBudget = (long)maxRecords * AssumedAverageRecordBytes;
+        if (journal.NextUsn - byteBudget > journal.FirstUsn)
         {
-            if (!TryReadChunk(journal.JournalId, nextUsn, buffer, out var bytesReturned))
+            // Выравнивание вниз до 8 байт: записи журнала выровнены по 8,
+            // и ядро отдаёт записи начиная с первой, чей USN не меньше заданного.
+            nextUsn = (journal.NextUsn - byteBudget) & ~7L;
+            SkippedOldestRecords = true;
+        }
+
+        // Страховка от переполнения: при записях мельче предполагаемого среднего
+        // в байтовый бюджет помещается больше maxRecords записей, но не более
+        // чем вчетверо (минимальный размер записи — 64 байта).
+        var hardCap = (long)maxRecords * 4;
+        var produced = 0L;
+
+        var retriedAfterWraparound = false;
+        while (produced < hardCap && !cancellationToken.IsCancellationRequested)
+        {
+            if (!TryReadChunk(journal.JournalId, nextUsn, buffer, out var bytesReturned, out var error))
             {
+                // «Запись затёрта» означает, что журнал по кругу перезаписал
+                // позицию, с которой шло чтение. Правильная реакция — один раз
+                // спросить новую самую старую запись и продолжить с неё, а не
+                // обрывать чтение: свежие события всё ещё доступны.
+                if (error == ErrorJournalEntryDeleted && !retriedAfterWraparound)
+                {
+                    retriedAfterWraparound = true;
+                    SkippedOldestRecords = true;
+                    if (TryQueryJournal(out var refreshed, out _) && refreshed.FirstUsn > nextUsn)
+                    {
+                        nextUsn = refreshed.FirstUsn;
+                        continue;
+                    }
+                }
+
+                if (error != ErrorJournalEntryDeleted)
+                {
+                    ReadError = new Win32Exception(error).Message;
+                }
+
                 yield break;
             }
 
@@ -123,7 +186,7 @@ public sealed class UsnJournalReader : IDisposable
 
             nextUsn = advanced;
             var offset = sizeof(long);
-            while (offset < bytesReturned && produced < maxRecords)
+            while (offset < bytesReturned && produced < hardCap)
             {
                 var length = BinaryPrimitives.ReadInt32LittleEndian(buffer.AsSpan(offset));
                 if (length <= 0 || offset + length > bytesReturned)
@@ -251,6 +314,11 @@ public sealed class UsnJournalReader : IDisposable
             return false;
         }
 
+        // У V3-записи номер родителя 128-битный; здесь читаются его низкие
+        // 64 бита. Для NTFS этого достаточно — верхние биты всегда нулевые,
+        // а OpenFileById в ResolveDirectory принимает 64-битный номер. На ReFS
+        // (реально 128-битные номера) восстановление каталога может не сработать —
+        // тогда запись останется с одним именем файла, что уже предусмотрено.
         entry = new UsnJournalEntry(
             BinaryPrimitives.ReadUInt64LittleEndian(record[parentOffset..]),
             BinaryPrimitives.ReadInt64LittleEndian(record[(parentOffset + referenceSize)..]),
@@ -271,7 +339,7 @@ public sealed class UsnJournalReader : IDisposable
             var success = DeviceIoControl(
                 _volume, FsctlQueryUsnJournal, IntPtr.Zero, 0,
                 handle.AddrOfPinnedObject(), (uint)buffer.Length, out var returned, IntPtr.Zero);
-            if (!success || returned < 16)
+            if (!success || returned < 24)
             {
                 reason = DescribeJournalError(Marshal.GetLastWin32Error());
                 return false;
@@ -283,10 +351,12 @@ public sealed class UsnJournalReader : IDisposable
         }
 
         // Первое поле — идентификатор журнала, второе — самая старая из
-        // сохранившихся записей. Читать раньше неё нельзя: те записи затёрты.
+        // сохранившихся записей (читать раньше неё нельзя: те записи затёрты),
+        // третье — номер, который получит следующая запись, то есть конец журнала.
         journal = new JournalData(
             BinaryPrimitives.ReadUInt64LittleEndian(buffer),
-            BinaryPrimitives.ReadInt64LittleEndian(buffer.AsSpan(8)));
+            BinaryPrimitives.ReadInt64LittleEndian(buffer.AsSpan(8)),
+            BinaryPrimitives.ReadInt64LittleEndian(buffer.AsSpan(16)));
         reason = "";
         return true;
     }
@@ -304,7 +374,7 @@ public sealed class UsnJournalReader : IDisposable
         _ => $"Журнал изменений недоступен: {new Win32Exception(error).Message}"
     };
 
-    private bool TryReadChunk(ulong journalId, long startUsn, byte[] buffer, out uint bytesReturned)
+    private bool TryReadChunk(ulong journalId, long startUsn, byte[] buffer, out uint bytesReturned, out int error)
     {
         var request = new byte[40];
         BinaryPrimitives.WriteInt64LittleEndian(request, startUsn);
@@ -324,9 +394,8 @@ public sealed class UsnJournalReader : IDisposable
                 bufferHandle.AddrOfPinnedObject(), (uint)buffer.Length,
                 out bytesReturned, IntPtr.Zero);
 
-            // Затёртая по кругу запись — обычное дело для старого журнала: она
-            // означает конец доступной истории, а не ошибку чтения.
-            return success || Marshal.GetLastWin32Error() != ErrorJournalEntryDeleted;
+            error = success ? 0 : Marshal.GetLastWin32Error();
+            return success;
         }
         finally
         {
@@ -337,7 +406,7 @@ public sealed class UsnJournalReader : IDisposable
 
     public void Dispose() => _volume.Dispose();
 
-    private readonly record struct JournalData(ulong JournalId, long FirstUsn);
+    private readonly record struct JournalData(ulong JournalId, long FirstUsn, long NextUsn);
 
     /// <summary>
     /// FILE_ID_DESCRIPTOR: за номером типа идёт объединение, самый большой член

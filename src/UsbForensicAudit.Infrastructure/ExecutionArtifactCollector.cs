@@ -108,9 +108,13 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
                          ArtifactStringExtractor.LooksInteresting(x.Path)
                          || CleanerToolCatalog.LooksLikeTrackedUtility(x.Path)).Take(10_000))
             {
+                // Дата не выдумывается: если у записи нет собственной метки, а у ключа —
+                // LastWrite, запись сохраняется с «нет точной даты» (DateTimeOffset.MinValue
+                // отсекается DateDisplay.IsReliable) и не попадает в таймлайн как событие.
+                var timestamp = item.LastModifiedUtc ?? RegistryKeyTimestamps.GetLastWriteUtc(key);
                 evidence.Add(new EvidenceRecord
                 {
-                    TimestampUtc = item.LastModifiedUtc ?? RegistryKeyTimestamps.GetLastWriteUtc(key) ?? DateTimeOffset.UtcNow,
+                    TimestampUtc = timestamp ?? DateTimeOffset.MinValue,
                     RegistryLastWriteUtc = RegistryKeyTimestamps.GetLastWriteUtc(key),
                     Source = "Shimcache/AppCompatCache Parsed",
                     Provider = parsed.Layout,
@@ -118,7 +122,7 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
                     EventId = "PATH_PRESENT",
                     EvidenceCategory = "Program presence",
                     EvidenceStrength = "Indirect",
-                    Confidence = "Medium",
+                    Confidence = item.LastModifiedUtc.HasValue ? "Medium" : "Low",
                     DeviceHint = item.Path,
                     Summary = $"Shimcache path: {item.Path}",
                     UserExplanation = "Supported AppCompatCache structure parsed. On Windows 10/11 a path entry alone does not prove execution.",
@@ -311,9 +315,11 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
                         }
 
                         var timestamp = TryFileTime(user.GetValue(executable) as byte[]);
+                        // Без достоверной метки запись помечается «нет точной даты» вместо
+                        // текущего времени, чтобы не порождать ложные события в таймлайне.
                         evidence.Add(new EvidenceRecord
                         {
-                            TimestampUtc = timestamp ?? RegistryKeyTimestamps.GetLastWriteUtc(user) ?? DateTimeOffset.UtcNow,
+                            TimestampUtc = timestamp ?? RegistryKeyTimestamps.GetLastWriteUtc(user) ?? DateTimeOffset.MinValue,
                             RegistryLastWriteUtc = RegistryKeyTimestamps.GetLastWriteUtc(user),
                             Source = $"{service.ToUpperInvariant()} Parsed",
                             Provider = service.Equals("bam", StringComparison.OrdinalIgnoreCase)
@@ -371,8 +377,19 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
         catch { return null; }
     }
 
+    /// <summary>
+    /// Файлы PCA (PcaAppLaunchDic.txt и др.) хранят время в UTC без указания смещения.
+    /// Без AssumeUniversal строка трактовалась бы как локальное время машины и все
+    /// даты сдвигались бы на величину часового пояса (например, −3 часа для МСК).
+    /// </summary>
     private static DateTimeOffset? TryDate(string value) =>
-        DateTimeOffset.TryParse(value, out var parsed) ? parsed.ToUniversalTime() : null;
+        DateTimeOffset.TryParse(
+            value,
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AssumeUniversal,
+            out var parsed)
+            ? parsed.ToUniversalTime()
+            : null;
 
     private static (int ExitCode, string Output) RunReg(string action, string key, string? hive = null)
     {

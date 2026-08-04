@@ -188,9 +188,18 @@ public static partial class DeviceActivityBuilder
             return DeviceActivityKind.Mount;
         }
 
+        // Amcache и Shimcache — артефакты присутствия файла, а не исполнения:
+        // их заполняет фоновый сканер совместимости (Compatibility Appraiser),
+        // а метка Shimcache — это дата модификации самого файла. Показывать их
+        // как «Запускали программу» значит рисовать в истории запуски, которых
+        // не было, — в том числе ночью, когда работал только планировщик задач.
+        if (source.Contains("Amcache", StringComparison.OrdinalIgnoreCase)
+            || source.Contains("Shimcache", StringComparison.OrdinalIgnoreCase))
+        {
+            return DeviceActivityKind.ProgramPresence;
+        }
+
         if (source.Contains("Prefetch", StringComparison.OrdinalIgnoreCase)
-            || source.Contains("Amcache", StringComparison.OrdinalIgnoreCase)
-            || source.Contains("Shimcache", StringComparison.OrdinalIgnoreCase)
             || source.Contains("UserAssist", StringComparison.OrdinalIgnoreCase)
             || source.Contains("MuiCache", StringComparison.OrdinalIgnoreCase)
             || source.Contains("BAM", StringComparison.OrdinalIgnoreCase)
@@ -226,6 +235,16 @@ public static partial class DeviceActivityBuilder
         if (source.Contains("Recycle", StringComparison.OrdinalIgnoreCase))
         {
             return "Момент удаления файла в корзину";
+        }
+
+        if (source.Contains("Shimcache", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Дата модификации самого файла, а не запуска: файл мог быть изменён задолго до попадания на диск";
+        }
+
+        if (source.Contains("Amcache", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Момент записи фоновым сканером совместимости — не момент запуска программы";
         }
 
         if (record.RegistryLastWriteUtc.HasValue)

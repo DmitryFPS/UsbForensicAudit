@@ -27,6 +27,12 @@ public partial class App : Application
         }
 
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
+        // Даты показываются в зоне машины аналитика, а не в жёстко зашитой
+        // московской: на компьютере в другом часовом поясе фиксированная зона
+        // расходилась с настенными часами и путала чтение таймлайна.
+        DateDisplay.DisplayZone = TimeZoneInfo.Local;
+
         EndpointProtectionState.IsProtectionActive = EndpointProtectionEnvironment.IsProtectionActive;
 
         DispatcherUnhandledException += (_, args) =>

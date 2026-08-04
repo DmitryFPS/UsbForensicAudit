@@ -29,11 +29,13 @@ public partial class MainWindow
               + "настройка для корпоративного контроля. Включается файлом device-policy.json "
               + "рядом с программой (пример: docs\\device-policy.example.json).";
 
-        ExfiltrationGrid.ItemsSource = exfiltration.OutboundFiles;
+        // DisplayFiles включает и переносы с неопределённым направлением: это самые
+        // уверенные совпадения (разница < 10 минут), раньше они не показывались вовсе.
+        ExfiltrationGrid.ItemsSource = exfiltration.DisplayFiles;
         PolicyGrid.ItemsSource = policy.Items;
         MitreGrid.ItemsSource = mitre.Findings;
 
-        ShowSection(ExfiltrationSectionHeader, ExfiltrationGrid, ExfiltrationRow, exfiltration.HasFindings);
+        ShowSection(ExfiltrationSectionHeader, ExfiltrationGrid, ExfiltrationRow, exfiltration.HasAnyIndication);
         ShowSection(PolicySectionHeader, PolicyGrid, PolicyRow, policy.PolicyDefined && policy.Items.Count > 0);
         ShowSection(MitreSectionHeader, MitreGrid, MitreRow, mitre.HasFindings);
 
@@ -43,7 +45,7 @@ public partial class MainWindow
 
         UpdateOverviewAnswers(result, exfiltration, policy);
 
-        if (exfiltration.HasFindings)
+        if (exfiltration.HasAnyIndication)
         {
             DataGridAutoSize.FitColumns(ExfiltrationGrid);
         }
@@ -93,15 +95,17 @@ public partial class MainWindow
                   ? $"Нарушений политики: {policy.Violations.Count} — вкладка «Риски»."
                   : "Подробности — на вкладке «USB устройства».");
 
-        // Вопрос 2: уходили ли данные.
-        AnswerExfilBar.Background = exfiltration.ConfirmedCount > 0 ? danger : exfiltration.HasFindings ? warn : ok;
-        AnswerExfilVerdict.Foreground = exfiltration.ConfirmedCount > 0 ? danger : exfiltration.HasFindings ? warn : textMain;
+        // Вопрос 2: уходили ли данные. Переносы без определённого направления
+        // учитываются наравне с признаками выноса: это подтверждённые по времени
+        // совпадения, и молчать о них карточка не должна.
+        AnswerExfilBar.Background = exfiltration.ConfirmedCount > 0 ? danger : exfiltration.HasAnyIndication ? warn : ok;
+        AnswerExfilVerdict.Foreground = exfiltration.ConfirmedCount > 0 ? danger : exfiltration.HasAnyIndication ? warn : textMain;
         AnswerExfilVerdict.Text = exfiltration.ConfirmedCount > 0
             ? $"Да — подтверждено файлов: {exfiltration.ConfirmedCount}"
-            : exfiltration.HasFindings
-                ? $"Возможно — признаков: {exfiltration.OutboundCount}"
+            : exfiltration.HasAnyIndication
+                ? $"Возможно — признаков: {exfiltration.OutboundCount + exfiltration.UndirectedCount}"
                 : "Признаков выноса данных не найдено";
-        AnswerExfilNote.Text = exfiltration.HasFindings
+        AnswerExfilNote.Text = exfiltration.HasAnyIndication
             ? "Список файлов — вкладка «Риски» и отчёты."
             : "Проверены следы копирования на съёмные носители.";
 

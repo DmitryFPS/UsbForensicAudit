@@ -181,13 +181,15 @@ internal static class ForensicReportBuilder
                   : " Подробности — в разделах об устройствах и досье.");
         AppendAnswerCard(html, devicesClass, "Подключали ли внешние носители?", devicesVerdict, devicesNote);
 
-        // Вопрос 2: уходили ли данные.
+        // Вопрос 2: уходили ли данные. Переносы с неопределённым направлением
+        // считаются признаками наравне с выносом — раньше карточка отвечала
+        // «признаков не найдено», даже когда такие переносы были.
         var exf = ctx.Exfiltration;
-        var exfClass = exf.ConfirmedCount > 0 ? "bad" : exf.HasFindings ? "attn" : "ok";
+        var exfClass = exf.ConfirmedCount > 0 ? "bad" : exf.HasAnyIndication ? "attn" : "ok";
         var exfVerdict = exf.ConfirmedCount > 0
             ? $"Да — подтверждено файлов: {exf.ConfirmedCount}"
-            : exf.HasFindings
-                ? $"Возможно — признаков: {exf.OutboundCount}"
+            : exf.HasAnyIndication
+                ? $"Возможно — признаков: {exf.OutboundCount + exf.UndirectedCount}"
                 : "Признаков выноса данных не найдено";
         AppendAnswerCard(html, exfClass, "Уходили ли данные на носители?", exfVerdict, exf.Verdict());
 
@@ -222,7 +224,7 @@ internal static class ForensicReportBuilder
 
         html.AppendLine(startPoints.Count > 0
             ? $"<div class=\"note\"><b>С чего начать проверку:</b> {E(string.Join("; ", startPoints))}.</div>"
-            : "<div class=\"note\"><b>С чего начать:</b> явных приоритетных зацепок нет — просмотрите хронологию событий и список устройств, затем сводку.</div>");
+            : "<div class=\"note\"><b>С чего начать:</b> яв��ых приоритетных зацепок нет — просмотрите хронологию событий и список устройств, затем сводку.</div>");
     }
 
     private static void AppendAnswerCard(StringBuilder html, string cssClass, string question, string verdict, string note)
@@ -347,19 +349,22 @@ internal static class ForensicReportBuilder
         var exf = ctx.Exfiltration;
         html.AppendLine("<h2 id=\"exfiltration\">Вынос данных на съёмные носители</h2>");
         html.AppendLine($"<p class=\"note\">{E(exf.Verdict())}</p>");
-        if (!exf.HasFindings)
+        if (!exf.HasAnyIndication)
         {
             return;
         }
 
-        html.AppendLine("<p>Файлы, для которых есть признаки копирования с этого компьютера на съёмный носитель. "
-                        + "Подтверждённые журналом изменений NTFS — самый сильный довод; совпадение имён требует ручной проверки.</p>");
-        html.AppendLine("<table><tr><th>Файл</th><th>Устройство</th><th>Когда</th><th>Уверенность</th><th>На чём основано</th></tr>");
-        foreach (var item in exf.OutboundFiles)
+        html.AppendLine("<p>Файлы, для которых есть признаки копирования между этим компьютером и съёмным носителем. "
+                        + "Подтверждённые журналом изменений NTFS — самый сильный довод; совпадение имён требует ручной проверки. "
+                        + "«Направление не определено» означает: файл виден и на диске, и на устройстве в близкое время (менее 10 минут) — "
+                        + "это самое сильное свидетельство переноса, но куда именно копировали, по артефактам не установить.</p>");
+        html.AppendLine("<table><tr><th>Файл</th><th>Устройство</th><th>Направление</th><th>Когда</th><th>Уверенность</th><th>На чём основано</th></tr>");
+        foreach (var item in exf.DisplayFiles)
         {
             var rowClass = item.IsConfirmed ? "suspicious" : "";
             html.AppendLine(
                 $"<tr class=\"{rowClass}\"><td>{E(item.FileName)}</td><td>{E(item.DeviceDisplayName)}</td>" +
+                $"<td>{E(item.DirectionText)}</td>" +
                 $"<td>{E(item.WhenText)}</td><td>{E(item.ConfidenceText)}</td><td>{E(item.Basis)}</td></tr>");
         }
         html.AppendLine("</table>");
@@ -469,7 +474,7 @@ internal static class ForensicReportBuilder
         html.AppendLine("<table><tr><th>Canonical device</th><th>Место в списке устройств</th><th>Приносили ли с собой</th><th>Тип</th><th>Что это</th><th>Как подключалось</th><th>Внешнее или встроенное</th><th>На чём основан вывод</th><th>Технические коды</th><th>Назначение</th><th>Откуда</th><th>Имя</th><th>Производитель</th><th>Модель</th><th>VID/PID</th><th>Серийный номер</th><th>Когда подключали</th><th>Последняя активность</th><th>Когда отключали</th><th>Пояснение по датам</th><th>Расположение</th><th>Буквы дисков</th><th>Системный ID</th></tr>");
         foreach (var device in ctx.ReportableDevices)
         {
-            var place = DeviceComposition.IsFoldedByDefault(device) ? "свёрнута в своё устройство" : "отдельная строка";
+            var place = DeviceComposition.IsFoldedByDefault(device) ? "свёрнут�� в своё устройство" : "отдельная строка";
             html.AppendLine(
                 $"<tr><td>{E(device.CanonicalDeviceId)}{(device.IsCanonicalPrimary ? " (primary)" : "")}</td>" +
                 $"<td>{E(place)}</td>" +
@@ -499,7 +504,7 @@ internal static class ForensicReportBuilder
             return;
         }
 
-        html.AppendLine($"<h4>Записи Windows об этом устройстве ({parts.Count})</h4>");
+        html.AppendLine($"<h4>Записи Windows об этом устройств�� ({parts.Count})</h4>");
         html.AppendLine("<table><tr><th>Имя</th><th>Что это за запись</th><th>Системный ID</th></tr>");
         foreach (var part in parts)
         {
@@ -859,8 +864,10 @@ internal static class ForensicReportBuilder
             <li>Журналы сетей: WLAN-AutoConfig, NetworkProfile, SMBClient, TerminalServices, RasClient.</li>
             <li>Куда ходили по сети: сетевые диски, введённые пути, запомненные папки, ярлыки, списки переходов, история браузеров и их загрузки.</li>
             </ul>
-            <p class="muted">Все даты указаны в московском времени (МСК). Отчёт сформирован автоматически по результатам одного полного сканирования.</p>
             """);
+        html.AppendLine(
+            $"<p class=\"muted\">Все даты указаны в {E(DateDisplay.ZoneDescription)}. "
+            + "Отчёт сформирован автоматически по результатам одного полного сканирования.</p>");
     }
 
     private static void AppendExternalUtilitiesSection(StringBuilder html, ExternalUtilityReportSnapshot snapshot)

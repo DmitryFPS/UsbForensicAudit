@@ -78,7 +78,7 @@ internal static class ManagerOnePagePdfReport
                             + "хронология и методика — в полном отчёте той же программы."))
                         .FontSize(8).FontColor(Colors.Grey.Darken1);
                     footer.Item().PaddingTop(2).Text(T(
-                            $"Сформировано: {DateDisplay.FormatMoscow(DateTimeOffset.UtcNow)} (МСК)  |  UsbForensicAudit"))
+                            $"Сформировано: {DateDisplay.FormatMoscow(DateTimeOffset.UtcNow)} ({DateDisplay.ZoneLabel})  |  UsbForensicAudit"))
                         .FontSize(8).FontColor(Colors.Grey.Darken1);
                 });
             });

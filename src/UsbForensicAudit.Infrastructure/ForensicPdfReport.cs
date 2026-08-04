@@ -91,7 +91,7 @@ internal static class ForensicPdfReport
                 });
 
                 page.Footer().AlignCenter().Text(T(
-                        $"Сформировано: {DateDisplay.FormatMoscow(DateTimeOffset.UtcNow)}  |  Все даты в отчёте — московское время (МСК)"))
+                        $"Сформировано: {DateDisplay.FormatMoscow(DateTimeOffset.UtcNow)}  |  Все даты в отчёте — в {DateDisplay.ZoneDescription}"))
                     .FontSize(7)
                     .FontColor(Colors.Grey.Darken1);
             });
