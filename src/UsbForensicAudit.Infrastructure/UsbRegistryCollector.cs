@@ -337,7 +337,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
     }
 
     /// <summary>
-    /// Под ветками SWD и BTH живут в основном программные записи Windows:
+    /// Под ветк��ми SWD и BTH живут в основном программные записи Windows:
     /// очереди печати PRINTENUM, звуковые точки MMDEVAPI, VPN-минипорты MSRRAS,
     /// Wintun, DRIVERENUM. К подключаемым устройствам они отношения не имеют,
     /// поэтому берутся только шины, за которыми стоит носитель или телефон.
@@ -1090,10 +1090,10 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                 {
                     Source = "Registry: MountedDevices",
                     VisualCategory = "SupportArtifact",
-                    UserMeaning = "Служебная запись: соответствие конкретного тома, диска или буквы. Это не отдельное USB-устройство.",
+                    UserMeaning = DescribeMountedDevicesEntry(valueName, volume),
                     DeviceType = "VolumeMapping",
                     DeviceInstanceId = $@"HKLM\SYSTEM\MountedDevices\{valueName}",
-                    FriendlyName = valueName,
+                    FriendlyName = MountedDevicesFriendlyName(valueName, volume),
                     DriveLetters = volume.DriveLetter,
                     VolumeHints = BuildVolumeHint(volume),
                     Volumes = [volume],
@@ -1116,6 +1116,55 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         {
             warnings.Add($"Ошибка чтения MountedDevices: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Объясняет строку MountedDevices человеческим языком. Раньше все записи
+    /// получали одну общую формулировку, а именем служило сырое имя значения
+    /// реестра («\??\Volume{GUID}») — пользователю было непонятно, что это.
+    /// </summary>
+    internal static string DescribeMountedDevicesEntry(string valueName, VolumeIdentity volume)
+    {
+        var target = volume.DevicePath.Length > 0
+            ? volume.DevicePath.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase)
+              || volume.DevicePath.Contains("RemovableMedia", StringComparison.OrdinalIgnoreCase)
+                ? " Запись указывает на съёмный USB-носитель — сам носитель показан отдельной строкой выше."
+                : " Запись указывает на внутренний диск этой машины."
+            : "";
+
+        if (valueName.Contains(@"\DosDevices\", StringComparison.OrdinalIgnoreCase))
+        {
+            var letter = valueName[(valueName.LastIndexOf('\\') + 1)..];
+            return $"Служебная запись Windows: за буквой {letter} закреплён конкретный том. "
+                   + "Это метка соответствия, а не отдельное устройство." + target;
+        }
+
+        if (valueName.Contains("Volume{", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Служебная запись Windows: внутренний идентификатор тома (Volume GUID), "
+                   + "по которому система узнаёт раздел диска независимо от буквы. "
+                   + "Это метка соответствия, а не отдельное устройство." + target;
+        }
+
+        return "Служебная запись: соответствие конкретного тома, диска или буквы. Это не отдельное USB-устройство." + target;
+    }
+
+    /// <summary>
+    /// Понятное имя строки MountedDevices вместо сырого «\??\Volume{GUID}».
+    /// </summary>
+    internal static string MountedDevicesFriendlyName(string valueName, VolumeIdentity volume)
+    {
+        if (!valueName.Contains("Volume{", StringComparison.OrdinalIgnoreCase))
+        {
+            return valueName;
+        }
+
+        var braceStart = valueName.IndexOf('{');
+        var shortGuid = braceStart >= 0 && valueName.Length > braceStart + 9
+            ? valueName.Substring(braceStart + 1, 8)
+            : "";
+        var letter = volume.DriveLetter.Length > 0 ? $", диск {volume.DriveLetter}" : "";
+        return $"Внутренний идентификатор тома {shortGuid}…{letter}";
     }
 
     private static string BuildVolumeHint(VolumeIdentity volume)

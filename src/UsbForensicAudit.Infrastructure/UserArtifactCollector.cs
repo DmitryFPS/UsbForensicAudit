@@ -304,12 +304,57 @@ public sealed class UserArtifactCollector : IEvidenceCollector
                     continue;
                 }
 
+                // В данных значения UserAssist лежат счётчик запусков и FILETIME
+                // последнего запуска ИМЕННО ЭТОЙ программы. Раньше временем записи
+                // служил LastWrite ключа Count целиком — любое действие в проводнике
+                // обновляет его, и ВСЕ записи UserAssist получали время сканирования:
+                // старые следы всплывали в таймлайне как «свежие» после каждого скана.
+                var bytes = count.GetValue(encoded) as byte[] ?? [];
+                var (runCount, lastRunUtc) = ParseUserAssistEntry(bytes);
+                var summary = lastRunUtc is null
+                    ? "UserAssist entry exists, but its embedded launch timestamp is empty: no shell launch recorded; presence only."
+                    : "UserAssist supports application interaction, but alone does not prove execution or USB connection.";
                 AddDeduplicated(evidence, NewRegistryEvidence(
                     "HKU UserAssist", profile, $@"HKU\{sid}\{relative}\{guid}\Count\{encoded}", decoded,
-                    "UserAssist supports application interaction, but alone does not prove execution or USB connection.",
-                    RegistryKeyTimestamps.GetLastWriteUtc(count), "Corroborating", "Medium",
-                    $"DecodedName={decoded}; BinaryLength={(count.GetValue(encoded) as byte[])?.Length ?? 0}"));
+                    summary,
+                    lastRunUtc ?? RegistryKeyTimestamps.GetLastWriteUtc(count), "Corroborating", "Medium",
+                    $"DecodedName={decoded}; RunCount={runCount?.ToString() ?? "unknown"}; " +
+                    $"LastRunUtc={lastRunUtc?.ToString("O") ?? "none"}; BinaryLength={bytes.Length}"));
             }
+        }
+    }
+
+    /// <summary>
+    /// Разбирает 72-байтовую структуру UserAssist (Windows 7+): счётчик запусков
+    /// по смещению 4, FILETIME последнего запуска по смещению 60. Нулевой FILETIME
+    /// означает, что оболочка ни разу не фиксировала запуск — запись создана
+    /// иначе (ярлык на виду, обход папки, миграция профиля).
+    /// </summary>
+    internal static (int? RunCount, DateTimeOffset? LastRunUtc) ParseUserAssistEntry(byte[] bytes)
+    {
+        if (bytes.Length < 68)
+        {
+            return (null, null);
+        }
+
+        var runCount = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(4));
+        var fileTime = BinaryPrimitives.ReadInt64LittleEndian(bytes.AsSpan(60));
+        if (fileTime <= 0)
+        {
+            return (runCount, null);
+        }
+
+        try
+        {
+            var timestamp = DateTimeOffset.FromFileTime(fileTime);
+            // FILETIME до 2000 года или из будущего — мусор, а не время запуска.
+            return timestamp.Year < 2000 || timestamp > DateTimeOffset.UtcNow.AddDays(1)
+                ? (runCount, null)
+                : (runCount, timestamp);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return (runCount, null);
         }
     }
 

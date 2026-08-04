@@ -85,9 +85,9 @@ public static class CleanerEvidenceClassifier
             CleanerEvidenceKind.CorroboratingExecution when evidence.EventId is "BAM_EXECUTION" or "DAM_EXECUTION" =>
                 "BAM/DAM содержит время активности исполняемого файла и пользователя.",
             CleanerEvidenceKind.CorroboratingExecution when evidence.Source.Contains("UserAssist", StringComparison.OrdinalIgnoreCase) =>
-                "UserAssist подтверждает взаимодействие пользователя с программой.",
+                "UserAssist фиксирует взаимодействие через оболочку Windows (ярлык, фокус окна); сам по себе запуск не доказывает.",
             CleanerEvidenceKind.CorroboratingExecution when evidence.Source.Contains("MuiCache", StringComparison.OrdinalIgnoreCase) =>
-                "MuiCache фиксирует запуск исполняемого файла через оболочку Windows.",
+                "MuiCache фиксирует обращение оболочки Windows к исполняемому файлу; сам по себе запуск не доказывает.",
             CleanerEvidenceKind.CorroboratingExecution =>
                 "Системный артефакт подтверждает или поддерживает факт запуска.",
             CleanerEvidenceKind.Presence when evidence.EventId == "INVENTORY_PRESENCE" =>
