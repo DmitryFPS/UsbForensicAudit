@@ -212,11 +212,14 @@ public sealed class CleanupDetector
 
     private static void AnalyzeExecutionGaps(AuditResult result, List<CleanupFinding> findings)
     {
+        // Только BAM/DAM: они содержат время исполнения файла ядром и реально
+        // подтверждают запуск. UserAssist/MuiCache фиксируют взаимодействие
+        // через оболочку (ярлык, фокус, папку) — раньше одна такая запись давала
+        // вывод «запуск подтверждён, но Prefetch отсутствует» для программы,
+        // которую никогда не запускали.
         var corroborationSources = new[] { "BAM_EXECUTION", "DAM_EXECUTION" };
         var toolsWithCorroboration = result.Evidence
-            .Where(x => corroborationSources.Contains(x.EventId, StringComparer.OrdinalIgnoreCase)
-                        || x.Source.Contains("UserAssist", StringComparison.OrdinalIgnoreCase)
-                        || x.Source.Contains("MuiCache", StringComparison.OrdinalIgnoreCase))
+            .Where(x => corroborationSources.Contains(x.EventId, StringComparer.OrdinalIgnoreCase))
             .Select(x => new { Evidence = x, Assessment = CleanerEvidenceClassifier.Analyze(x) })
             .Where(x => x.Assessment?.SupportsExecution == true
                         && CleanerToolCatalog.IsTraceRemovalTool(x.Assessment.Tool))
@@ -256,9 +259,9 @@ public sealed class CleanupDetector
                 PossibleTool = tool,
                 Confidence = "Indirect",
                 Area = "Cleaner Artifacts",
-                Finding = $"{tool}: запуск подтверждён BAM/UserAssist/MuiCache, но Prefetch отсутствует",
+                Finding = $"{tool}: запуск подтверждён BAM/DAM, но Prefetch отсутствует",
                 Details =
-                    "BAM/DAM, UserAssist или MuiCache указывают на запуск утилиты очистки, однако соответствующий Prefetch не найден. " +
+                    "BAM/DAM указывают на исполнение утилиты очистки, однако соответствующий Prefetch не найден. " +
                     "Это может быть следствием отключённого Prefetch, очистки каталога Prefetch или анти-forensic действий. " +
                     $"{latest.Evidence.Source}: {latest.Evidence.Summary}."
             });
@@ -320,7 +323,17 @@ public sealed class CleanupDetector
             var hasDirectExecutionEvidence = result.Evidence.Any(x =>
                 x.EventId is "CLEANER_EXECUTION" or "CLEANER_PREFETCH_TAMPER" or "PROCESS_HINT" or "LIVE_PROCESS"
                 && string.Equals(CleanerEvidenceClassifier.Analyze(x)?.Tool, tool, StringComparison.OrdinalIgnoreCase));
-            var missingPrefetchNote = !hasDirectExecutionEvidence && !assessment.IsDirectExecution
+
+            // UserAssist/MuiCache фиксируют взаимодействие через оболочку Windows
+            // (фокус окна, ярлык, открытие папки с файлом) и сами по себе запуск
+            // НЕ доказывают. Раньше одна такая запись давала находку «Запуск
+            // USB-утилиты» — программа, которую никогда не запускали, попадала
+            // в «Очистку следов» как запущенная.
+            var shellInteractionOnly = !assessment.IsDirectExecution
+                                       && !hasDirectExecutionEvidence
+                                       && (evidence.Source.Contains("UserAssist", StringComparison.OrdinalIgnoreCase)
+                                           || evidence.Source.Contains("MuiCache", StringComparison.OrdinalIgnoreCase));
+            var missingPrefetchNote = !hasDirectExecutionEvidence && !assessment.IsDirectExecution && !shellInteractionOnly
                 ? " BAM/UserAssist/MuiCache подтверждают запуск, но Prefetch не найден — возможна очистка каталога Prefetch или отключённый Prefetch."
                 : "";
             var probableCleanup = explicitRemovalIntent
@@ -340,12 +353,17 @@ public sealed class CleanupDetector
             var initiator = InitiatorFromEvidence(evidence);
             var confidence = probableCleanup
                 ? "Probable"
-                : assessment.IsDirectExecution ? "Confirmed" : "Probable";
+                : assessment.IsDirectExecution ? "Confirmed"
+                : shellInteractionOnly ? "Indirect" : "Probable";
             findings.Add(new CleanupFinding
             {
                 TimestampUtc = evidence.TimestampUtc,
-                Severity = probableCleanup ? "High" : removesTraces ? "Medium" : isUsbTool ? "Low" : "Medium",
-                Assessment = removesTraces || probableCleanup ? "Suspicious" : "Informational",
+                Severity = probableCleanup ? "High"
+                    : shellInteractionOnly ? "Low"
+                    : removesTraces ? "Medium" : isUsbTool ? "Low" : "Medium",
+                Assessment = probableCleanup || (removesTraces && !shellInteractionOnly)
+                    ? "Suspicious"
+                    : "Informational",
                 ActionKind = probableCleanup ? "ProbableCleanup" : "ToolLaunch",
                 InitiatorKind = initiator.Kind,
                 InitiatorAccount = initiator.Account,
@@ -354,6 +372,8 @@ public sealed class CleanupDetector
                 Area = "Cleaner Artifacts",
                 Finding = probableCleanup
                     ? $"Запуск {tool} с дополнительными признаками возможной очистки"
+                    : shellInteractionOnly
+                        ? $"След взаимодействия с {tool} (запуск не доказан)"
                     : removesTraces
                         ? $"Зафиксирован запуск утилиты очистки {tool}"
                     : isUsbTool
@@ -368,6 +388,8 @@ public sealed class CleanupDetector
                             : readOnlyPrefetchTamper
                                 ? "Prefetch помечен read-only — типичный признак попытки зафиксировать или скрыть след запуска."
                             : "По времени рядом найдены независимые признаки очистки журналов или USB-артефактов."
+                        : shellInteractionOnly
+                            ? "UserAssist/MuiCache фиксируют взаимодействие через оболочку Windows (ярлык, фокус окна, открытие папки с файлом) и сами по себе НЕ доказывают запуск: ни Prefetch, ни BAM, ни журнал создания процессов запуск не подтверждают."
                         : removesTraces
                             ? "Запуск подтверждён, но без независимого изменения системных артефактов нельзя утверждать, что очистка завершилась."
                             : "Утилита может использоваться для просмотра или управления устройствами; её запуск не равен очистке.") +

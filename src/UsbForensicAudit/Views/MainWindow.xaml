@@ -343,7 +343,7 @@
                                 </Grid.ColumnDefinitions>
                                 <Border x:Name="AnswerDevicesBar" Background="{StaticResource Accent2}" CornerRadius="12,0,0,12"/>
                                 <StackPanel Grid.Column="1" Margin="14,12,14,12">
-                                    <TextBlock Text="ПОДКЛЮЧАЛИ ЛИ ВНЕШНИЕ НОСИТ��ЛИ?" Foreground="{StaticResource TextMuted}" FontSize="11"/>
+                                    <TextBlock Text="ПОДКЛЮЧАЛИ ЛИ ВНЕШНИЕ НО��ИТ��ЛИ?" Foreground="{StaticResource TextMuted}" FontSize="11"/>
                                     <TextBlock x:Name="AnswerDevicesVerdict" Text="Выполните сканирование" Foreground="{StaticResource TextMain}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                     <TextBlock x:Name="AnswerDevicesNote" Text="" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                 </StackPanel>
@@ -463,7 +463,7 @@
                                 <Run Text="Зелёный" Foreground="{StaticResource AccentSoft}" FontWeight="SemiBold"/>
                                 <Run Text="— внешний носитель или телефон: именно этим выносят данные."/>
                                 <LineBreak/>
-                                <Run Text="Синий" Foreground="#7DD3FC" FontWeight="SemiBold"/>
+                                <Run Text="Сини��" Foreground="#7DD3FC" FontWeight="SemiBold"/>
                                 <Run Text="— другое внешнее устройство: пара по Bluetooth, карта памяти, устройство по Type-C или USB4, принесённый разветвитель."/>
                                 <LineBreak/>
                                 <Run Text="Жёлтый" Foreground="#FACC15"/>
@@ -984,7 +984,8 @@
                               EnableRowVirtualization="True"
                               VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                               VirtualizingPanel.VirtualizationMode="Recycling"
-                              ScrollViewer.CanContentScroll="True">
+                              ScrollViewer.CanContentScroll="True"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto">
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
                                 <Style.Triggers>
@@ -1017,7 +1018,10 @@
                             </DataGridTextColumn>
                             <DataGridTextColumn Header="Источник" Binding="{Binding Source}" Width="220" MinWidth="150"/>
                             <DataGridTextColumn Header="Устройство / объект" Binding="{Binding Device}" Width="260" MinWidth="180"/>
-                            <DataGridTextColumn Header="Что произошло" Binding="{Binding Description}" Width="*" MinWidth="240"/>
+                            <!-- Фиксированная широкая колонка вместо «*»: со звёздочкой колонки
+                                 никогда не выходили за экран, горизонтальный скролл не появлялся,
+                                 и длинный текст просто обрезался без возможности дочитать. -->
+                            <DataGridTextColumn Header="Что произошло" Binding="{Binding Description}" Width="1100" MinWidth="240"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </DockPanel>
