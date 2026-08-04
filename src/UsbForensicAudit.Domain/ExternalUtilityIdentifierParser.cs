@@ -229,9 +229,16 @@ public static class ExternalUtilityIdentifierParser
 
     private static IEnumerable<string> FindColumnValues(ExternalUtilityRow row, IEnumerable<string> keys)
     {
-        foreach (var key in keys)
+        // Ключи материализуются один раз (иначе IEnumerable перечислялся заново
+        // на каждую колонку), а колонки, уже отданные точным совпадением,
+        // исключаются из второго прохода — раньше одно и то же значение
+        // возвращалось дважды: точным и регистронезависимым совпадением.
+        var keyList = keys as IReadOnlyList<string> ?? [.. keys];
+        var emittedColumns = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var key in keyList)
         {
-            if (row.Values.TryGetValue(key, out var exact) && !string.IsNullOrWhiteSpace(exact))
+            if (row.Values.TryGetValue(key, out var exact) && !string.IsNullOrWhiteSpace(exact) && emittedColumns.Add(key))
             {
                 yield return exact;
             }
@@ -239,7 +246,8 @@ public static class ExternalUtilityIdentifierParser
 
         foreach (var pair in row.Values)
         {
-            if (keys.Any(key => pair.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
+            if (!emittedColumns.Contains(pair.Key)
+                && keyList.Any(key => pair.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
                 && !string.IsNullOrWhiteSpace(pair.Value))
             {
                 yield return pair.Value;

@@ -4,15 +4,6 @@ namespace UsbForensicAudit;
 
 public static class ExternalUtilityRowFormatter
 {
-    private static readonly string[] SummaryKeys =
-    [
-        "VID", "Vendor ID", "PID", "Product ID",
-        "Производитель", "Manufacturer",
-        "Модель", "Model",
-        "Первое подключение", "First connection",
-        "Установка", "Installation"
-    ];
-
     private static readonly string[] DetailOrder =
     [
         "UID", "VID", "Vendor ID", "Производитель", "Manufacturer",

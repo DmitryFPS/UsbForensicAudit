@@ -19,7 +19,10 @@ internal static class AuthenticodeTrust
         try
         {
 #pragma warning disable SYSLIB0057
-            using var certificate = new X509Certificate2(X509Certificate.CreateFromSignedFile(path));
+            // Промежуточный X509Certificate — отдельный объект с нативным
+            // дескриптором; без своего using он утекал при каждой проверке.
+            using var signerInfo = X509Certificate.CreateFromSignedFile(path);
+            using var certificate = new X509Certificate2(signerInfo);
 #pragma warning restore SYSLIB0057
             return certificate.Subject.Contains("O=Microsoft Corporation", StringComparison.OrdinalIgnoreCase)
                    || certificate.Subject.Contains("CN=Microsoft Corporation", StringComparison.OrdinalIgnoreCase);

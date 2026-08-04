@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -410,7 +411,7 @@ internal static class Program
                     foreach (var alert in LiveMonitorRules.Evaluate(snapshot, unknown, policy, alerted))
                     {
                         Console.WriteLine(CliStrings.Format("MonitorAlertLine",
-                            DateDisplay.ToMoscow(alert.WhenUtc).ToString("yyyy-MM-dd HH:mm:ss"),
+                            DateDisplay.ToMoscow(alert.WhenUtc).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
                             alert.KindText,
                             alert.Title,
                             alert.Details));

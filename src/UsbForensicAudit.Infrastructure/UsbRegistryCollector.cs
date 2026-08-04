@@ -337,7 +337,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
     }
 
     /// <summary>
-    /// Под ветк��ми SWD и BTH живут в основном программные записи Windows:
+    /// Под ветками SWD и BTH живут в основном программные записи Windows:
     /// очереди печати PRINTENUM, звуковые точки MMDEVAPI, VPN-минипорты MSRRAS,
     /// Wintun, DRIVERENUM. К подключаемым устройствам они отношения не имеют,
     /// поэтому берутся только шины, за которыми стоит носитель или телефон.

@@ -27338,7 +27338,7 @@
 48B9C2/24	Teletics Inc.
 48BA4E/24	Hewlett Packard
 48BC0E/24	Sichuan AI-Link Technology Co., Ltd.
-48BCA6/24	​ASUNG TECHNO CO.,Ltd
+48BCA6/24	ASUNG TECHNO CO.,Ltd
 48BCE1/24	Samsung Electronics Co.,Ltd
 48BD0E/24	Quanta Storage Inc.
 48BD3D/24	New H3C Technologies Co., Ltd
@@ -34710,7 +34710,7 @@
 70B3D58A9/36	WoKa-Elektronik GmbH
 70B3D58AA/36	Tattile Srl
 70B3D58AB/36	EMAC, Inc.
-70B3D58AC/36	​ASUNG TECHNO CO.,Ltd
+70B3D58AC/36	ASUNG TECHNO CO.,Ltd
 70B3D58AD/36	Global Communications Technology LLC
 70B3D58AE/36	Fareco
 70B3D58AF/36	Qbic Communications Dmcc
