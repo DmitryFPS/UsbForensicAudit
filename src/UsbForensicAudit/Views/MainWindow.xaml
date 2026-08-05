@@ -343,7 +343,7 @@
                                 </Grid.ColumnDefinitions>
                                 <Border x:Name="AnswerDevicesBar" Background="{StaticResource Accent2}" CornerRadius="12,0,0,12"/>
                                 <StackPanel Grid.Column="1" Margin="14,12,14,12">
-                                    <TextBlock Text="ПОДКЛЮЧАЛИ ЛИ ВНЕШНИЕ НОСИТЕЛИ?" Foreground="{StaticResource TextMuted}" FontSize="11"/>
+                                    <TextBlock x:Name="AnswerDevicesQuestion" Text="ПОДКЛЮЧАЛИ ЛИ ВНЕШНИЕ НОСИТЕЛИ?" Foreground="{StaticResource TextMuted}" FontSize="11"/>
                                     <TextBlock x:Name="AnswerDevicesVerdict" Text="Выполните сканирование" Foreground="{StaticResource TextMain}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                     <TextBlock x:Name="AnswerDevicesNote" Text="" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                 </StackPanel>
@@ -357,7 +357,7 @@
                                 </Grid.ColumnDefinitions>
                                 <Border x:Name="AnswerExfilBar" Background="{StaticResource Stroke}" CornerRadius="12,0,0,12"/>
                                 <StackPanel Grid.Column="1" Margin="14,12,14,12">
-                                    <TextBlock Text="УХОДИЛИ ЛИ ДАННЫЕ?" Foreground="{StaticResource TextMuted}" FontSize="11"/>
+                                    <TextBlock x:Name="AnswerExfilQuestion" Text="РАБОТАЛИ ЛИ С ФАЙЛАМИ НА НОСИТЕЛЯХ?" Foreground="{StaticResource TextMuted}" FontSize="11"/>
                                     <TextBlock x:Name="AnswerExfilVerdict" Text="Выполните сканирование" Foreground="{StaticResource TextMain}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                     <TextBlock x:Name="AnswerExfilNote" Text="" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                 </StackPanel>
@@ -371,7 +371,7 @@
                                 </Grid.ColumnDefinitions>
                                 <Border x:Name="AnswerCleanupBar" Background="{StaticResource Stroke}" CornerRadius="12,0,0,12"/>
                                 <StackPanel Grid.Column="1" Margin="14,12,14,12">
-                                    <TextBlock Text="ЧИСТИЛИ ЛИ СЛЕДЫ?" Foreground="{StaticResource TextMuted}" FontSize="11"/>
+                                    <TextBlock x:Name="AnswerCleanupQuestion" Text="ЧИСТИЛИ ЛИ СЛЕДЫ?" Foreground="{StaticResource TextMuted}" FontSize="11"/>
                                     <TextBlock x:Name="AnswerCleanupVerdict" Text="Выполните сканирование" Foreground="{StaticResource TextMain}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                     <TextBlock x:Name="AnswerCleanupNote" Text="" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                 </StackPanel>
@@ -631,7 +631,7 @@
                 <DockPanel Margin="0,8,0,0">
                     <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock Text="Здесь связи этой машины с ��нешним миром: сети Wi-Fi и провод, туннели VPN, мобильный интернет, пары по Bluetooth, серверы с сетевыми папками, узлы удалённого рабочего стола и сайты."
+                            <TextBlock Text="Здесь связи этой машины с ��нешним миром: сети Wi-Fi и провод, туннели VPN, мобильный интернет, пары по Bluetooth, серверы с сете��ыми папками, узлы удалённого рабочего стола и сайты."
                                        Foreground="{StaticResource TextMain}"
                                        TextWrapping="Wrap"/>
                             <TextBlock Text="{Binding NetworkSummary}"
@@ -674,7 +674,7 @@
                                 <Run Text="Сливовый" Foreground="#DCC4E6"/>
                                 <Run Text="— посещённый сайт: их сотни, поэтому они стоят в конце списка."/>
                             </TextBlock>
-                            <TextBlock Text="Пустых клеток здесь нет: если Windows чего-то не сохранила, в клетке об этом сказано словами. «Сеансов» — сколько раз соединялись по записям журналов, «обращений» — сколько папок, адресов и файлов найдено внутри этой связи."
+                            <TextBlock Text="Пустых клеток здесь нет: если Windows чего-то не сохранила, в клетке об этом сказано словами. «Сеансов» — сколько раз соединялись по записям журналов, «обращений» — сколько папок, адрес��в и файлов найдено внутри этой связи."
                                        Foreground="{StaticResource TextMuted}"
                                        TextWrapping="Wrap"
                                        Margin="0,4,0,0"/>
@@ -801,7 +801,7 @@
                                 <TabItem Header="Устройства в сети">
                                     <DockPanel>
                                         <CheckBox DockPanel.Dock="Top"
-                                                  Content="Только устройства (спрятать эту машину, шлюз, DHCP и DNS)"
+                                                  Content="Только устрой��тва (спрятать эту машину, шлюз, DHCP и DNS)"
                                                   IsChecked="{Binding ShowOnlyDeviceNeighbors}"
                                                   Foreground="{StaticResource TextMuted}"
                                                   Margin="0,8,0,8"/>
@@ -1125,7 +1125,7 @@
 
                     <Border Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="14" Padding="18" Margin="0,0,0,10">
                         <StackPanel>
-                            <TextBlock Text="Вкладка заполняется автоматически после сканирования: ниже появятся только те блоки, по которым что-то найдено. Ничего настраивать не нужно."
+                            <TextBlock Text="Вкладка заполняется автоматиче��ки после сканирования: ниже появятся только те блоки, по которым что-то найдено. Ничего настраивать не нужно."
                                        Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,10"/>
                             <TextBlock x:Name="RiskExfiltrationVerdictText" Foreground="#F5D98A" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,6" Text="Выполните сканирование — оценка появится здесь автоматически."/>
                             <TextBlock x:Name="RiskPolicyVerdictText" Foreground="#C9E4FF" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,6" Text=""/>

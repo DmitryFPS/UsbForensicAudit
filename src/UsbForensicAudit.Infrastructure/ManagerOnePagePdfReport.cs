@@ -60,7 +60,7 @@ internal static class ManagerOnePagePdfReport
                         .FontSize(15).Bold().FontColor(riskColor);
 
                     AnswerBlock(column, "Подключали ли к компьютеру внешние носители?", DevicesAnswer(ctx), DevicesColor(ctx));
-                    AnswerBlock(column, "Уходили ли данные на носители?", ExfiltrationAnswer(ctx), ExfiltrationColor(ctx));
+                    AnswerBlock(column, "Работали ли с файлами на носителях?", FileActivityAnswer(ctx), FileActivityColor(ctx));
                     AnswerBlock(column, "Пытались ли скрыть следы?", CleanupAnswer(ctx), CleanupColor(ctx));
 
                     column.Item().PaddingTop(2).Text(T("Рекомендуемые действия")).SemiBold().FontSize(12);
@@ -115,7 +115,7 @@ internal static class ManagerOnePagePdfReport
             return ("требуется разбирательство", Colors.Red.Darken2);
         }
 
-        if (ctx.SuspiciousCount > 0 || ctx.Exfiltration.HasFindings || ctx.AttentionCount > 0)
+        if (ctx.SuspiciousCount > 0 || ctx.Exfiltration.HasAnyIndication || ctx.AttentionCount > 0)
         {
             return ("требуется проверка", Colors.Orange.Darken3);
         }
@@ -165,27 +165,49 @@ internal static class ManagerOnePagePdfReport
         return text;
     }
 
-    private static string ExfiltrationColor(ForensicReportContext ctx) =>
+    // Прежний вопрос «Уходили ли данные?» с зелёным «не найдено» был нечестен:
+    // Windows фиксирует копирование на флешку лишь при редком стечении условий,
+    // и молчание артефактов ничего не доказывает. Вопрос заменён на тот, на
+    // который следы отвечают надёжно, — работали ли с файлами на носителях;
+    // признаки выноса, когда они есть, по-прежнему поднимают цвет и текст.
+    private static string FileActivityColor(ForensicReportContext ctx) =>
         ctx.Exfiltration.ConfirmedCount > 0 ? Colors.Red.Darken2
-        : ctx.Exfiltration.HasFindings ? Colors.Orange.Darken3
-        : Colors.Green.Darken2;
+        : ctx.Exfiltration.HasAnyIndication ? Colors.Orange.Darken3
+        : Colors.Grey.Darken3;
 
-    private static string ExfiltrationAnswer(ForensicReportContext ctx)
+    private static string FileActivityAnswer(ForensicReportContext ctx)
     {
         var exf = ctx.Exfiltration;
+        var withActivity = ctx.DevicesWithActivity().ToArray();
+        var actions = withActivity.Sum(x => x.History.Entries.Count);
+        var lastAction = withActivity
+            .SelectMany(x => x.History.Entries)
+            .Select(x => x.TimestampUtc)
+            .OrderByDescending(x => x)
+            .Cast<DateTimeOffset?>()
+            .FirstOrDefault();
+
+        var text = withActivity.Length > 0
+            ? $"Да. Зафиксировано {actions} действие(й) с файлами и папками на {withActivity.Length} носителе(ях): "
+              + "открытия документов, просмотр папок, запуск программ."
+              + (lastAction is not null ? $" Последнее действие: {DateDisplay.FormatMoscow(lastAction.Value)}." : "")
+            : "Следов открытия файлов, просмотра папок или запуска программ с носителей не найдено.";
+
         if (exf.ConfirmedCount > 0)
         {
-            return $"Да. Подтверждено копирование {exf.ConfirmedCount} файла(ов) на внешние носители; "
-                   + $"всего файлов с признаками выноса: {exf.OutboundCount}. Список файлов — в полном отчёте.";
+            text += $" Важно: подтверждено копирование {exf.ConfirmedCount} файла(ов) на носитель — список в полном отчёте.";
         }
-
-        if (exf.HasFindings)
+        else if (exf.HasAnyIndication)
         {
-            return $"Возможно. Есть признаки работы с {exf.OutboundCount} файлом(ами) на внешних носителях, "
-                   + "но прямого подтверждения копирования нет — требуется ручная проверка.";
+            text += $" Есть признаки возможного копирования ({exf.OutboundCount + exf.UndirectedCount}) — требуется ручная проверка.";
+        }
+        else
+        {
+            text += " Следов копирования на носители нет, но Windows фиксирует копирование лишь частично — "
+                    + "их отсутствие не доказывает, что данные не уходили.";
         }
 
-        return "Признаков копирования файлов на внешние носители не найдено.";
+        return text;
     }
 
     private static string CleanupColor(ForensicReportContext ctx) =>
@@ -234,7 +256,7 @@ internal static class ManagerOnePagePdfReport
             actions.Add("Разобраться, почему подключались устройства не из списка разрешённых, и при необходимости изъять их.");
         }
 
-        if (actions.Count == 0 && (ctx.SuspiciousCount > 0 || ctx.Exfiltration.HasFindings || ctx.AttentionCount > 0))
+        if (actions.Count == 0 && (ctx.SuspiciousCount > 0 || ctx.Exfiltration.HasAnyIndication || ctx.AttentionCount > 0))
         {
             actions.Add("Поручить специалисту проверить отмеченные в полном отчёте спорные события.");
         }

@@ -18,7 +18,8 @@ public partial class MainWindow
     private void RefreshRisks(AuditResult result)
     {
         var exfiltration = ExfiltrationAnalyzer.Analyze(result);
-        var policy = DevicePolicyEvaluator.Evaluate(result, DevicePolicyProvider.LoadDefault());
+        var policyDefinition = DevicePolicyProvider.LoadDefault();
+        var policy = DevicePolicyEvaluator.Evaluate(result, policyDefinition);
         var mitre = MitreMapper.Map(result);
 
         RiskExfiltrationVerdictText.Text = exfiltration.Verdict();
@@ -43,7 +44,7 @@ public partial class MainWindow
         // политика задана: пустой столбец лишь занимал бы место.
         PolicyColumn.Visibility = policy.PolicyDefined ? Visibility.Visible : Visibility.Collapsed;
 
-        UpdateOverviewAnswers(result, exfiltration, policy);
+        UpdateOverviewAnswers(result, policyDefinition);
 
         if (exfiltration.HasAnyIndication)
         {
@@ -63,10 +64,12 @@ public partial class MainWindow
 
     /// <summary>
     /// Карточки-ответы на вкладке «Обзор»: те же три вопроса расследования,
-    /// что и в отчётах, с цветной кромкой-светофором. Пользователь видит
-    /// положение дел сразу после сканирования, не открывая другие вкладки.
+    /// что и в отчётах, с цветной кромкой-светофором. Вердикты даёт общий
+    /// KeyAnswersContent — тот же, что в HTML, PDF и Excel: три копии логики
+    /// уже расходились между собой (Обзор показывал 8 устройств, отчёт — 7).
+    /// Здесь остаётся только окраска и подсказки, на какой вкладке подробности.
     /// </summary>
-    private void UpdateOverviewAnswers(AuditResult result, ExfiltrationSummary exfiltration, DevicePolicySummary policy)
+    private void UpdateOverviewAnswers(AuditResult result, DevicePolicy? policy)
     {
         var ok = (Brush)FindResource("Ok");
         var warn = (Brush)FindResource("Warn");
@@ -74,58 +77,41 @@ public partial class MainWindow
         var accent = (Brush)FindResource("Accent2");
         var textMain = (Brush)FindResource("TextMain");
 
-        // Вопрос 1: что подключали. Единый источник с отчётами
-        // (ForensicReportContext.ExternalListedDevices) — иначе число внешних
-        // устройств в «Обзоре» и в отчёте руководителю расходилось (8 против 7).
-        var external = ForensicReportContext.ExternalListedDevices(result.Devices);
-        var lastSeen = external
-            .Select(x => x.LastSeenUtc)
-            .Where(x => x is not null)
-            .OrderByDescending(x => x)
-            .FirstOrDefault();
-        AnswerDevicesBar.Background = policy.HasViolations ? danger : accent;
-        AnswerDevicesVerdict.Foreground = policy.HasViolations ? danger : textMain;
-        AnswerDevicesVerdict.Text = external.Count == 0
-            ? "Следов внешних носителей не найдено"
-            : $"Да — внешних устройств: {external.Count}";
-        AnswerDevicesNote.Text = external.Count == 0
-            ? "Отсутствие следов не доказывает отсутствие подключений."
-            : (lastSeen is not null ? $"Последняя активность: {DateDisplay.FormatMoscow(lastSeen.Value)}. " : "")
-              + (policy.HasViolations
-                  ? $"Нарушений политики: {policy.Violations.Count} — вкладка «Риски»."
-                  : "Подробности — на вкладке «USB устройства».");
+        var ctx = ForensicReportContext.Create(result, policy: policy);
+        var answers = KeyAnswersContent.Build(ctx);
 
-        // Вопрос 2: уходили ли данные. Переносы без определённого направления
-        // учитываются наравне с признаками выноса: это подтверждённые по времени
-        // совпадения, и молчать о них карточка не должна.
-        AnswerExfilBar.Background = exfiltration.ConfirmedCount > 0 ? danger : exfiltration.HasAnyIndication ? warn : ok;
-        AnswerExfilVerdict.Foreground = exfiltration.ConfirmedCount > 0 ? danger : exfiltration.HasAnyIndication ? warn : textMain;
-        AnswerExfilVerdict.Text = exfiltration.ConfirmedCount > 0
-            ? $"Да — подтверждено файлов: {exfiltration.ConfirmedCount}"
-            : exfiltration.HasAnyIndication
-                ? $"Возможно — признаков: {exfiltration.OutboundCount + exfiltration.UndirectedCount}"
-                : "Признаков выноса данных не найдено";
-        AnswerExfilNote.Text = exfiltration.HasAnyIndication
-            ? "Список файлов — вкладка «Риски» и отчёты."
-            : "Проверены следы копирования на съёмные носители.";
+        (Brush Bar, Brush Fore) Paint(KeyAnswersContent.Tone tone) => tone switch
+        {
+            KeyAnswersContent.Tone.Bad => (danger, danger),
+            KeyAnswersContent.Tone.Attention => (warn, warn),
+            KeyAnswersContent.Tone.Plain => (accent, textMain),
+            _ => (ok, textMain)
+        };
 
-        // Вопрос 3: чистили ли следы.
-        var suspicious = result.CleanupFindings.Count(x => x.IsSuspicious);
-        var highRisk = result.CleanupFindings.Count(x =>
-            x.IsSuspicious && x.Severity.Equals("High", StringComparison.OrdinalIgnoreCase));
-        var attention = result.CleanupFindings.Count(x => x.NeedsAttention);
-        AnswerCleanupBar.Background = highRisk > 0 ? danger : suspicious > 0 || attention > 0 ? warn : ok;
-        AnswerCleanupVerdict.Foreground = highRisk > 0 ? danger : suspicious > 0 || attention > 0 ? warn : textMain;
-        AnswerCleanupVerdict.Text = highRisk > 0
-            ? $"Да, вероятно — высокого риска: {highRisk}"
-            : suspicious > 0
-                ? $"Возможно — подозрительных: {suspicious}"
-                : attention > 0
-                    ? $"Явной очистки нет, требуют внимания: {attention}"
-                    : "Признаков очистки не найдено";
-        AnswerCleanupNote.Text = suspicious > 0 || attention > 0
-            ? "Разбор — вкладка «Следы очистки», там же заметки эксперта."
-            : "Проверены журналы, реестр и следы утилит очистки.";
+        var hints = new[]
+        {
+            "Подробности — на вкладке «USB устройства».",
+            "Разбор — вкладки «Доказательства» и «Риски».",
+            "Разбор — вкладка «Следы очистки», там же заметки эксперта."
+        };
+
+        var targets = new[]
+        {
+            (Bar: AnswerDevicesBar, Verdict: AnswerDevicesVerdict, Note: AnswerDevicesNote, Question: AnswerDevicesQuestion),
+            (Bar: AnswerExfilBar, Verdict: AnswerExfilVerdict, Note: AnswerExfilNote, Question: AnswerExfilQuestion),
+            (Bar: AnswerCleanupBar, Verdict: AnswerCleanupVerdict, Note: AnswerCleanupNote, Question: AnswerCleanupQuestion)
+        };
+
+        for (var i = 0; i < targets.Length; i++)
+        {
+            var answer = answers[i];
+            var (bar, fore) = Paint(answer.Tone);
+            targets[i].Bar.Background = bar;
+            targets[i].Verdict.Foreground = fore;
+            targets[i].Verdict.Text = answer.Verdict;
+            targets[i].Question.Text = answer.Question.ToUpperInvariant();
+            targets[i].Note.Text = $"{answer.Note} {hints[i]}";
+        }
     }
 
     /// <summary>

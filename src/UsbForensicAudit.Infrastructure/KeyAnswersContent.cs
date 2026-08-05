@@ -56,16 +56,40 @@ internal static class KeyAnswersContent
                   : string.Empty);
         answers.Add(new Answer("Подключали ли внешние носители?", devicesVerdict, devicesNote, devicesTone));
 
-        // Вопрос 2: уходили ли данные. Переносы с неопределённым направлением
-        // считаются признаками наравне с выносом.
+        // Вопрос 2: работали ли с файлами на носителях. Прежний вопрос
+        // «уходили ли данные?» был нечестным: Windows фиксирует копирование
+        // на флешку лишь при редком стечении условий (живой журнал NTFS,
+        // совпадение имён, близкое время), и зелёное «признаков не найдено»
+        // читалось как «данные не уходили». Открытия файлов, папок и запуски
+        // программ с носителей артефакты фиксируют надёжно (LNK, Recent,
+        // ShellBags, Shimcache) — об этом и спрашиваем. Признаки выноса,
+        // когда они есть, по-прежнему эскалируют тон и попадают в пояснение.
+        var withActivity = ctx.DevicesWithActivity().ToArray();
+        var activityDevices = withActivity.Length;
+        var actions = withActivity.Sum(x => x.History.Entries.Count);
+        var lastAction = withActivity
+            .SelectMany(x => x.History.Entries)
+            .Select(x => x.TimestampUtc)
+            .OrderByDescending(x => x)
+            .Cast<DateTimeOffset?>()
+            .FirstOrDefault();
+
         var exf = ctx.Exfiltration;
-        var exfTone = exf.ConfirmedCount > 0 ? Tone.Bad : exf.HasAnyIndication ? Tone.Attention : Tone.Ok;
-        var exfVerdict = exf.ConfirmedCount > 0
-            ? $"Да — подтверждено файлов: {exf.ConfirmedCount}"
+        var filesTone = exf.ConfirmedCount > 0
+            ? Tone.Bad
             : exf.HasAnyIndication
-                ? $"Возможно — признаков: {exf.OutboundCount + exf.UndirectedCount}"
-                : "Признаков выноса данных не найдено";
-        answers.Add(new Answer("Уходили ли данные на носители?", exfVerdict, exf.Verdict(), exfTone));
+                ? Tone.Attention
+                : activityDevices > 0 ? Tone.Plain : Tone.Ok;
+        var filesVerdict = activityDevices > 0
+            ? $"Да — {actions} действ.(ий) на {activityDevices} устройствах"
+            : "Следов работы с файлами не найдено";
+        var filesNote = activityDevices > 0
+            ? (lastAction is not null
+                  ? $"Последнее действие: {DateDisplay.FormatMoscow(lastAction.Value)}. "
+                  : string.Empty)
+              + ExfiltrationClause(exf)
+            : "Открытий файлов, папок и запусков программ с носителей среди артефактов нет. " + ExfiltrationClause(exf);
+        answers.Add(new Answer("Работали ли с файлами на носителях?", filesVerdict, filesNote, filesTone));
 
         // Вопрос 3: чистили ли следы.
         var cleanupTone = ctx.HighRiskCount > 0
@@ -81,6 +105,23 @@ internal static class KeyAnswersContent
         answers.Add(new Answer("Чистили ли следы?", cleanupVerdict, ctx.CleanupVerdict(), cleanupTone));
 
         return answers;
+    }
+
+    /// <summary>
+    /// Фраза о выносе данных внутри пояснения ко второму ответу. Когда
+    /// признаков нет, ограничения метода названы прямо: молчание артефактов
+    /// копирования ничего не доказывает, и подавать его зелёным вердиктом нельзя.
+    /// </summary>
+    private static string ExfiltrationClause(ExfiltrationSummary exf)
+    {
+        if (exf.ConfirmedCount > 0 || exf.HasAnyIndication)
+        {
+            return exf.Verdict();
+        }
+
+        return "Признаков копирования на носители нет, но Windows фиксирует копирование "
+               + "лишь при редком стечении условий — отсутствие таких следов не доказывает, "
+               + "что данные не уходили.";
     }
 
     /// <summary>
