@@ -628,7 +628,7 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
         IProgress<string>? progress,
         CancellationToken cancellationToken)
     {
-        // Записи ARP «недостижима» — память о хосте, к��торого сейчас нет в
+        // Записи ARP «недостижима» — память о хосте, которого сейчас нет в
         // сети: спрашивать у него имя бессмысленно, только тянет время.
         var targets = neighbors
             .Where(x => x.Role != NeighborRole.ThisMachine

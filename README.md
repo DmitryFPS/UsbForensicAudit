@@ -233,7 +233,7 @@ UsbForensicAudit/
 │   ├── UsbForensicAudit.Application/      # Use cases, оркестратор, порты, аналитика
 │   └── UsbForensicAudit.Infrastructure/   # Коллекторы, SQLite, PDF, WMI, Win32, Procmon
 ├── tests/
-│   ��── UsbForensicAudit.Tests/            # xUnit, coverlet (1244 тестовых кейса)
+│   └── UsbForensicAudit.Tests/            # xUnit, coverlet (1244 тестовых кейса)
 └── tools/
     ├── diagnostics/                       # Одноразовые .csx-скрипты для отладки
     ├── GenerateIcon/                      # PNG → ICO для сборки
@@ -242,13 +242,13 @@ UsbForensicAudit/
     └── ExternalUtilityHarness/            # Интеграционный harness захвата утилит
 ```
 
-**Папки, ко��орых нет в git** (создаются при сборке/работе): `bin/`, `obj/`, `obj/rid-out/`, `TestResults/`, `.idea/`.
+**Папки, которых нет в git** (создаются при сборке/работе): `bin/`, `obj/`, `obj/rid-out/`, `TestResults/`, `.idea/`.
 
 ---
 
-## Конве����ер сканирования
+## Конвейер сканирования
 
-Цен��ральный use case — `AuditOrchestrator.RunFullScanAsync`. Выполняется в фоне (`Task.Run`), прогресс отдаётся в UI через `IProgress<string>`.
+Центральный use case — `AuditOrchestrator.RunFullScanAsync`. Выполняется в фоне (`Task.Run`), прогресс отдаётся в UI через `IProgress<string>`.
 
 ```text
 1. UsbRegistryCollector              → Devices (USB, USBSTOR, SCSI, WPD, usbflags, все ControlSet)
@@ -549,8 +549,8 @@ Procmon на этапе сборки: `tools\Procmon64.exe` (в `.gitignore`; с
 - SRUM и браузерные артефакты **не считаются прямым доказательством** подключения USB.
 - Корпоративные политики DLP/Endpoint Protection могут скрывать стандартные следы Windows; программа использует дополнительные источники и помечает даты как ориентир.
 - Windows **не всегда** сохраняет физический номер порта; показываются `LocationInformation` / `LocationPaths`, если ОС их отдала.
-- Отсутствие артефакта ≠ факт очистки. Оценивайте findings в совокупности; на вкладке «Доказательства» и в отчёта�� смотрите `EvidenceStrength` и «Уверенность».
-- **Grace period 3 часа** после установки Windows: очистка журналов ОС — норма, статус «Норма: ��С после установки».
+- Отсутствие артефакта ≠ факт очистки. Оценивайте findings в совокупности; на вкладке «Доказательства» и в отчётах смотрите `EvidenceStrength` и «Уверенность».
+- **Grace period 3 часа** после установки Windows: очистка журналов ОС — норма, статус «Норма: ОС после установки».
 - Security **4688** доступен только при включённом аудите создания процессов.
 - Prefetch/Amcache фиксируют **запуск** утилиты, но не доказывают очистку в конкретную секунду.
 - Offline-загрузка hive может не сработать для активного профиля; активные профили анализируются через загруженный `HKU`, ошибка попадает в warnings.

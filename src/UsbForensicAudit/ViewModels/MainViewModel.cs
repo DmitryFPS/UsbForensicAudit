@@ -316,7 +316,7 @@ public partial class MainViewModel : ObservableObject
 
     public static int SeverityRank(string severity)
     {
-        // Делегирует е��иной шкале в Domain — сортировка в UI, HTML и Excel обязана совпадать.
+        // Делегирует единой шкале в Domain — сортировка в UI, HTML и Excel обязана совпадать.
         return ReportSeverity.Rank(severity);
     }
 
