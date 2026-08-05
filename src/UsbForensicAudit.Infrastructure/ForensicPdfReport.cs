@@ -101,6 +101,12 @@ internal static class ForensicPdfReport
     private static void AppendCoverSection(ColumnDescriptor column, ForensicReportContext ctx)
     {
         var result = ctx.Result;
+
+        // Первая страница отвечает на вопросы расследования до любых таблиц:
+        // читатель идёт от вывода к доказательствам, а не наоборот.
+        SectionTitle(column, "Главное — ответы на вопросы расследования");
+        AppendKeyAnswers(column, ctx);
+
         SectionTitle(column, "Метаданные сканирования");
 
         AddKeyValueGrid(column,
@@ -127,9 +133,6 @@ internal static class ForensicPdfReport
         {
             column.Item().PageBreak();
         }
-
-        SectionTitle(column, "Главное — ответы на вопросы расследования");
-        AppendKeyAnswers(column, ctx);
 
         SectionTitle(column, "1. Сводка для расследования");
 
@@ -197,37 +200,34 @@ internal static class ForensicPdfReport
     /// </summary>
     private static void AppendKeyAnswers(ColumnDescriptor column, ForensicReportContext ctx)
     {
-        var externalCount = ctx.ListedDevices.Count(x => x.IsExternalDevice);
-        var devicesText = externalCount == 0
-            ? "Подключали ли внешние носители? Следов не найдено."
-            : $"Подключали ли внешние носители? Да — внешних устройств: {externalCount}."
-              + (ctx.PolicySummary.HasViolations ? $" Нарушений политики: {ctx.PolicySummary.Violations.Count}." : "");
-        AnswerLine(column, devicesText, ctx.PolicySummary.HasViolations ? Colors.Red.Darken2 : Colors.Blue.Darken2);
+        // Вердикты считает общий KeyAnswersContent — тот же, что в HTML
+        // и Excel. Собственная копия логики в PDF уже разошлась однажды:
+        // переносы с неопределённым направлением здесь молча пропускались
+        // (HasFindings/OutboundCount вместо HasAnyIndication/Outbound+Undirected),
+        // и PDF отвечал «признаков не найдено» там, где HTML говорил «возможно».
+        foreach (var answer in KeyAnswersContent.Build(ctx))
+        {
+            var color = answer.Tone switch
+            {
+                KeyAnswersContent.Tone.Bad => Colors.Red.Darken2,
+                KeyAnswersContent.Tone.Attention => Colors.Orange.Darken3,
+                KeyAnswersContent.Tone.Plain => Colors.Blue.Darken2,
+                _ => Colors.Green.Darken2
+            };
+            column.Item().PaddingBottom(1).Text(T($"{answer.Question} {answer.Verdict}."))
+                .FontSize(11).Bold().FontColor(color);
+            column.Item().PaddingBottom(3).Text(T(answer.Note))
+                .FontSize(8).FontColor(Colors.Grey.Darken2);
+        }
 
-        var exf = ctx.Exfiltration;
-        var exfText = exf.ConfirmedCount > 0
-            ? $"Уходили ли данные? Да — подтверждено файлов: {exf.ConfirmedCount}."
-            : exf.HasFindings
-                ? $"Уходили ли данные? Возможно — признаков: {exf.OutboundCount}."
-                : "Уходили ли данные? Признаков не найдено.";
-        AnswerLine(column, exfText,
-            exf.ConfirmedCount > 0 ? Colors.Red.Darken2 : exf.HasFindings ? Colors.Orange.Darken3 : Colors.Green.Darken2);
-
-        var cleanupText = ctx.HighRiskCount > 0
-            ? $"Чистили ли следы? Да, вероятно — находок высокого риска: {ctx.HighRiskCount}."
-            : ctx.SuspiciousCount > 0
-                ? $"Чистили ли следы? Возможно — подозрительных находок: {ctx.SuspiciousCount}."
-                : ctx.AttentionCount > 0
-                    ? $"Чистили ли следы? Явной очистки нет, требуют внимания: {ctx.AttentionCount}."
-                    : "Чистили ли следы? Признаков не найдено.";
-        AnswerLine(column, cleanupText,
-            ctx.HighRiskCount > 0 ? Colors.Red.Darken2
-            : ctx.SuspiciousCount > 0 || ctx.AttentionCount > 0 ? Colors.Orange.Darken3
-            : Colors.Green.Darken2);
+        var startPoints = KeyAnswersContent.StartPoints(ctx)
+            .Select(p => $"{p.Text} — раздел «{p.SectionHint}»")
+            .ToList();
+        column.Item().PaddingTop(2).PaddingBottom(4).Text(T(startPoints.Count > 0
+                ? $"С чего начать проверку: {string.Join("; ", startPoints)}."
+                : "С чего начать: явных приоритетных зацепок нет — просмотрите хронологию событий и список устройств, затем сводку."))
+            .FontSize(8.5f).FontColor(Colors.Blue.Darken3);
     }
-
-    private static void AnswerLine(ColumnDescriptor column, string text, string color) =>
-        column.Item().PaddingBottom(3).Text(T(text)).FontSize(11).Bold().FontColor(color);
 
     private static void AppendIncidentSection(ColumnDescriptor column, ForensicReportContext ctx, bool pageBreakBefore)
     {

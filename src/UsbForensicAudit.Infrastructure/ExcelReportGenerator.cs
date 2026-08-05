@@ -29,6 +29,7 @@ internal static class ExcelReportGenerator
             "Полный отчёт UsbForensicAudit",
             "Полные результаты forensic-аудита USB-устройств");
 
+        AddKeyAnswersSheet(workbook, context);
         AddSummarySheet(workbook, context, isBrief: false);
         AddDevicesSheet(workbook, context.ReportableDevices, "USB устройства");
         AddDeviceActivitySheet(workbook, context);
@@ -58,6 +59,7 @@ internal static class ExcelReportGenerator
             "Сводный отчёт UsbForensicAudit",
             "Краткие результаты forensic-аудита USB-устройств");
 
+        AddKeyAnswersSheet(workbook, context);
         AddSummarySheet(workbook, context, isBrief: true);
         AddCleanupSheet(workbook, context.SuspiciousFindings.Take(20), brief: true);
 
@@ -76,6 +78,78 @@ internal static class ExcelReportGenerator
         workbook.Properties.Company = "UsbForensicAudit";
         workbook.Properties.Comments = $"Все даты представлены в {DateDisplay.ZoneDescription}.";
         return workbook;
+    }
+
+    /// <summary>
+    /// Первый лист книги: три главных ответа расследования и «с чего начать».
+    /// Вердикты даёт общий KeyAnswersContent — тот же, что в HTML и PDF, —
+    /// поэтому форматы не могут разойтись. Вся остальная масса таблиц лежит
+    /// на следующих листах: читатель идёт от вывода к доказательствам.
+    /// </summary>
+    private static void AddKeyAnswersSheet(XLWorkbook workbook, ForensicReportContext context)
+    {
+        var worksheet = workbook.Worksheets.Add("Главное");
+        ConfigureSheet(worksheet);
+        worksheet.Column(1).Width = 38;
+        worksheet.Column(2).Width = 46;
+        worksheet.Column(3).Width = 80;
+
+        AddTitle(
+            worksheet,
+            "Главное — ответы на вопросы расследования",
+            "Итог всего анализа. Доказательства и подробности — на следующих листах книги.",
+            3);
+
+        var row = 4;
+        AddSectionHeader(worksheet, row, 1, 3, "Ответы");
+        row++;
+
+        worksheet.Cell(row, 1).Value = "Вопрос";
+        worksheet.Cell(row, 2).Value = "Ответ";
+        worksheet.Cell(row, 3).Value = "Пояснение";
+        worksheet.Range(row, 1, row, 3).Style.Font.Bold = true;
+        row++;
+
+        foreach (var answer in KeyAnswersContent.Build(context))
+        {
+            worksheet.Cell(row, 1).Value = answer.Question;
+            worksheet.Cell(row, 2).Value = answer.Verdict;
+            worksheet.Cell(row, 3).Value = Normalize(answer.Note);
+            worksheet.Cell(row, 2).Style.Font.Bold = true;
+            worksheet.Cell(row, 2).Style.Font.FontColor = answer.Tone switch
+            {
+                KeyAnswersContent.Tone.Bad => XLColor.FromHtml("#B91C1C"),
+                KeyAnswersContent.Tone.Attention => XLColor.FromHtml("#C2410C"),
+                KeyAnswersContent.Tone.Plain => XLColor.FromHtml("#1D4ED8"),
+                _ => XLColor.FromHtml("#15803D")
+            };
+            worksheet.Cell(row, 3).Style.Alignment.WrapText = true;
+            worksheet.Row(row).Height = ExcelStyleHelper.EstimateRowHeight(
+                [(answer.Note, 80d)], minimum: 20, maximum: 90);
+            row++;
+        }
+
+        row++;
+        AddSectionHeader(worksheet, row, 1, 3, "С чего начать проверку");
+        row++;
+        var startPoints = KeyAnswersContent.StartPoints(context);
+        if (startPoints.Count == 0)
+        {
+            worksheet.Range(row, 1, row, 3).Merge();
+            worksheet.Cell(row, 1).Value =
+                "Явных приоритетных зацепок нет — просмотрите листы «Доказательства» и «USB устройства», затем сводку.";
+            worksheet.Cell(row, 1).Style.Alignment.WrapText = true;
+        }
+        else
+        {
+            foreach (var point in startPoints)
+            {
+                worksheet.Cell(row, 1).Value = point.Text;
+                worksheet.Cell(row, 2).Value = $"подробности: {point.SectionHint}";
+                worksheet.Cell(row, 1).Style.Alignment.WrapText = true;
+                row++;
+            }
+        }
     }
 
     private static void AddSummarySheet(XLWorkbook workbook, ForensicReportContext context, bool isBrief)
@@ -381,7 +455,7 @@ internal static class ExcelReportGenerator
                 Column<NetworkConnectionRecord>("Что нашлось внутри", 28, x => x.ActivityText),
                 Column<NetworkConnectionRecord>("Первое подключение", 24, x => x.FirstSeenText),
                 Column<NetworkConnectionRecord>("Откуда первая дата", 40, x => x.FirstSeenProvenance),
-                Column<NetworkConnectionRecord>("Последнее подключение", 24, x => x.LastSeenText),
+                Column<NetworkConnectionRecord>("Последнее подключени��", 24, x => x.LastSeenText),
                 Column<NetworkConnectionRecord>("Откуда последняя дата", 40, x => x.LastSeenProvenance),
                 Column<NetworkConnectionRecord>("Чем защищено", 34, x => x.SecurityText),
                 Column<NetworkConnectionRecord>("Через что шла связь", 34, x => x.AdapterText),
@@ -497,7 +571,7 @@ internal static class ExcelReportGenerator
                 Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Подключение", 24, x => x.Session.StartedText),
                 Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Отключение", 34, x => x.Session.EndedText),
                 Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Сколько держалось", 20, x => x.Session.DurationText),
-                Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Чем закончилось", 48, x => x.Session.OutcomeText),
+                Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Чем законч��лось", 48, x => x.Session.OutcomeText),
                 Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Подробности", 62, x => x.Session.ReasonText),
                 Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Учётная запись", 26, x => x.Session.Account),
                 Column<(NetworkConnectionRecord Connection, NetworkSession Session)>("Откуда взято", 34, x => x.Session.SourceText),

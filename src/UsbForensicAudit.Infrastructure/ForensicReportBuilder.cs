@@ -200,67 +200,25 @@ internal static class ForensicReportBuilder
         html.AppendLine("<h2 id=\"answers\">Главное — ответы на вопросы расследования</h2>");
         html.AppendLine("<div class=\"answers\">");
 
-        // Вопрос 1: что подключали.
-        var externalDevices = ctx.ListedDevices.Where(x => x.IsExternalDevice).ToArray();
-        var lastSeen = externalDevices
-            .Select(x => x.LastSeenUtc)
-            .Where(x => x is not null)
-            .OrderByDescending(x => x)
-            .FirstOrDefault();
-        var devicesClass = ctx.PolicySummary.HasViolations ? "bad" : externalDevices.Length > 0 ? "plain" : "ok";
-        var devicesVerdict = externalDevices.Length == 0
-            ? "Следов внешних носителей не найдено"
-            : $"Да — внешних устройств: {externalDevices.Length}";
-        var devicesNote = externalDevices.Length == 0
-            ? "Ни флешек, ни внешних дисков, ни телефонов среди следов нет. Отсутствие следов не доказывает отсутствие подключений."
-            : (lastSeen is not null
-                ? $"Последняя активность внешнего устройства: {DateDisplay.FormatMoscow(lastSeen.Value)}."
-                : "Точное время последней активности определить не удалось.")
-              + (ctx.PolicySummary.HasViolations
-                  ? $" Нарушений политики устройств: {ctx.PolicySummary.Violations.Count} — см. раздел о политике."
-                  : " Подробности — в разделах об устройствах и досье.");
-        AppendAnswerCard(html, devicesClass, "Подключали ли внешние носители?", devicesVerdict, devicesNote);
-
-        // Вопрос 2: уходили ли данные. Переносы с неопределённым направлением
-        // считаются признаками наравне с выносом — раньше карточка отвечала
-        // «признаков не найдено», даже когда такие переносы были.
-        var exf = ctx.Exfiltration;
-        var exfClass = exf.ConfirmedCount > 0 ? "bad" : exf.HasAnyIndication ? "attn" : "ok";
-        var exfVerdict = exf.ConfirmedCount > 0
-            ? $"Да — подтверждено файлов: {exf.ConfirmedCount}"
-            : exf.HasAnyIndication
-                ? $"Возможно — признаков: {exf.OutboundCount + exf.UndirectedCount}"
-                : "Признаков выноса данных не найдено";
-        AppendAnswerCard(html, exfClass, "Уходили ли данные на носители?", exfVerdict, exf.Verdict());
-
-        // Вопрос 3: чистили ли следы.
-        var cleanupClass = ctx.HighRiskCount > 0 ? "bad" : ctx.SuspiciousCount > 0 || ctx.AttentionCount > 0 ? "attn" : "ok";
-        var cleanupVerdict = ctx.HighRiskCount > 0
-            ? $"Да, вероятно — находок высокого риска: {ctx.HighRiskCount}"
-            : ctx.SuspiciousCount > 0
-                ? $"Возможно — подозрительных находок: {ctx.SuspiciousCount}"
-                : ctx.AttentionCount > 0
-                    ? $"Явной очистки нет, но есть {ctx.AttentionCount} наход(ок), требующих внимания"
-                    : "Признаков очистки следов не найдено";
-        AppendAnswerCard(html, cleanupClass, "Чистили ли следы?", cleanupVerdict, ctx.CleanupVerdict());
+        // Вердикты считает общий для всех форматов KeyAnswersContent —
+        // HTML лишь раскрашивает карточки и добавляет отсылки к вкладкам.
+        foreach (var answer in KeyAnswersContent.Build(ctx))
+        {
+            var cssClass = answer.Tone switch
+            {
+                KeyAnswersContent.Tone.Bad => "bad",
+                KeyAnswersContent.Tone.Attention => "attn",
+                KeyAnswersContent.Tone.Plain => "plain",
+                _ => "ok"
+            };
+            AppendAnswerCard(html, cssClass, answer.Question, answer.Verdict, answer.Note);
+        }
 
         html.AppendLine("</div>");
 
-        var startPoints = new List<string>();
-        if (ctx.HighRiskCount > 0)
-        {
-            startPoints.Add($"находки высокого риска ({ctx.HighRiskCount}) — вкладка «Инциденты и очистка»");
-        }
-
-        if (exf.ConfirmedCount > 0)
-        {
-            startPoints.Add($"файлы с подтверждённым копированием на носитель ({exf.ConfirmedCount}) — вкладка «Инциденты и очистка», раздел о выносе данных");
-        }
-
-        if (ctx.PolicySummary.HasViolations)
-        {
-            startPoints.Add($"нарушения политики устройств ({ctx.PolicySummary.Violations.Count}) — вкладка «Инциденты и очистка», раздел о политике");
-        }
+        var startPoints = KeyAnswersContent.StartPoints(ctx)
+            .Select(p => $"{p.Text} — вкладка «Инциденты и очистка», раздел «{p.SectionHint}»")
+            .ToList();
 
         html.AppendLine(startPoints.Count > 0
             ? $"<div class=\"note\"><b>С чего начать проверку:</b> {E(string.Join("; ", startPoints))}.</div>"
