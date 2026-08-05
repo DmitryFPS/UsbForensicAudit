@@ -43,9 +43,6 @@ internal static class ForensicReportBuilder
             .card{border:1px solid #d1d5db;border-radius:10px;padding:14px 16px;margin:14px 0;background:#fff}
             .muted{color:#6b7280}
             .toc ol{margin:8px 0 0;padding-left:22px}
-            body{counter-reset:sec}
-            h2{counter-increment:sec}
-            h2::before{content:counter(sec) ". "}
             .answers{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0}
             .answer{border:2px solid;border-radius:12px;padding:14px 16px}
             .answer .q{font-size:12px;color:#6b7280;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em}
@@ -62,7 +59,15 @@ internal static class ForensicReportBuilder
             details.fold{margin:10px 0}
             details.fold>summary{cursor:pointer;font-weight:600;color:#1d4ed8;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:13px}
             details.fold[open]>summary{margin-bottom:8px}
-            @media print{body{margin:12px} th{position:static} .answers{grid-template-columns:1fr 1fr 1fr}}
+            .tabbar{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0 0;border-bottom:2px solid #dbeafe;padding-bottom:0;position:sticky;top:0;background:#fff;z-index:10}
+            .tabbar button{font:600 13px Segoe UI,Arial,sans-serif;color:#374151;background:#f8fafc;border:1px solid #dbeafe;border-bottom:none;border-radius:8px 8px 0 0;padding:9px 14px;cursor:pointer}
+            .tabbar button:hover{background:#eff6ff}
+            .tabbar button.active{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+            .panel{display:none;animation:fadein .15s ease}
+            .panel.active{display:block}
+            .panel-hint{margin:14px 0 0;font-size:12px;color:#6b7280}
+            @keyframes fadein{from{opacity:.4}to{opacity:1}}
+            @media print{body{margin:12px} th{position:static} .answers{grid-template-columns:1fr 1fr 1fr} .tabbar{display:none} .panel{display:block}}
             </style></head><body>
             """);
 
@@ -87,55 +92,90 @@ internal static class ForensicReportBuilder
         html.AppendLine($"<span class=\"muted\">{E(result.ReferenceImage.Describe())}</span>");
         html.AppendLine("</div>");
 
-        html.AppendLine("<nav class=\"toc\"><b>Содержание</b><ol>");
-        html.AppendLine("<li><a href=\"#answers\">Главное — ответы на вопросы расследования</a></li>");
-        html.AppendLine("<li><a href=\"#summary\">Сводка для расследования</a></li>");
-        html.AppendLine("<li><a href=\"#incidents\">Возможные инциденты</a></li>");
-        html.AppendLine("<li><a href=\"#exfiltration\">Вынос данных на съёмные носители</a></li>");
-        html.AppendLine("<li><a href=\"#usb-exec-hashes\">Хеши исполняемых файлов со съёмных носителей</a></li>");
-        html.AppendLine("<li><a href=\"#mitre\">Сопоставление с MITRE ATT&amp;CK</a></li>");
-        if (ctx.PolicySummary.PolicyDefined)
+        // Отчёт разбит на вкладки: первой открывается «Главное» с прямыми
+        // ответами, остальная масса таблиц разнесена по темам. Так читатель
+        // идёт от вывода к доказательствам, а не тонет в простыне. При печати
+        // вкладки исчезают и все разделы выводятся подряд — бумажная копия полная.
+        var tabs = new List<(string Id, string Title, Action Body)>
         {
-            html.AppendLine("<li><a href=\"#policy\">Соответствие политике устройств</a></li>");
-        }
-        html.AppendLine("<li><a href=\"#cleanup\">Все признаки очистки</a></li>");
-        html.AppendLine("<li><a href=\"#devices\">USB-устройства</a></li>");
-        html.AppendLine("<li><a href=\"#dossiers\">Досье устройств</a></li>");
-        html.AppendLine("<li><a href=\"#timeline\">Хронология событий</a></li>");
-        html.AppendLine("<li><a href=\"#evidence\">Журнал доказательств</a></li>");
-        html.AppendLine("<li><a href=\"#network\">Сетевые подключения и куда по ним ходили</a></li>");
-        html.AppendLine("<li><a href=\"#network-environment\">Обстановка вокруг машины (снимок)</a></li>");
-        html.AppendLine("<li><a href=\"#warnings\">Предупреждения и ограничения сбора</a></li>");
-        html.AppendLine("<li><a href=\"#methodology\">Источники данных</a></li>");
-        if (ctx.ExternalUtilitySnapshot is not null && (ctx.ExternalUtilitySnapshot.Rows.Count > 0 || ctx.ExternalUtilitySnapshot.HistoricalLaunches.Count > 0))
-        {
-            html.AppendLine("<li><a href=\"#external-utils\">Сторонние утилиты</a></li>");
-        }
-        html.AppendLine("</ol></nav>");
+            ("tab-main", "Главное", () => AppendKeyAnswersSection(html, ctx)),
+            ("tab-incidents", "Инциденты и очистка", () =>
+            {
+                AppendIncidentSection(html, ctx);
+                AppendExfiltrationSection(html, ctx);
+                AppendCleanupSection(html, ctx);
+                AppendMitreSection(html, ctx);
+                AppendPolicySection(html, ctx);
+            }),
+            ("tab-devices", "Устройства", () =>
+            {
+                AppendDevicesSection(html, ctx);
+                AppendDossiersSection(html, ctx);
+                AppendUsbExecutableHashesSection(html, ctx);
+            }),
+            ("tab-timeline", "Хронология и доказательства", () =>
+            {
+                AppendTimelineSection(html, ctx);
+                AppendEvidenceSection(html, ctx);
+            }),
+            ("tab-network", "Сеть", () =>
+            {
+                AppendNetworkSection(html, ctx);
+                AppendNetworkEnvironmentSection(html, ctx);
+            }),
+            ("tab-reference", "Сводка и методика", () =>
+            {
+                AppendSummarySection(html, ctx);
+                AppendWarningsSection(html, result);
+                AppendMethodologySection(html);
+                if (ctx.ExternalUtilitySnapshot is not null)
+                {
+                    AppendExternalUtilitiesSection(html, ctx.ExternalUtilitySnapshot);
+                }
+            })
+        };
 
-        AppendKeyAnswersSection(html, ctx);
-        AppendSummarySection(html, ctx);
-        AppendIncidentSection(html, ctx);
-        AppendExfiltrationSection(html, ctx);
-        AppendUsbExecutableHashesSection(html, ctx);
-        AppendMitreSection(html, ctx);
-        AppendPolicySection(html, ctx);
-        AppendCleanupSection(html, ctx);
-        AppendDevicesSection(html, ctx);
-        AppendDossiersSection(html, ctx);
-        AppendTimelineSection(html, ctx);
-        AppendEvidenceSection(html, ctx);
-        AppendNetworkSection(html, ctx);
-        AppendNetworkEnvironmentSection(html, ctx);
-        AppendWarningsSection(html, result);
-        AppendMethodologySection(html);
-        if (ctx.ExternalUtilitySnapshot is not null)
+        html.AppendLine("<div class=\"tabbar\" role=\"tablist\">");
+        foreach (var (id, title, _) in tabs)
         {
-            AppendExternalUtilitiesSection(html, ctx.ExternalUtilitySnapshot);
+            html.AppendLine($"<button type=\"button\" role=\"tab\" data-tab=\"{id}\">{E(title)}</button>");
         }
 
-        // Перед печатью все свёрнутые блоки раскрываются: бумажная копия обязана быть полной.
-        html.AppendLine("<script>window.addEventListener('beforeprint',function(){var a=document.querySelectorAll('details');for(var i=0;i<a.length;i++){a[i].open=true;}});</script>");
+        html.AppendLine("</div>");
+
+        foreach (var (id, _, body) in tabs)
+        {
+            html.AppendLine($"<section class=\"panel\" id=\"{id}\" role=\"tabpanel\">");
+            body();
+            html.AppendLine("</section>");
+        }
+
+        // Скрипт вкладок: переключение по кнопкам; переход по внутренней ссылке
+        // (например, «см. раздел о политике») сам открывает нужную вкладку;
+        // перед печатью все свёрнутые блоки раскрываются — бумага обязана быть полной.
+        html.AppendLine("""
+            <script>
+            (function(){
+              var buttons=document.querySelectorAll('.tabbar button');
+              function activate(id){
+                for(var i=0;i<buttons.length;i++){buttons[i].classList.toggle('active',buttons[i].dataset.tab===id);}
+                var panels=document.querySelectorAll('.panel');
+                for(var j=0;j<panels.length;j++){panels[j].classList.toggle('active',panels[j].id===id);}
+              }
+              for(var i=0;i<buttons.length;i++){buttons[i].addEventListener('click',function(){activate(this.dataset.tab);window.scrollTo(0,0);});}
+              document.addEventListener('click',function(e){
+                var a=e.target.closest?e.target.closest('a[href^="#"]'):null;
+                if(!a){return;}
+                var target=document.getElementById(a.getAttribute('href').slice(1));
+                if(!target){return;}
+                var panel=target.closest('.panel');
+                if(panel&&!panel.classList.contains('active')){activate(panel.id);}
+              });
+              activate('tab-main');
+              window.addEventListener('beforeprint',function(){var d=document.querySelectorAll('details');for(var k=0;k<d.length;k++){d[k].open=true;}});
+            })();
+            </script>
+            """);
         html.AppendLine("</body></html>");
         return html.ToString();
     }
@@ -209,22 +249,26 @@ internal static class ForensicReportBuilder
         var startPoints = new List<string>();
         if (ctx.HighRiskCount > 0)
         {
-            startPoints.Add($"находки высокого риска ({ctx.HighRiskCount}) — раздел «Возможные инциденты»");
+            startPoints.Add($"находки высокого риска ({ctx.HighRiskCount}) — вкладка «Инциденты и очистка»");
         }
 
         if (exf.ConfirmedCount > 0)
         {
-            startPoints.Add($"файлы с подтверждённым копированием на носитель ({exf.ConfirmedCount}) — раздел «Вынос данных»");
+            startPoints.Add($"файлы с подтверждённым копированием на носитель ({exf.ConfirmedCount}) — вкладка «Инциденты и очистка», раздел о выносе данных");
         }
 
         if (ctx.PolicySummary.HasViolations)
         {
-            startPoints.Add($"нарушения политики устройств ({ctx.PolicySummary.Violations.Count}) — раздел о политике");
+            startPoints.Add($"нарушения политики устройств ({ctx.PolicySummary.Violations.Count}) — вкладка «Инциденты и очистка», раздел о политике");
         }
 
         html.AppendLine(startPoints.Count > 0
             ? $"<div class=\"note\"><b>С чего начать проверку:</b> {E(string.Join("; ", startPoints))}.</div>"
-            : "<div class=\"note\"><b>С чего начать:</b> явных приоритетных зацепок нет — просмотрите хронологию событий и список устройств, затем сводку.</div>");
+            : "<div class=\"note\"><b>С чего начать:</b> явных приоритетных зацепок нет — просмотрите вкладку «Хронология и доказательства» и список устройств, затем сводку.</div>");
+
+        html.AppendLine("<p class=\"panel-hint\">Это главная страница отчёта: три ответа выше — итог всего анализа. "
+                        + "Доказательства и подробности разнесены по вкладкам сверху: инциденты и очистка следов, "
+                        + "устройства, хронология, сеть. Полные технические данные — во вкладке «Сводка и методика».</p>");
     }
 
     private static void AppendAnswerCard(StringBuilder html, string cssClass, string question, string verdict, string note)
