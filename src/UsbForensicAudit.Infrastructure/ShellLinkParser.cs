@@ -49,7 +49,10 @@ public sealed class ShellLinkInfo
 
         var normalizedLeft = left.Replace('/', '\\').TrimEnd('\\');
         var normalizedRight = right.Replace('/', '\\').TrimStart('\\');
-        return Path.Join(normalizedLeft, normalizedRight);
+        // Ярлык описывает путь Windows, поэтому разделитель всегда «\».
+        // Path.Join подставлял разделитель текущей ОС: при анализе артефактов
+        // не на Windows цель ярлыка получала «/» в середине пути.
+        return normalizedLeft + "\\" + normalizedRight;
     }
 }
 

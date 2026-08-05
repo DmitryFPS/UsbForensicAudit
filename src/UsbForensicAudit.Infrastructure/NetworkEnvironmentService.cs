@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.NetworkInformation;
@@ -581,6 +582,7 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
 
             var parts = adapter.Subnet.Split('/');
             if (parts.Length != 2 || !IPAddress.TryParse(parts[0], out var network)
+                || network.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork
                 || !int.TryParse(parts[1], out var prefix) || prefix > 24)
             {
                 continue;
@@ -592,10 +594,18 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
                 continue;
             }
 
+            // Байты IPv4 идут в сетевом порядке (старший первым), поэтому для
+            // арифметики адресов число собирается как big-endian. Раньше здесь
+            // стоял BitConverter (little-endian на x86): прибавление offset
+            // увеличивало ПЕРВЫЙ октет адреса, и вместо 192.168.1.1, .2, .3
+            // опрашивались несуществующие 193.168.1.0, 194.168.1.0 и т.д.
             var networkBytes = network.GetAddressBytes();
-            var baseValue = BitConverter.ToUInt32(networkBytes, 0);
+            var baseValue = BinaryPrimitives.ReadUInt32BigEndian(networkBytes);
             var own = adapter.Addresses
-                .Select(x => IPAddress.TryParse(x, out var parsed) ? BitConverter.ToUInt32(parsed.GetAddressBytes(), 0) : 0u)
+                .Select(x => IPAddress.TryParse(x, out var parsed)
+                             && parsed.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                    ? BinaryPrimitives.ReadUInt32BigEndian(parsed.GetAddressBytes())
+                    : 0u)
                 .ToHashSet();
 
             for (uint offset = 1; offset < hostCount - 1; offset++)
@@ -606,7 +616,9 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
                     continue;
                 }
 
-                yield return new IPAddress(BitConverter.GetBytes(value)).ToString();
+                var addressBytes = new byte[4];
+                BinaryPrimitives.WriteUInt32BigEndian(addressBytes, value);
+                yield return new IPAddress(addressBytes).ToString();
             }
         }
     }
@@ -616,7 +628,7 @@ public sealed class NetworkEnvironmentService : INetworkEnvironmentService
         IProgress<string>? progress,
         CancellationToken cancellationToken)
     {
-        // Записи ARP «недостижима» — память о хосте, которого сейчас нет в
+        // Записи ARP «недостижима» — память о хосте, к��торого сейчас нет в
         // сети: спрашивать у него имя бессмысленно, только тянет время.
         var targets = neighbors
             .Where(x => x.Role != NeighborRole.ThisMachine

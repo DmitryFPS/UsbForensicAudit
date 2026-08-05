@@ -78,7 +78,12 @@ public static class ExternalUtilityRegistrySourceTracer
                     continue;
                 }
 
-                foreach (var instance in root.OpenSubKey(familyName)?.GetSubKeyNames().Take(maxHits) ?? [])
+                // Промежуточный ключ закрывается явно: цепочка OpenSubKey(...)?.
+                // GetSubKeyNames() оставляла нативный дескриптор открытым
+                // до сборки мусора — на машинах с сотнями USB-семейств
+                // дескрипторы копились за одно сканирование.
+                using var familyKey = root.OpenSubKey(familyName);
+                foreach (var instance in familyKey?.GetSubKeyNames().Take(maxHits) ?? [])
                 {
                     matches.Add($@"HKLM\{rootPath}\{familyName}\{instance}");
                     if (matches.Count >= maxHits)
