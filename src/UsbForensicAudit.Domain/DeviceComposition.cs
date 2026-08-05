@@ -21,12 +21,27 @@ public static class DeviceComposition
 
     /// <summary>
     /// Запись, которую список по умолчанию не показывает. Скрывается ровно то,
-    /// что уже видно в другом месте: неглавные записи своего устройства и части
-    /// самой машины — концентраторы, контроллеры, служебные узлы шины.
+    /// что уже видно в другом месте: неглавные записи своего устройства, части
+    /// самой машины — концентраторы, контроллеры, служебные узлы шины — и метки
+    /// томов MountedDevices, не указывающие на съёмный носитель.
     /// </summary>
     public static bool IsFoldedByDefault(UsbDeviceRecord device) =>
         (!device.IsCanonicalPrimary && !string.IsNullOrWhiteSpace(device.CanonicalDeviceId))
-        || device.Externality == DeviceExternality.BusInfrastructure;
+        || device.Externality == DeviceExternality.BusInfrastructure
+        || IsInternalVolumeMapping(device);
+
+    /// <summary>
+    /// Служебная метка тома из MountedDevices, за которой не стоит съёмный
+    /// носитель: Volume GUID или буква внутреннего диска. Для аудита USB это
+    /// внутренняя бухгалтерия Windows — по умолчанию она скрыта. Метки,
+    /// указывающие на съёмный USB-носитель, остаются в списке: они привязывают
+    /// букву диска к конкретной флешке, что важно для доказательств.
+    /// </summary>
+    public static bool IsInternalVolumeMapping(UsbDeviceRecord device) =>
+        device.DeviceType == "VolumeMapping"
+        && !device.Volumes.Any(v =>
+            v.DevicePath.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase)
+            || v.DevicePath.Contains("RemovableMedia", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Записи, свёрнутые в эту. Порядок — от услуг и граней устройства к прочим

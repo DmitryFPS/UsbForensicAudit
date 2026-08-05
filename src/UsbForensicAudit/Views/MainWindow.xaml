@@ -515,7 +515,7 @@
                                           Foreground="{StaticResource TextMuted}"
                                           VerticalAlignment="Center"
                                           Margin="16,0,0,0"
-                                          ToolTip="Вернёт в список услуги сопряжённых устройств, грани составных устройств и части шины: концентраторы, контроллеры, служебные узлы."
+                                          ToolTip="Вернёт в список служебные записи: услуги сопряжённых устройств, грани составных устройств, части шины (концентраторы, контроллеры, служебные узлы) и метки томов внутренних дисков."
                                           Checked="AllRecordsCheck_Changed"
                                           Unchecked="AllRecordsCheck_Changed"/>
                             </StackPanel>
@@ -631,7 +631,7 @@
                 <DockPanel Margin="0,8,0,0">
                     <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock Text="Здесь связи этой машины с внешним миром: сети Wi-Fi и провод, туннели VPN, мобильный интернет, пары по Bluetooth, серверы с сетевыми папками, узлы удалённого рабочего стола и сайты."
+                            <TextBlock Text="Здесь связи этой машины с ��нешним миром: сети Wi-Fi и провод, туннели VPN, мобильный интернет, пары по Bluetooth, серверы с сетевыми папками, узлы удалённого рабочего стола и сайты."
                                        Foreground="{StaticResource TextMain}"
                                        TextWrapping="Wrap"/>
                             <TextBlock Text="{Binding NetworkSummary}"
@@ -1096,7 +1096,7 @@
                               CellStyle="{StaticResource ExplainedDataGridCellStyle}">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampText}" Width="150"/>
-                            <DataGridTextColumn Header="Тип действия" Binding="{Binding ActionKindText}" Width="150"/>
+                            <DataGridTextColumn Header="Тип действ��я" Binding="{Binding ActionKindText}" Width="150"/>
                             <DataGridTextColumn Header="Статус" Binding="{Binding AssessmentText}" Width="170"/>
                             <DataGridTextColumn Header="Инициатор" Binding="{Binding InitiatorText}" Width="200"/>
                             <DataGridTextColumn Header="Инструмент" Binding="{Binding PossibleToolText}" Width="170"/>

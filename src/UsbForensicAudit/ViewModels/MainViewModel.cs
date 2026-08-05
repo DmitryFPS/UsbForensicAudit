@@ -287,8 +287,9 @@ public partial class MainViewModel : ObservableObject
         return $"Принесённых устройств: {media + peripheral} "
                + $"(носителей и телефонов — {media}, прочей внешней периферии — {peripheral}). "
                + $"Ещё {possible} записей на шине USB, где отличить внешнее устройство от встроенного по следам нельзя. "
-               + $"Строк в таблице: {shown.Count}. Свёрнуто в них записей реестра: {folded} — "
-               + "услуги сопряжённых устройств, грани составных устройств и части шины.";
+               + $"Строк в таблице: {shown.Count}. Скрыто служебных записей реестра: {folded} — "
+               + "услуги сопряжённых устройств, грани составных устройств, части шины "
+               + "и метки томов внутренних дисков.";
     }
 
     /// <summary>
@@ -315,7 +316,7 @@ public partial class MainViewModel : ObservableObject
 
     public static int SeverityRank(string severity)
     {
-        // Делегирует единой шкале в Domain — сортировка в UI, HTML и Excel обязана совпадать.
+        // Делегирует е��иной шкале в Domain — сортировка в UI, HTML и Excel обязана совпадать.
         return ReportSeverity.Rank(severity);
     }
 

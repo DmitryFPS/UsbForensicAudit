@@ -16,6 +16,9 @@ public sealed class DeviceCountConsistencyTests
         var result = new AuditResult();
 
         // Реальный USB-носитель — попадает и в Обзор, и в отчёт.
+        // IsCanonicalPrimary обязателен: в реальном приложении главную запись
+        // устройства помечает коллектор, а без пометки правило сворачивания
+        // прячет запись как «неглавную» — и хелпер возвращал пустой список.
         result.Devices.Add(new UsbDeviceRecord
         {
             DeviceKind = DeviceKindResolver.Storage,
@@ -23,7 +26,8 @@ public sealed class DeviceCountConsistencyTests
             Transport = "MSC/USBSTOR",
             Serial = "USB-1",
             DeviceInstanceId = @"USBSTOR\Disk&Ven\USB-1",
-            CanonicalDeviceId = "canon-usb-1"
+            CanonicalDeviceId = "canon-usb-1",
+            IsCanonicalPrimary = true
         });
 
         // Ещё один внешний носитель.
@@ -34,7 +38,8 @@ public sealed class DeviceCountConsistencyTests
             Transport = "MSC/USBSTOR",
             Serial = "USB-2",
             DeviceInstanceId = @"USBSTOR\Disk&Ven\USB-2",
-            CanonicalDeviceId = "canon-usb-2"
+            CanonicalDeviceId = "canon-usb-2",
+            IsCanonicalPrimary = true
         });
 
         return result;
