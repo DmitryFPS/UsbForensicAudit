@@ -12,5 +12,15 @@
     <NuGetAuditMode>all</NuGetAuditMode>
     <NuGetAuditLevel>moderate</NuGetAuditLevel>
     <Deterministic>true</Deterministic>
+    <!--
+      apphost .NET 9+ по умолчанию ставит /CETCOMPAT. На процессорах с поддержкой CET
+      (Intel Tiger Lake и новее, AMD Zen 3 и новее) в паре с ntdll.dll без исправления
+      из KB5044273 CoreCLR завершает процесс через RaiseFailFastException (0xc0000602)
+      ещё до показа окна — dotnet/runtime#110920. Программа рассчитана на изолированные
+      рабочие места, которые не обновляются годами (встречалась Windows 10 22H2 сборки
+      19045.2486), поэтому CET отключается на стороне сборки. Прежние сборки на .NET 8
+      этого флага не имели и на тех же машинах работали.
+    -->
+    <CETCompat>false</CETCompat>
   </PropertyGroup>
 </Project>

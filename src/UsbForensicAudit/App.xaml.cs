@@ -13,8 +13,21 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Обработчики и журнал ставятся раньше любой тяжёлой работы: до этого
+        // сбой на недоступной машине не оставлял в app.log ни одной строки.
+        RegisterGlobalExceptionHandlers();
+
+        AppLog.Info("Application startup");
+        AppLog.BeginSession();
+        AppLog.WriteEnvironment();
+        InteractionLog.Attach();
+
+        SessionEnding += (_, args) =>
+            AppLog.Info($"Windows завершает сеанс пользователя: {args.ReasonSessionEnding}");
+
         if (!AdminHelper.IsAdministrator())
         {
+            AppLog.Stage("Выход: нет прав администратора");
             MessageBox.Show(
                 "Данное приложение можно открыть только с правами администратора.\n\n" +
                 "Закройте это сообщение и запустите программу от имени администратора.",
@@ -33,8 +46,46 @@ public partial class App : Application
         // расходилась с настенными часами и путала чтение таймлайна.
         DateDisplay.DisplayZone = TimeZoneInfo.Local;
 
-        EndpointProtectionState.IsProtectionActive = EndpointProtectionEnvironment.IsProtectionActive;
+        // Только запуск опроса: результат нужен при сканировании и в отчётах,
+        // а ждать WMI до появления окна нельзя — именно на этом приложение зависало.
+        EndpointProtectionEnvironment.BeginProbe();
+        AppLog.Stage($"Корпоративная защита USB установлена={EndpointProtectionEnvironment.IsInstalled}, опрос идёт в фоне");
 
+        AppLog.Stage("Сборка контейнера зависимостей");
+        _host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddApplicationServices();
+                services.AddInfrastructureServices();
+                services.AddSingleton<MainViewModel>();
+                services.AddSingleton<MainWindow>();
+            })
+            .Build();
+
+        AppLog.Stage("Создание главного окна и хранилища");
+        var mainWindow = _host.Services.GetRequiredService<MainWindow>();
+
+        AppLog.Stage("Показ главного окна");
+        mainWindow.ContentRendered += LogFirstRender;
+        DarkWindowChrome.Apply(mainWindow, hideUntilReady: true);
+        mainWindow.Show();
+
+        AppLog.Stage("OnStartup завершён, управление передано циклу сообщений");
+    }
+
+    private void LogFirstRender(object? sender, EventArgs e)
+    {
+        if (sender is Window window)
+        {
+            window.ContentRendered -= LogFirstRender;
+        }
+
+        AppLog.Stage("Окно отрисовано, приложение готово к работе");
+        InteractionLog.MarkReady();
+    }
+
+    private void RegisterGlobalExceptionHandlers()
+    {
         DispatcherUnhandledException += (_, args) =>
         {
             AppLog.Error(args.Exception, "Unhandled UI exception");
@@ -59,26 +110,11 @@ public partial class App : Application
             AppLog.Error(args.Exception, "Unobserved task exception");
             args.SetObserved();
         };
-
-        AppLog.Info("Application startup");
-
-        _host = Host.CreateDefaultBuilder()
-            .ConfigureServices(services =>
-            {
-                services.AddApplicationServices();
-                services.AddInfrastructureServices();
-                services.AddSingleton<MainViewModel>();
-                services.AddSingleton<MainWindow>();
-            })
-            .Build();
-
-        var mainWindow = _host.Services.GetRequiredService<MainWindow>();
-        DarkWindowChrome.Apply(mainWindow, hideUntilReady: true);
-        mainWindow.Show();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        AppLog.EndSession($"код выхода {e.ApplicationExitCode}");
         _host?.Dispose();
         base.OnExit(e);
     }

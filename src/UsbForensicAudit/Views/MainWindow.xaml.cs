@@ -429,10 +429,15 @@ public partial class MainWindow : Window
     {
         ActivityLogTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
         ActivityLogTextBox.ScrollToEnd();
+
+        // Журнал работы виден только в окне и пропадает вместе с ним. Копия в app.log
+        // позволяет разобрать сеанс на машине, куда нет доступа.
+        AppLog.Ui(message);
     }
 
     protected override void OnClosed(EventArgs e)
     {
+        AppLog.Stage("Главное окно закрыто, освобождение ресурсов");
         _lifetimeCancellation.Cancel();
         // Явная отписка: время жизни окна не должно зависеть от того,
         // отписывает ли WmiUsbMonitor.Dispose внешних подписчиков.
