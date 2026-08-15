@@ -34,9 +34,9 @@
       },
       "QuestPDF": {
         "type": "Direct",
-        "requested": "[2026.7.1, )",
-        "resolved": "2026.7.1",
-        "contentHash": "GsBxQb48dFAGmvI1eP3SHyz0Pua4uH6aUHX7f0ywTin6hordAviZRAiTiIQiKMLwq6hN1FmgS+qLjfh2v7vhOg=="
+        "requested": "[2026.7.3, )",
+        "resolved": "2026.7.3",
+        "contentHash": "MYpJrSLwUkgaX/POQj+9GY8QreFoLXjHCiUPCNl0XrHF+nLDT9KeUFZbeaUNu1P5spt5QeYzCbf2tDF0z5idHg=="
       },
       "SQLitePCLRaw.lib.e_sqlite3": {
         "type": "Direct",
@@ -48,10 +48,7 @@
         "type": "Direct",
         "requested": "[10.0.10, )",
         "resolved": "10.0.10",
-        "contentHash": "U13ksdXfQlF2WDdu3S4ZPVpikFs2HgV3dbJJZLeZpBIQ4z/xCmQnwEf6LsEEIC2zSamVVa1acA9RdVhZwnWKeA==",
-        "dependencies": {
-          "System.CodeDom": "10.0.10"
-        }
+        "contentHash": "U13ksdXfQlF2WDdu3S4ZPVpikFs2HgV3dbJJZLeZpBIQ4z/xCmQnwEf6LsEEIC2zSamVVa1acA9RdVhZwnWKeA=="
       },
       "ClosedXML.Parser": {
         "type": "Transitive",
@@ -116,11 +113,6 @@
           "SQLitePCLRaw.core": "2.1.11"
         }
       },
-      "System.CodeDom": {
-        "type": "Transitive",
-        "resolved": "10.0.10",
-        "contentHash": "lru5igKxs4OgWKfMeOpMAYpfB1tNSSXHk2zyiSDO/h0u8RVAhN6KqW9d3ANybDB+ePIHg6HM/NlE8HlpOk4k5A=="
-      },
       "usbforensicaudit.application": {
         "type": "Project",
         "dependencies": {
@@ -135,9 +127,9 @@
     "net10.0-windows7.0/win-x64": {
       "QuestPDF": {
         "type": "Direct",
-        "requested": "[2026.7.1, )",
-        "resolved": "2026.7.1",
-        "contentHash": "GsBxQb48dFAGmvI1eP3SHyz0Pua4uH6aUHX7f0ywTin6hordAviZRAiTiIQiKMLwq6hN1FmgS+qLjfh2v7vhOg=="
+        "requested": "[2026.7.3, )",
+        "resolved": "2026.7.3",
+        "contentHash": "MYpJrSLwUkgaX/POQj+9GY8QreFoLXjHCiUPCNl0XrHF+nLDT9KeUFZbeaUNu1P5spt5QeYzCbf2tDF0z5idHg=="
       },
       "SQLitePCLRaw.lib.e_sqlite3": {
         "type": "Direct",
@@ -149,10 +141,7 @@
         "type": "Direct",
         "requested": "[10.0.10, )",
         "resolved": "10.0.10",
-        "contentHash": "U13ksdXfQlF2WDdu3S4ZPVpikFs2HgV3dbJJZLeZpBIQ4z/xCmQnwEf6LsEEIC2zSamVVa1acA9RdVhZwnWKeA==",
-        "dependencies": {
-          "System.CodeDom": "10.0.10"
-        }
+        "contentHash": "U13ksdXfQlF2WDdu3S4ZPVpikFs2HgV3dbJJZLeZpBIQ4z/xCmQnwEf6LsEEIC2zSamVVa1acA9RdVhZwnWKeA=="
       }
     }
   }
