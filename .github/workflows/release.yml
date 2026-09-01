@@ -79,7 +79,7 @@ jobs:
           Get-Content "artifacts/release/SHA256SUMS.txt" | Write-Host
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: "UsbForensicAudit ${{ steps.version.outputs.version }}"
           draft: false
