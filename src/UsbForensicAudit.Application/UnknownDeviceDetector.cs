@@ -22,14 +22,14 @@ public sealed record KnownDeviceIdentity(string Vid, string Pid, string Serial, 
 /// </remarks>
 public sealed class UnknownDeviceDetector
 {
-    private readonly HashSet<string> _strongBaseline;
+    private readonly Dictionary<string, HashSet<(string Vid, string Pid)>> _serialBaseline;
     private readonly HashSet<string> _weakBaseline;
     private readonly HashSet<string> _pathBaseline;
     private readonly HashSet<string> _alerted = new(StringComparer.OrdinalIgnoreCase);
 
     public UnknownDeviceDetector(IEnumerable<KnownDeviceIdentity> knownDevices)
     {
-        _strongBaseline = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        _serialBaseline = new(StringComparer.OrdinalIgnoreCase);
         _weakBaseline = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         _pathBaseline = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -42,17 +42,18 @@ public sealed class UnknownDeviceDetector
             if (vid.Length > 0 && pid.Length > 0)
             {
                 _weakBaseline.Add($"{vid}:{pid}");
-                if (DeviceIdentityGraph.IsHardwareSerial(serial))
-                {
-                    _strongBaseline.Add($"{vid}:{pid}:{serial}");
-                }
             }
 
-            // Серийник известен и без VID/PID: некоторые источники (MountedDevices,
-            // WPD) дают только его. Устройство с тем же серийником — то же устройство.
+            // Источники без VID/PID допускают сопоставление по серийнику,
+            // но известные значения производителя/модели не должны противоречить live.
             if (DeviceIdentityGraph.IsHardwareSerial(serial))
             {
-                _strongBaseline.Add(serial);
+                if (!_serialBaseline.TryGetValue(serial, out var models))
+                {
+                    models = [];
+                    _serialBaseline.Add(serial, models);
+                }
+                models.Add((vid, pid));
             }
 
             if (!string.IsNullOrWhiteSpace(device.DeviceInstanceId))
@@ -63,7 +64,7 @@ public sealed class UnknownDeviceDetector
     }
 
     /// <summary>Сколько идентичностей в базовой линии (для лога при старте).</summary>
-    public int BaselineSize => _strongBaseline.Count + _weakBaseline.Count + _pathBaseline.Count;
+    public int BaselineSize => _serialBaseline.Count + _weakBaseline.Count + _pathBaseline.Count;
 
     /// <summary>
     /// Возвращает устройства из снимка, которых нет в базовой линии и о которых
@@ -95,9 +96,10 @@ public sealed class UnknownDeviceDetector
         var serial = DeviceIdentityGraph.NormalizeSerial(ExtractSerial(device.DeviceId));
         var hasHardwareSerial = DeviceIdentityGraph.IsHardwareSerial(serial);
 
-        if (hasHardwareSerial &&
-            (_strongBaseline.Contains(serial) ||
-             (vid.Length > 0 && pid.Length > 0 && _strongBaseline.Contains($"{vid}:{pid}:{serial}"))))
+        if (hasHardwareSerial && _serialBaseline.TryGetValue(serial, out var models)
+            && models.Any(model =>
+                (vid.Length == 0 || model.Vid.Length == 0 || model.Vid == vid)
+                && (pid.Length == 0 || model.Pid.Length == 0 || model.Pid == pid)))
         {
             return true;
         }

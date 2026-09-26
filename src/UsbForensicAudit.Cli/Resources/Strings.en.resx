@@ -68,7 +68,7 @@
   </data>
 
   <data name="IntegrityJournalMissing" xml:space="preserve">
-    <value>Evidence journal is missing: no scans have been performed yet.</value>
+    <value>Evidence journal is missing.</value>
   </data>
   <data name="IntegrityDataDirectory" xml:space="preserve">
     <value>Data directory: {0}</value>

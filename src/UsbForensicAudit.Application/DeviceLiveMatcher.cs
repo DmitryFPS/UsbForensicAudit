@@ -33,7 +33,9 @@ public static class DeviceLiveMatcher
             return true;
         }
 
-        return SameDiskModel(left, right);
+        // Модель не идентифицирует экземпляр: два одинаковых диска могут
+        // находиться в разных портах и иметь разную историю подключений.
+        return false;
     }
 
     public static bool ScsiInstancesMatch(UsbDeviceRecord left, UsbDeviceRecord right)
@@ -123,13 +125,15 @@ public static class DeviceLiveMatcher
             return false;
         }
 
-        if (left.ContainerId.Equals("{00000000-0000-0000-ffff-ffffffffffff}", StringComparison.OrdinalIgnoreCase)
-            || right.ContainerId.Equals("{00000000-0000-0000-ffff-ffffffffffff}", StringComparison.OrdinalIgnoreCase))
+        if (!Guid.TryParse(left.ContainerId, out var leftContainer)
+            || !Guid.TryParse(right.ContainerId, out var rightContainer)
+            || leftContainer == Guid.Empty
+            || leftContainer == new Guid("00000000-0000-0000-ffff-ffffffffffff"))
         {
             return false;
         }
 
-        return left.ContainerId.Equals(right.ContainerId, StringComparison.OrdinalIgnoreCase);
+        return leftContainer == rightContainer;
     }
 
     private static bool CompatibleVidPid(UsbDeviceRecord left, UsbDeviceRecord right)

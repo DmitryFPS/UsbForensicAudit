@@ -48,6 +48,7 @@ public sealed class ExcelReportTests
             Assert.Equal(
                 new[]
                 {
+                    "Главное",
                     "Сводка",
                     "USB устройства",
                     "Действия на устройствах",
@@ -131,7 +132,7 @@ public sealed class ExcelReportTests
             using var workbook = new XLWorkbook(path);
 
             Assert.Equal(
-                new[] { "Сводка", "Инциденты", "Все USB устройства", "Предупреждения" },
+                new[] { "Главное", "Сводка", "Инциденты", "Все USB устройства", "Предупреждения" },
                 workbook.Worksheets.Select(x => x.Name).ToArray());
             Assert.Contains("Сводный отчёт", workbook.Worksheet("Сводка").Cell("A1").GetString());
             var devices = workbook.Worksheet("Все USB устройства");

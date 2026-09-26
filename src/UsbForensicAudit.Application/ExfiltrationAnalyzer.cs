@@ -40,7 +40,7 @@ public static class ExfiltrationAnalyzer
         {
             OutboundFiles = Sort(outbound),
             UndirectedFiles = Sort(undirectedItems),
-            JournalAvailable = result.FileChangeJournals.Count > 0
+            JournalAvailable = result.FileChangeJournals.Any(x => x.Available)
         };
     }
 

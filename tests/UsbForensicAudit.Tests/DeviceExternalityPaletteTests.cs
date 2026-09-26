@@ -91,14 +91,16 @@ public class DeviceExternalityPaletteTests
     /// именно так и появилось расхождение.
     /// </summary>
     [Fact]
-    public void Devices_grid_takes_its_colours_from_the_palette()
+    public void Devices_grid_externality_column_takes_its_colour_from_the_palette()
     {
         var markup = File.ReadAllText(FindRepositoryFile("MainWindow.xaml"));
         var devicesGrid = markup[markup.IndexOf("x:Name=\"DevicesGrid\"", StringComparison.Ordinal)..];
-        var rowStyle = devicesGrid[..devicesGrid.IndexOf("</DataGrid.RowStyle>", StringComparison.Ordinal)];
+        var firstColumn = devicesGrid[devicesGrid.IndexOf("<DataGrid.Columns>", StringComparison.Ordinal)..];
+        firstColumn = firstColumn[..firstColumn.IndexOf("</DataGridTextColumn>", StringComparison.Ordinal)];
 
-        Assert.Contains("DeviceExternalityBrushConverter", rowStyle, StringComparison.Ordinal);
-        Assert.DoesNotContain("VisualCategory", rowStyle, StringComparison.Ordinal);
+        Assert.Contains("Binding Externality, Converter={StaticResource DeviceExternalityBrushConverter}", firstColumn, StringComparison.Ordinal);
+        Assert.Contains("ConverterParameter=Foreground", firstColumn, StringComparison.Ordinal);
+        Assert.DoesNotContain("VisualCategory", firstColumn, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryFile(string fileName)

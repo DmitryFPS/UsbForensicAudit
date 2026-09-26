@@ -139,7 +139,7 @@ public sealed class AuditStorage : IAuditStorage
         session.CommandText = """
             SELECT started_at_utc, finished_at_utc, computer_name, user_name, windows_version,
                    os_installed_at_utc, is_administrator, warnings_json, coverage_json,
-                   network_environment_json
+                   network_environment_json, privileges_json, reference_image_json, file_change_journals_json
             FROM audit_sessions WHERE session_id=$session;
             """;
         session.Parameters.AddWithValue("$session", sessionId);
@@ -168,6 +168,10 @@ public sealed class AuditStorage : IAuditStorage
 
         result.NetworkEnvironment = Deserialize<NetworkEnvironmentSnapshot>(reader.IsDBNull(9) ? "" : reader.GetString(9))
                                     ?? new NetworkEnvironmentSnapshot();
+        result.Privileges = Deserialize<PrivilegeState>(reader.IsDBNull(10) ? "" : reader.GetString(10))
+                            ?? new PrivilegeState(result.IsAdministrator, false, false, false);
+        result.ReferenceImage = Deserialize<ReferenceImageTrace>(reader.IsDBNull(11) ? "" : reader.GetString(11)) ?? new();
+        result.FileChangeJournals = Deserialize<List<FileChangeJournalState>>(reader.IsDBNull(12) ? "" : reader.GetString(12)) ?? [];
         reader.Close();
         LoadRecords(connection, "devices", sessionId, json => Deserialize<UsbDeviceRecord>(json), result.Devices);
         LoadRecords(connection, "evidence", sessionId, json => Deserialize<EvidenceRecord>(json), result.Evidence);
@@ -368,6 +372,9 @@ public sealed class AuditStorage : IAuditStorage
         EnsureColumns(connection, "audit_sessions", new Dictionary<string, string>
         {
             ["network_environment_json"] = "TEXT",
+            ["privileges_json"] = "TEXT",
+            ["reference_image_json"] = "TEXT",
+            ["file_change_journals_json"] = "TEXT",
             ["seal_hash"] = "TEXT"
         });
         Execute(connection, "CREATE UNIQUE INDEX IF NOT EXISTS ux_network_session_record ON network_connections(session_id, record_key) WHERE session_id IS NOT NULL;");
@@ -393,8 +400,10 @@ public sealed class AuditStorage : IAuditStorage
             insert.CommandText = """
                 INSERT OR IGNORE INTO audit_sessions (
                     session_id, started_at_utc, finished_at_utc, computer_name, user_name, windows_version,
-                    os_installed_at_utc, is_administrator, warnings_json, coverage_json, network_environment_json)
-                VALUES ($id,$started,$finished,$computer,$user,$windows,$installed,$admin,$warnings,$coverage,$environment);
+                    os_installed_at_utc, is_administrator, warnings_json, coverage_json, network_environment_json,
+                    privileges_json, reference_image_json, file_change_journals_json)
+                VALUES ($id,$started,$finished,$computer,$user,$windows,$installed,$admin,$warnings,$coverage,$environment,
+                    $privileges,$image,$journals);
                 """;
             insert.Parameters.AddWithValue("$id", result.SessionId);
             insert.Parameters.AddWithValue("$started", result.StartedAtUtc.ToString("O"));
@@ -407,6 +416,9 @@ public sealed class AuditStorage : IAuditStorage
             insert.Parameters.AddWithValue("$warnings", JsonSerializer.Serialize(result.SourceWarnings, JsonOptions));
             insert.Parameters.AddWithValue("$coverage", JsonSerializer.Serialize(result.Coverage, JsonOptions));
             insert.Parameters.AddWithValue("$environment", JsonSerializer.Serialize(result.NetworkEnvironment, JsonOptions));
+            insert.Parameters.AddWithValue("$privileges", JsonSerializer.Serialize(result.Privileges, JsonOptions));
+            insert.Parameters.AddWithValue("$image", JsonSerializer.Serialize(result.ReferenceImage, JsonOptions));
+            insert.Parameters.AddWithValue("$journals", JsonSerializer.Serialize(result.FileChangeJournals, JsonOptions));
             if (insert.ExecuteNonQuery() == 0)
             {
                 tx.Rollback();
@@ -559,7 +571,11 @@ public sealed class AuditStorage : IAuditStorage
             result.OsInstalledAtUtc,
             result.IsAdministrator,
             result.SourceWarnings,
-            result.Coverage
+            result.Coverage,
+            result.Privileges,
+            result.ReferenceImage,
+            result.FileChangeJournals,
+            result.NetworkEnvironment
         };
         foreach (var (type, item) in new[] { ("AuditSession", (object)sessionMetadata) }
                      .Concat(result.Devices.Select(x => ("UsbDeviceRecord", (object)x)))

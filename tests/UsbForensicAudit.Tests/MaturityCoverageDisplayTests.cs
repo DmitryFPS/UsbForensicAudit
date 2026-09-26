@@ -322,7 +322,7 @@ public sealed class MaturityDeviceLiveMatcherTests
         var right = Device(@"SCSI\Disk&Ven_B&Prod_Right\TWO", friendly: rightFriendly, product: rightProduct);
 
         Assert.True(DeviceLiveMatcher.SameDiskModel(left, right));
-        Assert.True(DeviceLiveMatcher.AreLikelySameDevice(left, right));
+        Assert.False(DeviceLiveMatcher.AreLikelySameDevice(left, right));
     }
 
     [Fact]

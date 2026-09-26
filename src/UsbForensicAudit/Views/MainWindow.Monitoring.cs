@@ -11,6 +11,7 @@ public partial class MainWindow
 {
     private UnknownDeviceDetector? _unknownDeviceDetector;
     private UnknownDeviceAlertWindow? _unknownDeviceAlertWindow;
+    private int _monitorGeneration;
 
     /// <summary>
     /// Счётчик алертов за календарный день — для строки состояния. «Сегодня»
@@ -26,13 +27,15 @@ public partial class MainWindow
 
     private void MonitorButton_Click(object sender, RoutedEventArgs e)
     {
+        var generation = ++_monitorGeneration;
         try
         {
+            _unknownDeviceDetector = null;
+            _vm.IsMonitoringActive = true;
             _deviceChangeNotifier.Start();
             _monitor.Start();
-            _ = InitializeUnknownDeviceDetectorAsync();
+            _ = InitializeUnknownDeviceDetectorAsync(generation);
             ShowAndRefreshActiveDevicesWindow();
-            _vm.IsMonitoringActive = true;
             MonitorButton.IsEnabled = false;
             StopMonitorButton.IsEnabled = true;
             ShowActiveDevicesButton.IsEnabled = true;
@@ -49,6 +52,11 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
+            ++_monitorGeneration;
+            _vm.IsMonitoringActive = false;
+            _unknownDeviceDetector = null;
+            _deviceChangeNotifier.Stop();
+            _monitor.Stop();
             AppLog.Error(ex, "Monitor start failed");
             MessageBox.Show(this, ex.Message, "Ошибка запуска мониторинга", MessageBoxButton.OK, MessageBoxImage.Error);
         }
@@ -56,10 +64,11 @@ public partial class MainWindow
 
     private void StopMonitorButton_Click(object sender, RoutedEventArgs e)
     {
+        ++_monitorGeneration;
+        _vm.IsMonitoringActive = false;
         _deviceChangeNotifier.Stop();
         _monitor.Stop();
         _unknownDeviceDetector = null;
-        _vm.IsMonitoringActive = false;
         MonitorButton.IsEnabled = true;
         StopMonitorButton.IsEnabled = false;
         ShowActiveDevicesButton.IsEnabled = false;
@@ -73,7 +82,7 @@ public partial class MainWindow
     /// в момент старта уже воткнуто неизвестное устройство — алерт придёт
     /// сразу, не дожидаясь переподключения.
     /// </summary>
-    private async Task InitializeUnknownDeviceDetectorAsync()
+    private async Task InitializeUnknownDeviceDetectorAsync(int generation)
     {
         try
         {
@@ -85,11 +94,19 @@ public partial class MainWindow
 
             await Dispatcher.InvokeAsync(() =>
             {
+                if (!IsCurrentMonitorSession(generation))
+                {
+                    return;
+                }
+
                 _unknownDeviceDetector = detector;
                 AppendLog(detector.BaselineSize == 0
                     ? "База известных устройств пуста: выполните полное сканирование, чтобы алерты о неизвестных устройствах заработали."
                     : "Контроль неизвестных устройств включён: база загружена из прошлых сканирований.");
             });
+            // Первый снимок мог завершиться до загрузки базы. Сверяем устройства
+            // ещё раз после неё, даже если новых PnP-событий больше не будет.
+            await RefreshActiveDevicesWindowAsync(generation, waitForPending: true);
         }
         catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
         {
@@ -111,7 +128,7 @@ public partial class MainWindow
     private void CheckForUnknownDevices(IReadOnlyList<LiveUsbDevice> devices)
     {
         var detector = _unknownDeviceDetector;
-        if (detector is null || detector.BaselineSize == 0)
+        if (!_vm.IsMonitoringActive || detector is null || detector.BaselineSize == 0)
         {
             return;
         }
@@ -187,15 +204,22 @@ public partial class MainWindow
 
     private async void Monitor_DeviceChanged(object? sender, string e)
     {
+        var generation = _monitorGeneration;
         try
         {
+            if (!IsCurrentMonitorSession(generation))
+            {
+                return;
+            }
+
             await Dispatcher.InvokeAsync(() => AppendLog(e));
             await Task.Delay(800, _lifetimeCancellation.Token);
-            await RefreshActiveDevicesWindowAsync();
+            await RefreshActiveDevicesWindowAsync(generation);
 
             var shouldAutoScan = await Dispatcher.InvokeAsync(() =>
             {
-                if (_vm.IsProcmonTracing
+                if (!IsCurrentMonitorSession(generation)
+                    || _vm.IsProcmonTracing
                     || DateTimeOffset.UtcNow - _lastAutoScanUtc < TimeSpan.FromSeconds(15))
                 {
                     return false;
@@ -207,7 +231,8 @@ public partial class MainWindow
             if (shouldAutoScan)
             {
                 await Dispatcher.InvokeAsync(
-                    () => RunScanAsync("Автоснимок после изменения USB.")).Task.Unwrap();
+                    () => IsCurrentMonitorSession(generation)
+                        ? RunScanAsync("Автоснимок после изменения USB.") : Task.CompletedTask).Task.Unwrap();
             }
         }
         catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
@@ -254,29 +279,48 @@ public partial class MainWindow
         _activeDevicesWindow = null;
     }
 
-    private async Task RefreshActiveDevicesWindowAsync()
+    private bool IsCurrentMonitorSession(int generation) =>
+        _vm.IsMonitoringActive && generation == _monitorGeneration && !_lifetimeCancellation.IsCancellationRequested;
+
+    private async Task RefreshActiveDevicesWindowAsync(int? requestedGeneration = null, bool waitForPending = false)
     {
+        var generation = requestedGeneration ?? _monitorGeneration;
         // Снимок берётся, пока идёт мониторинг, даже если окно активных
         // устройств закрыто: алерт о неизвестном устройстве должен сработать
         // в любом случае. Состояние читается из ViewModel, а не из IsEnabled
         // кнопки — логика не должна зависеть от визуального состояния контрола.
-        if (!_vm.IsMonitoringActive)
+        if (!IsCurrentMonitorSession(generation))
         {
             return;
         }
 
-        if (!await _liveRefreshGate.WaitAsync(0))
-        {
-            return;
-        }
-
+        var acquired = false;
         try
         {
+            if (waitForPending)
+            {
+                await _liveRefreshGate.WaitAsync(_lifetimeCancellation.Token);
+                acquired = true;
+            }
+            else
+            {
+                acquired = await _liveRefreshGate.WaitAsync(0);
+            }
+            if (!acquired || !IsCurrentMonitorSession(generation))
+            {
+                return;
+            }
+
             var devices = await Task.Run(
                 _liveUsbSnapshotService.GetCurrentDevices,
                 _lifetimeCancellation.Token);
             await Dispatcher.InvokeAsync(() =>
             {
+                if (!IsCurrentMonitorSession(generation))
+                {
+                    return;
+                }
+
                 if (IsActiveDevicesWindowOpen())
                 {
                     _activeDevicesWindow!.UpdateDevices(devices);
@@ -296,7 +340,10 @@ public partial class MainWindow
         }
         finally
         {
-            _liveRefreshGate.Release();
+            if (acquired)
+            {
+                _liveRefreshGate.Release();
+            }
         }
     }
 }

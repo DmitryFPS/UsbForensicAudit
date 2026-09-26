@@ -147,34 +147,34 @@ public static class NetworkConnectionMerger
 
         // Даты связи не могут быть уже, чем её сеансы и обращения: сеанс из
         // журнала иногда старше самой записи профиля в реестре.
-        var moments = record.Sessions.SelectMany(x => new[] { x.StartedUtc, x.EndedUtc })
-            .Concat(record.Visits.Select(x => x.WhenUtc))
-            .Where(x => x is not null)
-            .Select(x => x!.Value)
+        var moments = record.Sessions.SelectMany(x => new[]
+            {
+                (When: x.StartedUtc, x.Provenance), (When: x.EndedUtc, x.Provenance)
+            })
+            .Concat(record.Visits.Select(x => (When: x.WhenUtc, x.Provenance)))
+            .Where(x => x.When is not null)
             .ToArray();
 
         if (moments.Length > 0)
         {
-            var earliest = moments.Min();
-            var latest = moments.Max();
-            if (record.FirstSeenUtc is null || earliest < record.FirstSeenUtc)
+            var earliest = moments.MinBy(x => x.When);
+            var latest = moments.MaxBy(x => x.When);
+            if (record.FirstSeenUtc is null || earliest.When < record.FirstSeenUtc)
             {
-                record.FirstSeenUtc = earliest;
-                record.FirstSeenProvenance = FirstNotEmpty(record.FirstSeenProvenance,
-                    "Взято по самому раннему сеансу или обращению");
+                record.FirstSeenUtc = earliest.When;
+                record.FirstSeenProvenance = FirstNotEmpty(earliest.Provenance, "Взято по самому раннему сеансу или обращению");
             }
 
-            if (record.LastSeenUtc is null || latest > record.LastSeenUtc)
+            if (record.LastSeenUtc is null || latest.When > record.LastSeenUtc)
             {
-                record.LastSeenUtc = latest;
-                record.LastSeenProvenance = FirstNotEmpty(record.LastSeenProvenance,
-                    "Взято по самому позднему сеансу или обращению");
+                record.LastSeenUtc = latest.When;
+                record.LastSeenProvenance = FirstNotEmpty(latest.Provenance, "Взято по самому позднему сеансу или обращению");
             }
         }
     }
 
     private static string SessionKey(NetworkSession session) =>
-        $"{session.StartedUtc?.ToUnixTimeSeconds()}|{session.EndedUtc?.ToUnixTimeSeconds()}|{session.Outcome}";
+        $"{session.StartedUtc?.UtcTicks}|{session.EndedUtc?.UtcTicks}|{session.Outcome}|{session.Account.Trim().ToUpperInvariant()}|{session.IsMoment}";
 
     /// <summary>
     /// Один и тот же путь приходит из журнала обращений, из дерева папок

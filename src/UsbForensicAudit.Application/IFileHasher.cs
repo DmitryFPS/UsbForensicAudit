@@ -7,5 +7,5 @@ namespace UsbForensicAudit;
 /// </summary>
 public interface IFileHasher
 {
-    FileHashRecord Hash(string path);
+    public FileHashRecord Hash(string path);
 }

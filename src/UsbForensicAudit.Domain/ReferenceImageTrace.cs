@@ -9,7 +9,7 @@ namespace UsbForensicAudit;
 /// </summary>
 public sealed class ReferenceImageTrace
 {
-    public List<ImageSignal> Signals { get; } = [];
+    public List<ImageSignal> Signals { get; set; } = [];
 
     /// <summary>
     /// Момент подготовки образа: самая ранняя отметка клонирования. Всё, что в

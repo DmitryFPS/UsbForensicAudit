@@ -71,7 +71,7 @@
   </data>
 
   <data name="IntegrityJournalMissing" xml:space="preserve">
-    <value>Журнал доказательств отсутствует: сканирований ещё не было.</value>
+    <value>Журнал доказательств отсутствует.</value>
   </data>
   <data name="IntegrityDataDirectory" xml:space="preserve">
     <value>Каталог данных: {0}</value>

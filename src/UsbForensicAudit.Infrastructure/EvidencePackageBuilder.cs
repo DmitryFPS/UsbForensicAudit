@@ -48,7 +48,7 @@ public static class EvidencePackageBuilder
         // Имена внутри архива должны быть уникальны: два файла с одинаковым
         // именем из разных папок иначе молча затёрли бы друг друга в ZIP, и
         // одно доказательство пропало бы незаметно.
-        var usedEntryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var usedEntryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "manifest.json" };
 
         try
         {
@@ -69,7 +69,12 @@ public static class EvidencePackageBuilder
                     // Хеш считается в том же проходе, что и копирование: манифест
                     // описывает ровно те байты, которые легли в архив.
                     var entry = archive.CreateEntry(entryName);
-                    entry.LastWriteTime = File.GetLastWriteTime(file);
+                    var lastWriteTime = File.GetLastWriteTime(file);
+                    // ZIP хранит только даты 1980–2107; старый артефакт не должен
+                    // прерывать создание всего пакета доказательств.
+                    entry.LastWriteTime = lastWriteTime.Year < 1980 ? new DateTime(1980, 1, 1)
+                        : lastWriteTime.Year > 2107 ? new DateTime(2107, 12, 31, 23, 59, 58)
+                        : lastWriteTime;
                     string sha256;
                     long sizeBytes;
                     using (var source = OpenShared(file))

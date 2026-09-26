@@ -41,12 +41,16 @@ public sealed class ExpertNotesTests
         var a = new CleanupFinding
         {
             TimestampUtc = new DateTimeOffset(2026, 5, 1, 10, 0, 0, TimeSpan.Zero),
-            Area = "Registry|X", ActionKind = "Deletion", Finding = "A"
+            Area = "Registry|X",
+            ActionKind = "Deletion",
+            Finding = "A"
         };
         var b = new CleanupFinding
         {
             TimestampUtc = new DateTimeOffset(2026, 5, 1, 10, 0, 0, TimeSpan.Zero),
-            Area = "Registry", ActionKind = "X|Deletion", Finding = "A"
+            Area = "Registry",
+            ActionKind = "X|Deletion",
+            Finding = "A"
         };
 
         Assert.NotEqual(ExpertNotes.KeyOf(a), ExpertNotes.KeyOf(b));

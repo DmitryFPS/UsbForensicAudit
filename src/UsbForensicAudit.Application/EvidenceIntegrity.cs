@@ -22,7 +22,7 @@ public sealed class IntegrityReport
     /// <summary>Сверка печатей сессий (журнал против базы данных).</summary>
     public IReadOnlyList<SessionSealCheck> SealChecks { get; init; } = [];
 
-    /// <summary>Журнал доказательств отсутствует (сканирований ещё не было).</summary>
+    /// <summary>Журнал доказательств отсутствует; при наличии сессий в базе это нарушение.</summary>
     public bool JournalMissing { get; init; }
 
     /// <summary>Целостность подтверждена: нет ни разрывов цепочки, ни расхождений печатей.</summary>

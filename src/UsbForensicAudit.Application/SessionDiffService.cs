@@ -82,6 +82,14 @@ public static class SessionDiffService
         DiffInto(
             baseline.Devices, target.Devices, DeviceKey,
             report.AddedDevices, report.RemovedDevices);
+        // Канонические ключи могли измениться после уточнения алгоритма
+        // группировки. Тот же точный экземпляр Windows не является новой вещью.
+        var baselineInstances = baseline.Devices.Select(d => DeviceLiveMatcher.NormalizePnpId(d.DeviceInstanceId))
+            .Where(x => x.Length > 0).ToHashSet(StringComparer.Ordinal);
+        var targetInstances = target.Devices.Select(d => DeviceLiveMatcher.NormalizePnpId(d.DeviceInstanceId))
+            .Where(x => x.Length > 0).ToHashSet(StringComparer.Ordinal);
+        report.AddedDevices.RemoveAll(d => baselineInstances.Contains(DeviceLiveMatcher.NormalizePnpId(d.DeviceInstanceId)));
+        report.RemovedDevices.RemoveAll(d => targetInstances.Contains(DeviceLiveMatcher.NormalizePnpId(d.DeviceInstanceId)));
         DiffInto(
             baseline.Evidence, target.Evidence, EvidenceKey,
             report.AddedEvidence, report.MissingEvidence);

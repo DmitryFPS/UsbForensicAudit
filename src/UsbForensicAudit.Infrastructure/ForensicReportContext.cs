@@ -61,9 +61,14 @@ internal sealed class ForensicReportContext
         // usbExecutableHashes == null на реальном прогоне: хеши считаются по
         // живой файловой системе. Тесты передают готовый список и на диск не ходят.
         UsbExecutableHashes = usbExecutableHashes
-                              ?? UsbExecutableHashCollector.Collect(
-                                  UsbExecutableHashCollector.ExtractRemovableExePaths(result),
-                                  new Sha256FileHasher());
+                              ?? (result.IsOfflineSource
+                                  ? UsbExecutableHashCollector.ExtractRemovableExePaths(result)
+                                      .Select(path => FileHashRecord.Failed(path,
+                                          "Офлайн-источник: файл на компьютере аналитика не является файлом исследуемой системы; хеш не вычислялся."))
+                                      .ToArray()
+                                  : UsbExecutableHashCollector.Collect(
+                                      UsbExecutableHashCollector.ExtractRemovableExePaths(result),
+                                      new Sha256FileHasher()));
     }
 
     public AuditResult Result { get; }

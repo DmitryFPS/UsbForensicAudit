@@ -219,6 +219,7 @@ public partial class MainViewModel : ObservableObject
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        var result = LastResult;
         IsCapturingNetworkEnvironment = true;
         try
         {
@@ -229,28 +230,31 @@ public partial class MainViewModel : ObservableObject
 
             // Молчащим устройствам имена достаются из полного аудита машины:
             // телефон, сопряжённый по Bluetooth, известен по аппаратному адресу.
-            if (LastResult is not null)
+            if (result is not null)
             {
-                NeighborAuditEnrichment.Enrich(snapshot.Neighbors, LastResult.Devices);
+                NeighborAuditEnrichment.Enrich(snapshot.Neighbors, result.Devices);
             }
 
             // История активности устройств копится по повторным съёмкам за
             // сессию: новый снимок дополняет прежнюю историю, а не стирает её.
-            var previousHistory = LastResult?.NetworkEnvironment.NeighborHistory ?? [];
+            var previousHistory = result?.NetworkEnvironment.NeighborHistory ?? [];
             snapshot.NeighborHistory = NetworkNeighborHistoryAccumulator.Merge(
                 previousHistory,
                 snapshot.Neighbors,
                 snapshot.TakenAtUtc ?? DateTimeOffset.UtcNow);
 
-            if (LastResult is not null)
+            if (result is not null)
             {
-                LastResult.NetworkEnvironment = snapshot;
-                var sessionId = LastResult.SessionId;
+                var sessionId = result.SessionId;
                 await Task.Run(() => Storage.SaveNetworkEnvironment(sessionId, snapshot), cancellationToken)
                     .ConfigureAwait(true);
+                result.NetworkEnvironment = snapshot;
             }
 
-            PopulateNetworkEnvironment(snapshot);
+            if (ReferenceEquals(LastResult, result))
+            {
+                PopulateNetworkEnvironment(snapshot);
+            }
         }
         finally
         {

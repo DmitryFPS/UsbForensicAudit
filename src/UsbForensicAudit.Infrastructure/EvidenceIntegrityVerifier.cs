@@ -24,23 +24,23 @@ public sealed class EvidenceIntegrityVerifier : IEvidenceIntegrityVerifier
     public IntegrityReport Verify()
     {
         var jsonlPath = Path.Combine(_storage.DataDirectory, "evidence.jsonl");
-        if (!File.Exists(jsonlPath))
-        {
-            return new IntegrityReport { JournalMissing = true };
-        }
-
-        var chain = VerifyChain(File.ReadLines(jsonlPath));
+        var journalMissing = !File.Exists(jsonlPath);
+        var chain = VerifyChain(journalMissing ? [] : File.ReadLines(jsonlPath));
         var seals = ReadSeals(_storage.DatabasePath);
         var checks = new List<SessionSealCheck>();
-        foreach (var (sessionId, journalHash) in chain.SessionFinalHashes)
+        // Проверяем также сессии, оставшиеся только в базе: удалённый хвост
+        // журнала сам по себе не создаёт разрывов в сохранившейся цепочке.
+        foreach (var sessionId in chain.SessionFinalHashes.Keys.Union(seals.Keys, StringComparer.Ordinal))
         {
+            var hasCompletion = chain.SessionFinalHashes.TryGetValue(sessionId, out var journalHash);
             var stored = seals.GetValueOrDefault(sessionId);
             checks.Add(new SessionSealCheck
             {
                 SessionId = sessionId,
-                JournalHash = journalHash,
+                JournalHash = journalHash ?? "",
                 StoredSeal = stored,
-                Status = stored is null ? SealStatus.NotSealed
+                Status = !hasCompletion ? SealStatus.Mismatch
+                    : stored is null ? SealStatus.NotSealed
                     : string.Equals(stored, journalHash, StringComparison.OrdinalIgnoreCase)
                         ? SealStatus.Match
                         : SealStatus.Mismatch
@@ -49,6 +49,7 @@ public sealed class EvidenceIntegrityVerifier : IEvidenceIntegrityVerifier
 
         return new IntegrityReport
         {
+            JournalMissing = journalMissing,
             TotalRecords = chain.TotalRecords,
             ChainBreaks = chain.Breaks,
             SealChecks = checks

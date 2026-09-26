@@ -342,16 +342,25 @@ public partial class MainWindow : Window
             return;
         }
 
-        CaptureEnvironmentButton.IsEnabled = false;
-        ActiveProbeCheck.IsEnabled = false;
-        EnvironmentStatusText.Text = "Снимаю...";
-        AppendLog("Съёмка обстановки запущена.");
+        if (!await _exclusiveOperation.WaitAsync(0))
+        {
+            EnvironmentStatusText.Text = "Другая длительная операция уже выполняется.";
+            return;
+        }
+
         try
         {
+            SetBusy(true);
+            EnvironmentStatusText.Text = "Снимаю...";
+            AppendLog("Съёмка обстановки запущена.");
             var progress = new Progress<string>(message => EnvironmentStatusText.Text = message);
             await _vm.CaptureNetworkEnvironmentAsync(ActiveProbeCheck.IsChecked == true, progress, _lifetimeCancellation.Token);
             EnvironmentStatusText.Text = "Готово.";
             AppendLog(_vm.NetworkEnvironmentSummary);
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+            EnvironmentStatusText.Text = "Съёмка обстановки отменена.";
         }
         catch (Exception ex)
         {
@@ -361,8 +370,8 @@ public partial class MainWindow : Window
         }
         finally
         {
-            CaptureEnvironmentButton.IsEnabled = true;
-            ActiveProbeCheck.IsEnabled = true;
+            SetBusy(false);
+            _exclusiveOperation.Release();
         }
     }
 
@@ -405,6 +414,8 @@ public partial class MainWindow : Window
 
     private void SetBusy(bool busy)
     {
+        CaptureEnvironmentButton.IsEnabled = !busy && _vm.LastResult is not null;
+        ActiveProbeCheck.IsEnabled = !busy;
         ScanButton.IsEnabled = !busy;
         PdfReportButton.IsEnabled = !busy && _vm.LastResult is not null;
         ManagerPdfReportButton.IsEnabled = !busy && _vm.LastResult is not null;

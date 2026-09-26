@@ -21,6 +21,10 @@ public static class DeviceIdentityGraph
         }
 
         var union = new UnionFind(devices.Count);
+        var ambiguousSerials = devices.Where(d => IsHardwareSerial(d.Serial))
+            .GroupBy(d => NormalizeSerial(d.Serial), StringComparer.OrdinalIgnoreCase)
+            .Where(g => HasConflictingModels(g))
+            .Select(g => g.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
         JoinByStrongKey(devices, union, "instance", d => NormalizeInstance(d.DeviceInstanceId));
         JoinByAliases(devices, union);
         JoinByStrongKey(devices, union, "container", d => NormalizeContainer(d.ContainerId));
@@ -51,7 +55,7 @@ public static class DeviceIdentityGraph
         {
             var members = group.Select(i => devices[i]).ToArray();
             var primary = members.OrderByDescending(PrimaryScore).ThenBy(d => d.DeviceInstanceId, StringComparer.OrdinalIgnoreCase).First();
-            var canonicalId = BuildCanonicalId(members);
+            var canonicalId = BuildCanonicalId(members, ambiguousSerials);
             var linkedIds = members.Select(d => d.DeviceInstanceId)
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -80,7 +84,10 @@ public static class DeviceIdentityGraph
     public static bool IsHardwareSerial(string? value)
     {
         var serial = NormalizeSerial(value ?? "");
-        if (serial.Length < 4 || GeneratedInstanceRegex.IsMatch(serial))
+        if (serial.Length < 4 || GeneratedInstanceRegex.IsMatch(serial)
+            || DeviceIdentityTrust.IsWindowsGeneratedSerial(serial)
+            || DeviceIdentityTrust.IsRepeatedCharacterSerial(serial)
+            || DeviceIdentityTrust.IsPlaceholderSerial(serial))
         {
             return false;
         }
@@ -141,29 +148,60 @@ public static class DeviceIdentityGraph
         string kind,
         Func<UsbDeviceRecord, string> selector)
     {
-        var first = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < devices.Count; i++)
+        var candidates = Enumerable.Range(0, devices.Count)
+            .Where(i => !IsUsbFlags(devices[i]))
+            .GroupBy(i => selector(devices[i]), StringComparer.OrdinalIgnoreCase)
+            .Where(g => !string.IsNullOrWhiteSpace(g.Key));
+        foreach (var candidate in candidates)
         {
-            if (IsUsbFlags(devices[i]))
+            var indices = candidate.ToArray();
+            if (indices.Length < 2)
             {
                 continue;
             }
 
-            var key = selector(devices[i]);
-            if (string.IsNullOrWhiteSpace(key))
+            if (kind is "serial" or "topology")
             {
-                continue;
+                // Проверяем все уже связанные записи, чтобы запись без VID/PID
+                // не стала мостом между двумя несовместимыми устройствами.
+                var roots = indices.Select(union.Find).ToHashSet();
+                var members = Enumerable.Range(0, devices.Count)
+                    .Where(i => roots.Contains(union.Find(i))).Select(i => devices[i]).ToArray();
+                if (HasConflictingModels(members)
+                    || (kind == "topology" && members.Where(d => IsHardwareSerial(d.Serial))
+                        .Select(d => NormalizeSerial(d.Serial)).Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any()))
+                {
+                    if (kind == "serial")
+                    {
+                        // Серийник повторяется у разных моделей. Объединяем только
+                        // однозначные пары VID/PID; записи без модели сохраняем отдельно.
+                        foreach (var model in indices.Where(i => devices[i].Vid.Length > 0 && devices[i].Pid.Length > 0)
+                                     .GroupBy(i => $"{devices[i].Vid}:{devices[i].Pid}", StringComparer.OrdinalIgnoreCase))
+                        {
+                            foreach (var index in model.Skip(1))
+                            {
+                                union.Union(model.First(), index);
+                            }
+                        }
+                    }
+                    continue;
+                }
             }
 
-            if (first.TryGetValue($"{kind}:{key}", out var other))
+            foreach (var index in indices.Skip(1))
             {
-                union.Union(i, other);
-            }
-            else
-            {
-                first[$"{kind}:{key}"] = i;
+                union.Union(indices[0], index);
             }
         }
+    }
+
+    private static bool HasConflictingModels(IEnumerable<UsbDeviceRecord> devices)
+    {
+        var members = devices.ToArray();
+        return members.Select(d => d.Vid.Trim()).Where(x => x.Length > 0)
+                   .Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any()
+               || members.Select(d => d.Pid.Trim()).Where(x => x.Length > 0)
+                   .Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any();
     }
 
     private static List<string> BuildProvenance(IReadOnlyList<UsbDeviceRecord> members)
@@ -197,11 +235,16 @@ public static class DeviceIdentityGraph
         }
     }
 
-    private static string BuildCanonicalId(IReadOnlyList<UsbDeviceRecord> members)
+    private static string BuildCanonicalId(IReadOnlyList<UsbDeviceRecord> members, ISet<string> ambiguousSerials)
     {
         // Ключ выбирается детерминированно, иначе один и тот же носитель получает
         // разные идентификаторы в разных прогонах и отчёты нельзя сопоставить.
-        var key = members.Select(x => IsHardwareSerial(x.Serial) ? $"SERIAL:{NormalizeSerial(x.Serial)}" : "")
+        var model = string.Join(':',
+            members.Select(x => x.Vid.Trim().ToUpperInvariant()).Where(x => x.Length > 0).Order(StringComparer.Ordinal).FirstOrDefault() ?? "",
+            members.Select(x => x.Pid.Trim().ToUpperInvariant()).Where(x => x.Length > 0).Order(StringComparer.Ordinal).FirstOrDefault() ?? "");
+        var key = members.Select(x => IsHardwareSerial(x.Serial)
+                                      && !(model == ":" && ambiguousSerials.Contains(NormalizeSerial(x.Serial)))
+                ? $"SERIAL:{NormalizeSerial(x.Serial)}|MODEL:{model}" : "")
                       .Where(x => x.Length > 0).OrderBy(x => x, StringComparer.Ordinal).FirstOrDefault()
                   ?? members.Select(x => NormalizeContainer(x.ContainerId))
                       .Where(x => x.Length > 0).Select(x => $"CONTAINER:{x}")

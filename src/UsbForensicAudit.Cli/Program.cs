@@ -163,7 +163,14 @@ internal static class Program
         {
             Console.WriteLine(CliStrings.Get("IntegrityJournalMissing"));
             Console.WriteLine(CliStrings.Format("IntegrityDataDirectory", storage.DataDirectory));
-            return ExitSuccess;
+            if (report.SealChecks.Count == 0)
+            {
+                if (jsonPath is not null)
+                {
+                    ExportJson(report, jsonPath);
+                }
+                return ExitSuccess;
+            }
         }
 
         Console.WriteLine(CliStrings.Format("IntegrityTotalRecords", report.TotalRecords));
