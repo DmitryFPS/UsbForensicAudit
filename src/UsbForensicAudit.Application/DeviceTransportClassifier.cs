@@ -68,6 +68,12 @@ public static partial class DeviceTransportClassifier
         var id = device.DeviceInstanceId;
 
         Reset(device);
+        if (DeviceComposition.IsVolumeMetadata(device))
+        {
+            device.VisualCategory = "SupportArtifact";
+            device.DeviceKind = DeviceKindResolver.RegistryTrace;
+            return;
+        }
         if (IsVirtualStorageDevice(device, text, id))
         {
             SetTransport(device, "Virtual Disk", "High", "virtual/hypervisor disk image");
@@ -244,7 +250,7 @@ public static partial class DeviceTransportClassifier
 
     public static bool IsReportable(UsbDeviceRecord device)
     {
-        if (device.DeviceType.Equals("VolumeMapping", StringComparison.OrdinalIgnoreCase))
+        if (DeviceComposition.IsVolumeMetadata(device))
         {
             return false;
         }
@@ -286,7 +292,15 @@ public static partial class DeviceTransportClassifier
 
     private static void ClassifyTransport(UsbDeviceRecord device, string text, string id)
     {
-        if (device.Service.Equals("uaspstor", StringComparison.OrdinalIgnoreCase))
+        if (BluetoothEnumeratorId.IsPairedDeviceRecord(id) || BluetoothEnumeratorId.IsServiceRecord(id))
+        {
+            SetTransport(device, "Bluetooth", "High", "Bluetooth enumerator instance ID");
+        }
+        else if (DeviceComposition.IsWpdUsbStorage(device))
+        {
+            SetTransport(device, "MSC/USBSTOR", "High", "WPD wrapper contains a USBSTOR device path");
+        }
+        else if (device.Service.Equals("uaspstor", StringComparison.OrdinalIgnoreCase))
         {
             SetTransport(device, "UASP/SCSI", "High", "Service=uaspstor");
         }
@@ -323,7 +337,11 @@ public static partial class DeviceTransportClassifier
 
     private static void ClassifyConnection(UsbDeviceRecord device, string text, string id)
     {
-        if (id.StartsWith(@"PCI\", StringComparison.OrdinalIgnoreCase)
+        if (device.Transport == "Bluetooth")
+        {
+            SetConnection(device, "Bluetooth", "High", "Bluetooth enumerator instance ID");
+        }
+        else if (id.StartsWith(@"PCI\", StringComparison.OrdinalIgnoreCase)
             && ContainsAny(text, ThunderboltMarkers))
         {
             SetConnection(device, "PCIe-tunneled candidate", "Medium",
@@ -400,6 +418,16 @@ public static partial class DeviceTransportClassifier
 
     private static void ApplyPresentation(UsbDeviceRecord device)
     {
+        if (BluetoothEnumeratorId.IsPairedDeviceRecord(device.DeviceInstanceId))
+        {
+            device.VisualCategory = "BluetoothDevice";
+        }
+        else if (device.DeviceType.Equals("DeviceInterface", StringComparison.OrdinalIgnoreCase)
+                 && device.VisualCategory == "SupportArtifact")
+        {
+            device.VisualCategory = "HistoricalResidual";
+        }
+
         if (device.Classification == "Hub")
         {
             device.UserMeaning = "Инфраструктура шины: USB/USB4 hub, root hub или host/router controller; не пользовательский накопитель.";

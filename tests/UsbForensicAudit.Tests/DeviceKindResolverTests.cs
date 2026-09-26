@@ -10,7 +10,7 @@ public class DeviceKindResolverTests
     {
         var overUsb = new UsbDeviceRecord
         {
-            DeviceInstanceId = @"SWD\WPDBUSENUM\_??_USBSTOR#Disk&Ven_Xiaomi#2412&0",
+            DeviceInstanceId = @"SWD\WPDBUSENUM\_??_USB#VID_2717&PID_FF40#PHONE2412",
             Transport = "MTP/PTP/WPD"
         };
         var overBluetooth = new UsbDeviceRecord

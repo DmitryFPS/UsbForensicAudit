@@ -42,7 +42,8 @@ public static class DeviceExternality
 
     public static string Resolve(UsbDeviceRecord device)
     {
-        if (device.DeviceKind == DeviceKindResolver.RegistryTrace
+        if (DeviceComposition.IsVolumeMetadata(device)
+            || device.DeviceKind == DeviceKindResolver.RegistryTrace
             || device.VisualCategory.Equals("UsbFlagsTrace", StringComparison.OrdinalIgnoreCase))
         {
             return RegistryTrace;

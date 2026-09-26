@@ -83,7 +83,11 @@ public sealed class TimelineEnricher
 
     private static void EnrichDevice(UsbDeviceRecord device, IReadOnlyList<EvidenceRecord> evidence, ConnectedDeviceIndex connectedDevices, DateTimeOffset scanStartedUtc)
     {
-        if (device.VisualCategory is "SupportArtifact" or "UsbFlagsTrace")
+        if (DeviceComposition.IsVolumeMetadata(device)
+            || device.VisualCategory == "UsbFlagsTrace"
+            || (device.VisualCategory == "SupportArtifact"
+                && !BluetoothEnumeratorId.IsPairedDeviceRecord(device.DeviceInstanceId)
+                && !device.DeviceType.Equals("DeviceInterface", StringComparison.OrdinalIgnoreCase)))
         {
             device.IsCurrentlyConnected = false;
             device.DisconnectDisplayKind = "NotApplicable";

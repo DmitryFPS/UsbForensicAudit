@@ -511,11 +511,11 @@
                                     <ComboBoxItem Content="USB4 / Thunderbolt" Tag="USB4/Thunderbolt"/>
                                 </ComboBox>
                                 <CheckBox x:Name="AllRecordsCheck"
-                                          Content="Показывать все записи реестра"
+                                          Content="Показывать все записи"
                                           Foreground="{StaticResource TextMuted}"
                                           VerticalAlignment="Center"
                                           Margin="16,0,0,0"
-                                          ToolTip="Вернёт в список служебные записи: услуги сопряжённых устройств, грани составных устройств, части шины (концентраторы, контроллеры, служебные узлы) и метки томов внутренних дисков."
+                                          ToolTip="Покажет также службы Bluetooth, интерфейсы составных устройств, контроллеры, внутренние диски и записи томов Windows. Это технические записи, а не дополнительные физические устройства."
                                           Checked="AllRecordsCheck_Changed"
                                           Unchecked="AllRecordsCheck_Changed"/>
                             </StackPanel>
@@ -578,7 +578,7 @@
                             </DataGridTextColumn>
                             <DataGridTextColumn Header="Что это за запись" Binding="{Binding UserMeaning}" Width="250"/>
                             <DataGridTextColumn Header="Имя устройства" Binding="{Binding DisplayName}" Width="220"/>
-                            <DataGridTextColumn Header="Тип" Binding="{Binding CategoryText}" Width="170"/>
+                            <DataGridTextColumn Header="Вид записи" Binding="{Binding CategoryText}" Width="210"/>
                             <DataGridTextColumn Header="Transport" Binding="{Binding Transport}" Width="170"/>
                             <DataGridTextColumn Header="Connection" Binding="{Binding Connection}" Width="170"/>
                             <DataGridTextColumn Header="Classification" Binding="{Binding Classification}" Width="130"/>

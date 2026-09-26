@@ -68,7 +68,7 @@ public static class DeviceKindResolver
 
     public static string Resolve(UsbDeviceRecord device)
     {
-        if (device.DeviceType.Equals("VolumeMapping", StringComparison.OrdinalIgnoreCase)
+        if (DeviceComposition.IsVolumeMetadata(device)
             || device.DeviceType.Equals("USBFlags", StringComparison.OrdinalIgnoreCase)
             || device.DeviceType.Equals("VolumeHistory", StringComparison.OrdinalIgnoreCase)
             || device.DeviceType.Equals("VolumeLabel", StringComparison.OrdinalIgnoreCase)
@@ -88,6 +88,11 @@ public static class DeviceKindResolver
         if (device.Classification is "Hub" or "Composite")
         {
             return Infrastructure;
+        }
+
+        if (DeviceComposition.IsWpdUsbStorage(device))
+        {
+            return Storage;
         }
 
         if (ServiceKinds.TryGetValue(device.Service.Trim(), out var byService))
@@ -162,6 +167,7 @@ public static class DeviceKindResolver
         "UASP/SCSI" => "По USB в скоростном режиме UASP",
         "MTP/PTP/WPD" => "По USB в режиме передачи файлов (MTP/PTP), как телефон или камера",
         "USB" => "По USB",
+        "Bluetooth" => "По Bluetooth",
         "USB4/Thunderbolt/PCIe-tunneled candidate" => "По USB4 или Thunderbolt",
         "Internal NVMe" => "Внутренняя шина NVMe",
         "Internal Disk" => "Внутренняя дисковая шина",

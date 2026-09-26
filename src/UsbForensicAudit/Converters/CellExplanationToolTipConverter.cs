@@ -164,10 +164,14 @@ internal static class CellExplanationText
                 device.DisplayName,
                 "Название, которое удалось получить из Windows, данных производителя или системного идентификатора.",
                 "Название может быть общим и само по себе не доказывает, что две записи относятся к одному экземпляру."),
-            "Тип" => Build(
+            "Тип" or "Вид записи" => Build(
                 header,
                 device.CategoryText,
-                ExplainDeviceCategory(device.VisualCategory)),
+                device.DeviceType.Equals("DeviceInterface", StringComparison.OrdinalIgnoreCase)
+                    ? "След регистрации интерфейса устройства в DeviceClasses. Это полезный исторический след; он сам по себе не подтверждает точное время подключения."
+                    : BluetoothEnumeratorId.IsPairedDeviceRecord(device.DeviceInstanceId)
+                        ? "Запись самого сопряжённого Bluetooth-устройства. Его службы показаны в составе устройства."
+                        : ExplainDeviceCategory(device.VisualCategory)),
             "Transport" => Build(
                 header,
                 device.Transport,
@@ -374,6 +378,8 @@ internal static class CellExplanationText
             "RelatedStorage" => "Запись диска или тома, которую программа связала с USB‑устройством.",
             "UsbFlagsTrace" => "Остаточная запись usbflags. Она показывает, что Windows знает VID/PID, но не подтверждает конкретное подключение.",
             "SupportArtifact" => "Служебная запись Windows, которая помогает анализу, но не считается отдельным пользовательским устройством.",
+            "BluetoothDevice" => "Само сопряжённое Bluetooth-устройство; сопряжение не доказывает передачу файлов.",
+            "HistoricalResidual" => "Исторический след устройства; точные даты устанавливаются отдельно по событиям.",
             _ => "Категория не определена: доступных признаков недостаточно."
         };
 
@@ -381,6 +387,7 @@ internal static class CellExplanationText
         value switch
         {
             "USB" => "Устройство работает через обычный USB‑стек Windows.",
+            "Bluetooth" => "Устройство зарегистрировано на шине Bluetooth.",
             "UASP/SCSI" => "USB‑накопитель использует быстрый протокол UASP и поэтому может отображаться как SCSI‑устройство.",
             "MTP/PTP/WPD" => "Телефон, камера или другое переносное устройство работает через MTP, PTP или Windows Portable Devices.",
             "MSC/USBSTOR" => "USB‑накопитель работает через стандартный класс Mass Storage и драйвер USBSTOR.",
@@ -393,6 +400,7 @@ internal static class CellExplanationText
         value switch
         {
             "USB" => "Системные признаки указывают на подключение через USB.",
+            "Bluetooth" => "Запись относится к сопряжению или службе Bluetooth, а не к USB-подключению.",
             "USB4/Thunderbolt" => "Подключение относится к инфраструктуре USB4 или Thunderbolt.",
             "PCIe-tunneled candidate" => "Возможное внешнее устройство передаёт PCIe через Thunderbolt/USB4. Это вероятностная классификация.",
             "HistoricalResidual" => "Найдена только историческая или остаточная запись; текущее подключение не подтверждено.",

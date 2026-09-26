@@ -131,7 +131,7 @@ public sealed class UsbDeviceRecord
     public string LastDisconnectedText => UserDisplayText.DisconnectText(DisconnectDisplayKind, LastDisconnectedUtc, IsCurrentlyConnected);
 
     [JsonIgnore]
-    public string CategoryText => UserDisplayText.Category(VisualCategory);
+    public string CategoryText => UserDisplayText.DeviceCategory(this);
 
     [JsonIgnore]
     public string SourceText => UserDisplayText.Source(Source);

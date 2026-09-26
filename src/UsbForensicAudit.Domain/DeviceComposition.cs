@@ -20,15 +20,34 @@ public static class DeviceComposition
         || device.DeviceInstanceId.Contains("&MI_", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Запись, которую список по умолчанию не показывает. Скрывается ровно то,
-    /// что уже видно в другом месте: неглавные записи своего устройства, части
-    /// самой машины — концентраторы, контроллеры, служебные узлы шины — и метки
-    /// томов MountedDevices, не указывающие на съёмный носитель.
+    /// В обычном списке остаются устройства и самостоятельные следы устройств.
+    /// Служебные записи томов (включая USB-тома), внутренние диски и части шины
+    /// доступны в режиме всех записей. Сведения о томах сохраняются в досье.
     /// </summary>
     public static bool IsFoldedByDefault(UsbDeviceRecord device) =>
         (!device.IsCanonicalPrimary && !string.IsNullOrWhiteSpace(device.CanonicalDeviceId))
         || device.Externality == DeviceExternality.BusInfrastructure
-        || IsInternalVolumeMapping(device);
+        || IsVolumeMetadata(device)
+        || device.Transport is "Internal NVMe" or "Internal Disk";
+
+    public static bool IsVolumeMetadata(UsbDeviceRecord device) =>
+        device.DeviceType.Equals("VolumeMapping", StringComparison.OrdinalIgnoreCase)
+        || device.DeviceType.Equals("VolumeLabel", StringComparison.OrdinalIgnoreCase)
+        || IsWpdVolume(device);
+
+    /// <summary>WPD может описывать обычный локальный том, а не USB-телефон.</summary>
+    public static bool IsWpdVolume(UsbDeviceRecord device)
+    {
+        const string prefix = @"SWD\WPDBUSENUM\";
+        return device.DeviceInstanceId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+               && Guid.TryParse(device.DeviceInstanceId[prefix.Length..].Split('\\')[0], out _);
+    }
+
+    /// <summary>Обёртка WPD вокруг USBSTOR не меняет накопитель в MTP-телефон.</summary>
+    public static bool IsWpdUsbStorage(UsbDeviceRecord device) =>
+        device.DeviceInstanceId.StartsWith(@"SWD\WPDBUSENUM\", StringComparison.OrdinalIgnoreCase)
+        && (device.DeviceInstanceId.Contains(@"USBSTOR\", StringComparison.OrdinalIgnoreCase)
+            || device.DeviceInstanceId.Contains("USBSTOR#", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Служебная метка тома из MountedDevices, за которой не стоит съёмный

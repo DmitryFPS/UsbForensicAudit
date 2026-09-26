@@ -200,8 +200,8 @@ public class DeviceExternalityTests
         Assert.Contains("Принесённых устройств: 1", summary);
         // Корневой концентратор — часть машины: в таблице его нет, но и потерян
         // он не был, о чём сводка говорит прямо.
-        Assert.Contains("Строк в таблице: 1", summary);
-        Assert.Contains("Скрыто служебных записей реестра: 1", summary);
+        Assert.Contains("Строк в обычном списке: 1", summary);
+        Assert.Contains("Скрыто технических записей: 1", summary);
     }
 
     private static UsbDeviceRecord Classified(UsbDeviceRecord device)

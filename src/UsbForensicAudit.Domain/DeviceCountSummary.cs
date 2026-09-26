@@ -87,11 +87,13 @@ public sealed record DeviceCountSummary(
     /// </summary>
     public static bool IsInfrastructure(UsbDeviceRecord device) =>
         device.DeviceKind == DeviceKindResolver.Infrastructure
+        || device.Externality == DeviceExternality.BusInfrastructure
         || device.Classification is "Hub" or "Composite";
 
     /// <summary>Остаточный след в реестре без самого устройства.</summary>
     public static bool IsRegistryTrace(UsbDeviceRecord device) =>
-        device.DeviceKind == DeviceKindResolver.RegistryTrace
+        DeviceComposition.IsVolumeMetadata(device)
+        || device.DeviceKind == DeviceKindResolver.RegistryTrace
         || device.VisualCategory.Equals("UsbFlagsTrace", StringComparison.OrdinalIgnoreCase);
 
     private static string GroupKey(UsbDeviceRecord device) =>

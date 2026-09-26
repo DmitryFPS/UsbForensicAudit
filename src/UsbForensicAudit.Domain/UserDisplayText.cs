@@ -10,9 +10,43 @@ public static class UserDisplayText
     public const string NoLastSeenEvent = "нет последних событий";
     public const string NoLocationData = "Windows не сохранила расположение порта";
 
+    // Вычисляется и для старых сохранённых сессий: исходные доказательства
+    // не требуется переписывать ради исправления подписи в таблице и отчёте.
+    public static string DeviceCategory(UsbDeviceRecord device)
+    {
+        if (BluetoothEnumeratorId.IsPairedDeviceRecord(device.DeviceInstanceId))
+        {
+            return "Сопряжённое Bluetooth-устройство";
+        }
+        if (BluetoothEnumeratorId.IsServiceRecord(device.DeviceInstanceId))
+        {
+            return "Служба Bluetooth-устройства";
+        }
+        if (DeviceComposition.IsVolumeMetadata(device))
+        {
+            return device.DeviceType.Equals("VolumeLabel", StringComparison.OrdinalIgnoreCase)
+                ? "Метка тома Windows"
+                : "Сопоставление тома Windows";
+        }
+        if (device.DeviceType.Equals("DeviceInterface", StringComparison.OrdinalIgnoreCase))
+        {
+            return "След устройства (DeviceClasses)";
+        }
+        if (device.Transport is "Internal NVMe" or "Internal Disk")
+        {
+            return "Внутренний накопитель";
+        }
+        if (DeviceComposition.IsWpdUsbStorage(device))
+        {
+            return "USB-накопитель (запись WPD)";
+        }
+        return Category(device.VisualCategory);
+    }
+
     public static string Category(string? value) => value switch
     {
         "RealUsb" => "Реальное USB-устройство",
+        "BluetoothDevice" => "Сопряжённое Bluetooth-устройство",
         "RelatedStorage" => "Память или диск USB",
         "UsbFlagsTrace" => "Остаточный след USB (usbflags)",
         "SupportArtifact" => "Служебная запись Windows",
