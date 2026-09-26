@@ -27,7 +27,6 @@
         <SolidColorBrush x:Key="PanelDeep" Color="#0D1322"/>
         <SolidColorBrush x:Key="AccentSoft" Color="#7FB4FF"/>
         <SolidColorBrush x:Key="TextSoft" Color="#D7E0F0"/>
-        <local:CellExplanationToolTipConverter x:Key="CellExplanationToolTipConverter"/>
         <local:DeviceExternalityBrushConverter x:Key="DeviceExternalityBrushConverter"/>
         <local:NetworkConnectionBrushConverter x:Key="NetworkConnectionBrushConverter"/>
 
@@ -236,24 +235,6 @@
                     <Setter Property="Foreground" Value="#E6EDF7"/>
                 </Trigger>
             </Style.Triggers>
-        </Style>
-
-        <Style x:Key="ExplainedDataGridCellStyle"
-               TargetType="DataGridCell"
-               BasedOn="{StaticResource {x:Type DataGridCell}}">
-            <Setter Property="ToolTipService.InitialShowDelay" Value="500"/>
-            <Setter Property="ToolTipService.BetweenShowDelay" Value="100"/>
-            <Setter Property="ToolTipService.ShowDuration" Value="12000"/>
-            <Setter Property="ToolTipService.Placement" Value="Top"/>
-            <Setter Property="ToolTipService.VerticalOffset" Value="-8"/>
-            <Setter Property="ToolTip">
-                <Setter.Value>
-                    <MultiBinding Converter="{StaticResource CellExplanationToolTipConverter}">
-                        <Binding/>
-                        <Binding RelativeSource="{RelativeSource Self}" Path="Column.Header"/>
-                    </MultiBinding>
-                </Setter.Value>
-            </Setter>
         </Style>
 
         <Style x:Key="Card" TargetType="Border">
@@ -529,7 +510,6 @@
                     <DataGrid x:Name="DevicesGrid"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
-                              CellStyle="{StaticResource ExplainedDataGridCellStyle}"
                               ItemsSource="{Binding Devices}"
                               SelectionChanged="DevicesGrid_SelectionChanged"
                               MouseDoubleClick="DevicesGrid_MouseDoubleClick">
@@ -705,7 +685,6 @@
                     <DataGrid x:Name="NetworkGrid"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
-                              CellStyle="{StaticResource ExplainedDataGridCellStyle}"
                               MouseDoubleClick="NetworkGrid_MouseDoubleClick">
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
@@ -784,8 +763,7 @@
                                 <TabItem Header="Wi-Fi в эфире">
                                     <DataGrid ItemsSource="{Binding WirelessNetworks}"
                                               AutoGenerateColumns="False"
-                                              IsReadOnly="True"
-                                              CellStyle="{StaticResource ExplainedDataGridCellStyle}">
+                                              IsReadOnly="True">
                                         <DataGrid.Columns>
                                             <DataGridTextColumn Header="Имя сети" Binding="{Binding SsidText}" Width="200"/>
                                             <DataGridTextColumn Header="Связь с машиной" Binding="{Binding RelationText}" Width="280"/>
@@ -807,8 +785,7 @@
                                                   Margin="0,8,0,8"/>
                                         <DataGrid ItemsSource="{Binding NetworkNeighbors}"
                                                   AutoGenerateColumns="False"
-                                                  IsReadOnly="True"
-                                                  CellStyle="{StaticResource ExplainedDataGridCellStyle}">
+                                                  IsReadOnly="True">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="Роль" Binding="{Binding RoleText}" Width="220"/>
                                                 <DataGridTextColumn Header="IP-адрес" Binding="{Binding AddressText}" Width="140"/>
@@ -854,8 +831,7 @@
                                         </Border>
                                         <DataGrid ItemsSource="{Binding NetworkNeighborHistory}"
                                                   AutoGenerateColumns="False"
-                                                  IsReadOnly="True"
-                                                  CellStyle="{StaticResource ExplainedDataGridCellStyle}">
+                                                  IsReadOnly="True">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="Роль" Binding="{Binding RoleText}" Width="200"/>
                                                 <DataGridTextColumn Header="MAC" Binding="{Binding MacText}" Width="160"/>
@@ -886,8 +862,7 @@
                                         </Border>
                                         <DataGrid ItemsSource="{Binding WiFiConnections}"
                                                   AutoGenerateColumns="False"
-                                                  IsReadOnly="True"
-                                                  CellStyle="{StaticResource ExplainedDataGridCellStyle}">
+                                                  IsReadOnly="True">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="Имя сети" Binding="{Binding TargetText}" Width="260"/>
                                                 <DataGridTextColumn Header="Первое подключение" Binding="{Binding FirstSeenText}" Width="180"/>
@@ -922,7 +897,6 @@
                     <DataGrid x:Name="EvidenceGrid"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
-                              CellStyle="{StaticResource ExplainedDataGridCellStyle}"
                               RowDetailsVisibilityMode="VisibleWhenSelected"
                               ItemsSource="{Binding Evidence}">
                         <DataGrid.RowDetailsTemplate>
@@ -1092,8 +1066,7 @@
                     <DataGrid x:Name="FindingsGrid"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
-                              SelectionChanged="FindingsGrid_SelectionChanged"
-                              CellStyle="{StaticResource ExplainedDataGridCellStyle}">
+                              SelectionChanged="FindingsGrid_SelectionChanged">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Дата и время" Binding="{Binding TimestampText}" Width="150"/>
                             <DataGridTextColumn Header="Тип действия" Binding="{Binding ActionKindText}" Width="150"/>
