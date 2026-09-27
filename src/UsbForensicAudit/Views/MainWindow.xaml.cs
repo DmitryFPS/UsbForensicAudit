@@ -54,6 +54,7 @@ public partial class MainWindow : Window
         DataContext = _vm;
         _devicesView = CollectionViewSource.GetDefaultView(_devices);
         _devicesView.Filter = FilterDevice;
+        _devicesView.GroupDescriptions.Add(_deviceGrouping);
         DevicesGrid.ItemsSource = _devicesView;
         _networkView = CollectionViewSource.GetDefaultView(_vm.NetworkConnections);
         _networkView.Filter = FilterNetworkConnection;
@@ -119,8 +120,7 @@ public partial class MainWindow : Window
 
     private void DeviceFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        _devicesView?.Refresh();
-        UpdateDeviceCount();
+        RefreshDeviceGrouping();
     }
 
     private void NetworkGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -191,6 +191,10 @@ public partial class MainWindow : Window
         {
             return false;
         }
+        if (!DeviceSearch.Matches(device, DeviceSearchBox?.Text))
+        {
+            return false;
+        }
 
         var selected = (DeviceFilterCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
         return selected switch
@@ -206,8 +210,7 @@ public partial class MainWindow : Window
 
     private void AllRecordsCheck_Changed(object sender, RoutedEventArgs e)
     {
-        _devicesView?.Refresh();
-        UpdateDeviceCount();
+        RefreshDeviceGrouping();
     }
 
     /// <summary>
@@ -306,8 +309,7 @@ public partial class MainWindow : Window
         RefreshRisks(result);
         RefreshTimeline(result);
 
-        _devicesView.Refresh();
-        UpdateDeviceCount();
+        RefreshDeviceGrouping();
         EvidenceCountText.Text = _evidence.Count.ToString();
         UpdateNetworkCount();
         var suspiciousCount = result.CleanupFindings.Count(x => x.IsSuspicious);
@@ -414,6 +416,7 @@ public partial class MainWindow : Window
 
     private void SetBusy(bool busy)
     {
+        PreviewDeviceRemovalButton.IsEnabled = !busy && _vm.LastResult is not null;
         CaptureEnvironmentButton.IsEnabled = !busy && _vm.LastResult is not null;
         ActiveProbeCheck.IsEnabled = !busy;
         ScanButton.IsEnabled = !busy;

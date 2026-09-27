@@ -237,6 +237,34 @@
             </Style.Triggers>
         </Style>
 
+        <ControlTemplate x:Key="UngroupedDeviceRow" TargetType="GroupItem">
+            <ItemsPresenter/>
+        </ControlTemplate>
+        <ControlTemplate x:Key="GroupedDeviceRows" TargetType="GroupItem">
+            <Expander IsExpanded="{Binding Name.IsExpanded, Mode=TwoWay}" Background="#16203A"
+                      Foreground="#BFE7FF" HorizontalContentAlignment="Stretch">
+                <Expander.Header>
+                    <StackPanel Orientation="Horizontal" Margin="6,7">
+                        <TextBlock Text="{Binding Name.Title}" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding ItemCount, StringFormat= · записей: {0}}" Margin="8,0,0,0"/>
+                    </StackPanel>
+                </Expander.Header>
+                <ItemsPresenter/>
+            </Expander>
+        </ControlTemplate>
+        <GroupStyle x:Key="DeviceModelGroupStyle" HidesIfEmpty="True">
+            <GroupStyle.ContainerStyle>
+                <Style TargetType="GroupItem">
+                    <Setter Property="Template" Value="{StaticResource UngroupedDeviceRow}"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Name.IsGrouped}" Value="True">
+                            <Setter Property="Template" Value="{StaticResource GroupedDeviceRows}"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </GroupStyle.ContainerStyle>
+        </GroupStyle>
+
         <Style x:Key="Card" TargetType="Border">
             <Setter Property="Background" Value="#111726"/>
             <Setter Property="BorderBrush" Value="#1E2A44"/>
@@ -468,7 +496,7 @@
                                        Foreground="#B8A9FF"
                                        TextWrapping="Wrap"
                                        Margin="0,4,0,0"/>
-                            <TextBlock Text="Наведите указатель на любую ячейку — над ней появится простое объяснение значения."
+                            <TextBlock Text="Двойной щелчок открывает досье. Повторяющиеся VID/PID собраны в группы; это могут быть разные устройства одной модели. Одиночные и неполные пары показаны ниже."
                                        Foreground="{StaticResource Accent2}"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
@@ -500,6 +528,17 @@
                                           Checked="AllRecordsCheck_Changed"
                                           Unchecked="AllRecordsCheck_Changed"/>
                             </StackPanel>
+                            <WrapPanel Margin="0,10,0,0">
+                                <TextBlock Text="Поиск:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBox x:Name="DeviceSearchBox" Width="300" Padding="8,5"
+                                         Background="{StaticResource PanelDeep}" Foreground="{StaticResource TextSoft}"
+                                         CaretBrush="{StaticResource TextSoft}" BorderBrush="{StaticResource Stroke}"
+                                         TextChanged="DeviceSearchBox_TextChanged"/>
+                                <Button x:Name="PreviewDeviceRemovalButton" Content="Проверить удаление выбранных"
+                                        IsEnabled="False" Click="PreviewDeviceRemovalButton_Click"/>
+                                <TextBlock Text="Несколько строк: Ctrl / Shift" Foreground="{StaticResource TextMuted}"
+                                           VerticalAlignment="Center" Margin="12,0,0,0"/>
+                            </WrapPanel>
                         </StackPanel>
                     </Border>
                     <Grid>
@@ -510,9 +549,14 @@
                     <DataGrid x:Name="DevicesGrid"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
+                              SelectionMode="Extended"
+                              VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                               ItemsSource="{Binding Devices}"
                               SelectionChanged="DevicesGrid_SelectionChanged"
                               MouseDoubleClick="DevicesGrid_MouseDoubleClick">
+                        <DataGrid.GroupStyle>
+                            <StaticResource ResourceKey="DeviceModelGroupStyle"/>
+                        </DataGrid.GroupStyle>
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
                                 <Style.Triggers>

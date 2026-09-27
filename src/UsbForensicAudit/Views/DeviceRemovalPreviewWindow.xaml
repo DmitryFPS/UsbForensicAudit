@@ -1,0 +1,67 @@
+<Window x:Class="UsbForensicAudit.DeviceRemovalPreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Проверка удаления выбранных устройств" Width="1120" Height="650"
+        MinWidth="850" MinHeight="480" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="#0A0E1A" Foreground="#E6EDF7">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="#E6EDF7"/>
+            <Setter Property="Background" Value="#16203A"/>
+            <Setter Property="BorderBrush" Value="#536582"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True"><Setter Property="Opacity" Value="0.85"/></Trigger>
+                <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="WrappedCell" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="7,6"/>
+        </Style>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#16203A"/>
+            <Setter Property="Foreground" Value="#BFE7FF"/>
+            <Setter Property="Padding" Value="8,7"/>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock x:Name="SummaryText" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
+        <TextBlock Grid.Row="1" Margin="0,12,0,16" TextWrapping="Wrap" Foreground="#BAC7DD"
+                   Text="Проверьте каждый экземпляр в списке. Перед удалением программа сохранит копии его записей и повторно проверит подключение. Не подключайте выбранные устройства до завершения. Исторические следы в журналах, usbflags и сохранённых отчётах могут остаться; следующая установка устройства выполняется при его подключении."/>
+        <DataGrid Grid.Row="2" x:Name="PlanGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                  CanUserAddRows="False" CanUserDeleteRows="False"
+                  HeadersVisibility="Column" HorizontalGridLinesBrush="#26344B"
+                  Background="#111726" Foreground="#E6EDF7" RowBackground="#111726"
+                  AlternatingRowBackground="#16203A" GridLinesVisibility="Horizontal">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Устройство" Binding="{Binding Name}" Width="220" ElementStyle="{StaticResource WrappedCell}"/>
+                <DataGridTextColumn Header="Результат проверки" Binding="{Binding StatusText}" Width="310" ElementStyle="{StaticResource WrappedCell}"/>
+                <DataGridTextColumn Header="Точный ID экземпляра" Binding="{Binding InstanceId}" Width="440"/>
+                <DataGridTextColumn Header="Запись для резервной копии" Binding="{Binding RegistryPath}" Width="500"/>
+            </DataGrid.Columns>
+        </DataGrid>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Закрыть без удаления" IsCancel="True" Padding="16,9" Margin="0,0,12,0"/>
+            <Button x:Name="RemoveButton" Content="Удалить проверенные экземпляры" Click="RemoveButton_Click"
+                    Padding="16,9" Background="#8C263B" Foreground="White"/>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -17,9 +17,9 @@ public sealed class WmiConnectedDeviceProbe : IConnectedDeviceProbe
         {
             using var searcher = new ManagementObjectSearcher(
                 "SELECT PNPDeviceID, Service, Name FROM Win32_PnPEntity " +
-                "WHERE PNPDeviceID LIKE 'USB%' OR PNPDeviceID LIKE 'USBSTOR%' OR PNPDeviceID LIKE 'SCSI%' " +
+                "WHERE Present = TRUE AND (PNPDeviceID LIKE 'USB%' OR PNPDeviceID LIKE 'USBSTOR%' OR PNPDeviceID LIKE 'SCSI%' " +
                 "OR PNPDeviceID LIKE 'SWD%' OR PNPDeviceID LIKE 'USB4%' OR PNPDeviceID LIKE 'PCI%' " +
-                "OR Service='uaspstor' OR Service='Usb4HostRouter' OR Service='Usb4DeviceRouter' OR Service='Usb4P2PNetAdapter'");
+                "OR Service='uaspstor' OR Service='Usb4HostRouter' OR Service='Usb4DeviceRouter' OR Service='Usb4P2PNetAdapter')");
 
             using var pnpEntities = searcher.Get();
             foreach (ManagementObject item in pnpEntities)

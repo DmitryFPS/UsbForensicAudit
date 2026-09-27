@@ -18,9 +18,9 @@ public sealed class LiveUsbSnapshotService
         {
             using var searcher = new ManagementObjectSearcher(
                 "SELECT DeviceID, Name, Caption, PNPDeviceID, Status, Description, Service FROM Win32_PnPEntity " +
-                "WHERE PNPDeviceID LIKE 'USB%' OR PNPDeviceID LIKE 'USBSTOR%' OR PNPDeviceID LIKE 'SCSI%' " +
+                "WHERE Present = TRUE AND (PNPDeviceID LIKE 'USB%' OR PNPDeviceID LIKE 'USBSTOR%' OR PNPDeviceID LIKE 'SCSI%' " +
                 "OR PNPDeviceID LIKE 'SWD%' OR PNPDeviceID LIKE 'USB4%' OR PNPDeviceID LIKE 'PCI%' " +
-                "OR Service='uaspstor' OR Service='Usb4HostRouter' OR Service='Usb4DeviceRouter' OR Service='Usb4P2PNetAdapter'");
+                "OR Service='uaspstor' OR Service='Usb4HostRouter' OR Service='Usb4DeviceRouter' OR Service='Usb4P2PNetAdapter')");
 
             foreach (ManagementObject item in searcher.Get())
             {
@@ -101,7 +101,7 @@ public sealed class LiveUsbSnapshotService
     private void AddEndpointProtectionFilteredDevices(Dictionary<string, LiveUsbDevice> devicesByStableKey, UsbVidPidResolver vidPidResolver)
     {
         using var searcher = new ManagementObjectSearcher(
-            "SELECT PNPDeviceID, Name, Caption, Status, Description, Service, PNPClass FROM Win32_PnPEntity WHERE PNPClass='DiskDrive' OR PNPClass='USB' OR Service LIKE 'Sn%' OR Name LIKE '%USB%' OR Caption LIKE '%USB%'");
+            "SELECT PNPDeviceID, Name, Caption, Status, Description, Service, PNPClass FROM Win32_PnPEntity WHERE Present = TRUE AND (PNPClass='DiskDrive' OR PNPClass='USB' OR Service LIKE 'Sn%' OR Name LIKE '%USB%' OR Caption LIKE '%USB%')");
 
         foreach (ManagementObject item in searcher.Get())
         {
