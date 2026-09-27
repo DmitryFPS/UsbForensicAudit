@@ -102,6 +102,18 @@ public partial class MainWindow : Window
 
     private void DevicesGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
+        if (e.OriginalSource is DependencyObject clicked)
+        {
+            for (var current = clicked; current is not null && current is not DataGridRow;
+                 current = current is System.Windows.Media.Visual
+                     ? System.Windows.Media.VisualTreeHelper.GetParent(current) : LogicalTreeHelper.GetParent(current))
+            {
+                if (current is DeviceSelectionCheckBox)
+                {
+                    return;
+                }
+            }
+        }
         if (e.OriginalSource is not DependencyObject source
             || ItemsControl.ContainerFromElement(DevicesGrid, source) is not DataGridRow row
             || row.Item is not UsbDeviceRecord device)
@@ -321,7 +333,7 @@ public partial class MainWindow : Window
         RefreshHistoricalUtilityLaunches(result);
         _vm.ExternalUtilities.RefreshAssessments();
         RefreshExternalUtilitySectionFilterCombo();
-        DataGridAutoSize.FitColumns(DevicesGrid);
+        // Сохраняем понятные ширины основных колонок и узкую колонку выбора.
         DataGridAutoSize.FitColumns(EvidenceGrid);
         DataGridAutoSize.FitColumns(FindingsGrid);
         _cleanupFindingsView.Refresh();
@@ -416,7 +428,8 @@ public partial class MainWindow : Window
 
     private void SetBusy(bool busy)
     {
-        PreviewDeviceRemovalButton.IsEnabled = !busy && _vm.LastResult is not null;
+        _deviceActionsBusy = busy;
+        UpdateDeviceSelectionActions();
         CaptureEnvironmentButton.IsEnabled = !busy && _vm.LastResult is not null;
         ActiveProbeCheck.IsEnabled = !busy;
         ScanButton.IsEnabled = !busy;

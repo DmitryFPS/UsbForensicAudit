@@ -11,6 +11,7 @@ public sealed partial class DeviceDisplayGroup : ObservableObject
     public string Title { get; init; } = "";
     public bool IsGrouped { get; init; }
     public int Order { get; init; }
+    [ObservableProperty] private string _description = "";
     [ObservableProperty] private bool _isExpanded = true;
 }
 
@@ -18,6 +19,19 @@ public sealed class DeviceVidPidGrouping : GroupDescription
 {
     private readonly Dictionary<UsbDeviceRecord, DeviceDisplayGroup> _items = [];
     private Dictionary<string, DeviceDisplayGroup> _groups = [];
+    private readonly DeviceDisplayGroup _other = new()
+    {
+        Title = "Другие записи",
+        Description = "Одиночные VID/PID и записи без этих кодов"
+    };
+
+    public void SetExpanded(bool expanded)
+    {
+        foreach (var group in _groups.Values)
+        {
+            group.IsExpanded = expanded;
+        }
+    }
 
     public DeviceVidPidGrouping() => CustomSort = new GroupComparer();
 
@@ -38,11 +52,17 @@ public sealed class DeviceVidPidGrouping : GroupDescription
             .ToDictionary(x => x.Key, x => previous.GetValueOrDefault(x.Key)
                 ?? new DeviceDisplayGroup { Title = x.Key, IsGrouped = true });
         _items.Clear();
+        foreach (var pair in _groups)
+        {
+            var names = devices.Where(x => Pair(x) == pair.Key).Select(x => x.DisplayName)
+                .Distinct(StringComparer.OrdinalIgnoreCase).Take(2);
+            pair.Value.Description = string.Join(" / ", names);
+        }
         for (var i = 0; i < devices.Length; i++)
         {
             var pair = Pair(devices[i]);
             _items[devices[i]] = pair is not null && _groups.TryGetValue(pair, out var group)
-                ? group : new DeviceDisplayGroup { Order = i };
+                ? group : _other;
         }
         if (expandMatches)
         {

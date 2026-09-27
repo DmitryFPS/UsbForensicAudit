@@ -11,3 +11,9 @@ public interface IDeviceRemovalPlatform
     public Task<DeviceRemovalCommandResult> RemoveAsync(string instanceId);
     public Task SaveResultAsync(string backupDirectory, DeviceRemovalResult result);
 }
+
+public interface IRegistryTracePlatform
+{
+    public string? ReadTraceFingerprint(string registryPath);
+    public Task<DeviceRemovalCommandResult> RemoveTraceAsync(DeviceRegistryTrace trace);
+}

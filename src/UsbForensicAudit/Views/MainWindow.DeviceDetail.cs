@@ -14,6 +14,12 @@ public partial class MainWindow
 {
     private void DevicesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        UpdateDeviceSelectionActions();
+        if (DevicesGrid.SelectedItems.Count > 1)
+        {
+            HideDeviceDetail();
+            return;
+        }
         if (DevicesGrid.SelectedItem is not UsbDeviceRecord device)
         {
             HideDeviceDetail();

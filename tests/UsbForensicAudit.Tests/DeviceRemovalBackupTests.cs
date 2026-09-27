@@ -8,6 +8,54 @@ namespace UsbForensicAudit.Tests;
 
 public class DeviceRemovalBackupTests : IDisposable
 {
+    [Fact]
+    public async Task Historical_trace_backup_exports_exact_key_and_checks_snapshot_after_export()
+    {
+        const string path = @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Portable Devices\Devices\USB#VID_1234&PID_5678#SERIAL";
+        var fingerprint = "original";
+        var changeDuringExport = false;
+        var calls = new List<string[]>();
+        var platform = new WindowsDeviceRemovalPlatform(_directory, _ => false, _ => false,
+            async (exe, args, token) =>
+            {
+                Assert.Equal("reg.exe", exe);
+                calls.Add(args);
+                await File.WriteAllTextAsync(args[2], "Windows Registry Editor Version 5.00\r\n[" + path + "]\r\n", Encoding.Unicode, token);
+                if (changeDuringExport)
+                {
+                    fingerprint = "modified";
+                }
+
+                return new(0, "");
+            }, () => { }, _ => fingerprint);
+        var trace = new DeviceRegistryTrace(path, "original", [Id]);
+        var plan = new DeviceRemovalPlan("TEST", "test", DateTimeOffset.UtcNow,
+            [new(path, "Historical device", true, "", null, [Id], trace)]);
+        var directory = await platform.BackupAsync(plan, CancellationToken.None);
+        Assert.Equal(["export", path, Path.Combine(directory, "device-0001.reg"), "/y"], Assert.Single(calls));
+        changeDuringExport = true;
+        await Assert.ThrowsAsync<IOException>(() => platform.BackupAsync(plan, CancellationToken.None));
+        // Следующая попытка обнаружит изменение до запуска reg.exe.
+        await Assert.ThrowsAsync<IOException>(() => platform.BackupAsync(plan, CancellationToken.None));
+        Assert.Equal(2, calls.Count);
+    }
+
+    [Fact]
+    public async Task Already_absent_trace_is_documented_and_invalid_trace_path_cannot_be_exported()
+    {
+        const string path = @"HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Control\usbflags\123456780100";
+        var platform = new WindowsDeviceRemovalPlatform(_directory, _ => false, _ => false,
+            (_, _, _) => throw new Exception("No command expected"), () => { }, _ => null);
+        var trace = new DeviceRegistryTrace(path, "original", [], "1234", "5678");
+        var item = new DeviceRemovalItem(path, "Model cache", true, "", null, [], trace);
+        var plan = new DeviceRemovalPlan("TEST", "test", DateTimeOffset.UtcNow, [item]);
+        var directory = await platform.BackupAsync(plan, CancellationToken.None);
+        Assert.Contains("AlreadyAbsent", await File.ReadAllTextAsync(Path.Combine(directory, "manifest.json")));
+        var invalid = item with { Trace = trace with { RegistryPath = @"HKLM\SYSTEM" } };
+        await Assert.ThrowsAsync<ArgumentException>(() => platform.BackupAsync(plan with { Items = [invalid] }, CancellationToken.None));
+        Assert.Throws<ArgumentException>(() => platform.ReadTraceFingerprint(@"HKLM\SYSTEM"));
+    }
+
     private const string Id = @"USB\VID_1234&PID_5678\SERIAL";
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "UsbForensicAudit-backup-test-" + Guid.NewGuid().ToString("N"));
     private static DeviceRemovalPlan Plan() => new("TEST", "test", DateTimeOffset.UtcNow,

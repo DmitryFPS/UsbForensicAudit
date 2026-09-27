@@ -238,19 +238,46 @@
         </Style>
 
         <ControlTemplate x:Key="UngroupedDeviceRow" TargetType="GroupItem">
-            <ItemsPresenter/>
+            <StackPanel>
+                <Border Background="#182131" Padding="14,8" Margin="0,8,0,0" BorderBrush="#34415A" BorderThickness="0,1,0,1">
+                    <StackPanel>
+                        <TextBlock Text="Другие записи" Foreground="#D7E0F0" FontWeight="SemiBold" FontSize="14"/>
+                        <TextBlock Text="Одиночные VID/PID и записи без этих кодов" Foreground="#8B98B8" Margin="0,3,0,0"/>
+                    </StackPanel>
+                </Border>
+                <ItemsPresenter/>
+            </StackPanel>
         </ControlTemplate>
         <ControlTemplate x:Key="GroupedDeviceRows" TargetType="GroupItem">
-            <Expander IsExpanded="{Binding Name.IsExpanded, Mode=TwoWay}" Background="#16203A"
-                      Foreground="#BFE7FF" HorizontalContentAlignment="Stretch">
-                <Expander.Header>
-                    <StackPanel Orientation="Horizontal" Margin="6,7">
-                        <TextBlock Text="{Binding Name.Title}" FontWeight="SemiBold"/>
-                        <TextBlock Text="{Binding ItemCount, StringFormat= · записей: {0}}" Margin="8,0,0,0"/>
-                    </StackPanel>
-                </Expander.Header>
-                <ItemsPresenter/>
-            </Expander>
+            <StackPanel Margin="0,8,0,0">
+                <ToggleButton x:Name="GroupToggle" IsChecked="{Binding Name.IsExpanded, Mode=TwoWay}"
+                              HorizontalContentAlignment="Stretch" Cursor="Hand">
+                    <ToggleButton.Template>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <Border Background="#162840" BorderBrush="#35577B" BorderThickness="3,0,0,1" Padding="12,7">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="Arrow" Text="&#x25B6;" Foreground="#7FB4FF" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Name.Title}" Foreground="#C8E4FF" FontSize="14" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding ItemCount, StringFormat=Записей: {0}}" Foreground="#AFC4DF" Margin="20,0,0,0" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Name.Description}" Foreground="#9EAFCA" Margin="0,3,0,0" MaxWidth="560" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True"><Setter TargetName="Arrow" Property="Text" Value="&#x25BC;"/></Trigger>
+                                <Trigger Property="IsMouseOver" Value="True"><Setter Property="Opacity" Value="0.85"/></Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </ToggleButton.Template>
+                </ToggleButton>
+                <ItemsPresenter x:Name="GroupRows"/>
+            </StackPanel>
+            <ControlTemplate.Triggers>
+                <Trigger SourceName="GroupToggle" Property="IsChecked" Value="False"><Setter TargetName="GroupRows" Property="Visibility" Value="Collapsed"/></Trigger>
+            </ControlTemplate.Triggers>
         </ControlTemplate>
         <GroupStyle x:Key="DeviceModelGroupStyle" HidesIfEmpty="True">
             <GroupStyle.ContainerStyle>
@@ -447,10 +474,10 @@
                 <DockPanel Margin="4,14,4,4">
                     <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock Text="Здесь список USB и Type-C устройств, которые Windows когда-либо видела на этом компьютере."
+                            <TextBlock Text="Устройства и история подключений" FontSize="18" FontWeight="SemiBold"
                                        Foreground="{StaticResource TextMain}"
                                        TextWrapping="Wrap"/>
-                            <TextBlock Text="{Binding ExternalDeviceSummary}"
+                            <TextBlock x:Name="DeviceListSummaryText" Text="Выполните сканирование, чтобы увидеть устройства."
                                        Foreground="{StaticResource AccentSoft}"
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap"
@@ -460,6 +487,7 @@
                                     <TextBlock Text="Как читать эту таблицу и что значат цвета" Foreground="{StaticResource Accent2}" FontSize="12"/>
                                 </Expander.Header>
                                 <StackPanel Margin="0,6,0,0">
+                                    <TextBlock Text="{Binding ExternalDeviceSummary}" Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,6"/>
 <TextBlock Text="Одно устройство Windows описывает несколькими записями: у телефона по Bluetooth это полтора десятка услуг, у веб-камеры — видеопоток и микрофон, у флешки — запись шины, накопителя и переносимого устройства. В списке стоит одно устройство одной строкой, остальные записи свёрнуты в него и видны по двойному щелчку. Ничего не потеряно — галочка ниже возвращает все записи."
                                        Foreground="{StaticResource TextMuted}"
                                        TextWrapping="Wrap"
@@ -504,7 +532,7 @@
                             </Expander>
                             
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                <TextBlock Text="Фильтр transport/classification:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="Показать:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <ComboBox x:Name="DeviceFilterCombo" Width="250" SelectionChanged="DeviceFilterCombo_SelectionChanged">
                                     <ComboBoxItem Content="Все устройства" Tag="All" IsSelected="True"/>
                                     <ComboBoxItem Content="Только внешние устройства" Tag="ExternalOnly"/>
@@ -534,11 +562,22 @@
                                          Background="{StaticResource PanelDeep}" Foreground="{StaticResource TextSoft}"
                                          CaretBrush="{StaticResource TextSoft}" BorderBrush="{StaticResource Stroke}"
                                          TextChanged="DeviceSearchBox_TextChanged"/>
-                                <Button x:Name="PreviewDeviceRemovalButton" Content="Проверить удаление выбранных"
-                                        IsEnabled="False" Click="PreviewDeviceRemovalButton_Click"/>
-                                <TextBlock Text="Несколько строк: Ctrl / Shift" Foreground="{StaticResource TextMuted}"
-                                           VerticalAlignment="Center" Margin="12,0,0,0"/>
+                                <Button Content="Развернуть группы" Click="ExpandDeviceGroups_Click"/>
+                                <Button Content="Свернуть группы" Click="CollapseDeviceGroups_Click"/>
                             </WrapPanel>
+                        </StackPanel>
+                    </Border>
+                    <Border DockPanel.Dock="Bottom" Background="#162034" BorderBrush="#35506B" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,10,0,0">
+                        <StackPanel>
+                            <TextBlock x:Name="DeviceSelectionText" Text="Выберите записи галочками или с Ctrl / Shift" Foreground="#E6EDF7" FontWeight="SemiBold"/>
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button x:Name="PreviewDeviceRemovalButton" Content="Удалить следы в Windows…" Background="#792D40" BorderBrush="#B55A70"
+                                        Margin="0,0,8,0" IsEnabled="False" Click="PreviewDeviceRemovalButton_Click"/>
+                                <Button Content="Снять выделение" Click="ClearDeviceSelection_Click" Margin="0"/>
+                                <Button Content="Выбрать весь список" Click="SelectDeviceList_Click"/>
+                            </WrapPanel>
+                            <TextBlock Text="После успешного удаления из Windows карточки автоматически удаляются из базы. Неудалённые записи останутся."
+                                       Foreground="#9EAFCA" Margin="0,8,0,0" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
                     <Grid>
@@ -550,6 +589,7 @@
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
                               SelectionMode="Extended"
+                              MinRowHeight="34"
                               VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                               ItemsSource="{Binding Devices}"
                               SelectionChanged="DevicesGrid_SelectionChanged"
@@ -571,6 +611,18 @@
                             </Style>
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="✓" Width="38" CanUserSort="False">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <local:DeviceSelectionCheckBox HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Устройство" Binding="{Binding DisplayName}" Width="270"/>
+                            <DataGridTextColumn Header="VID / PID" Binding="{Binding VidPidText}" Width="125"/>
+                            <DataGridTextColumn Header="Серийный номер" Binding="{Binding SerialText}" Width="175"/>
+                            <DataGridTextColumn Header="Когда подключали" Binding="{Binding FirstConnectedText}" Width="180"/>
+                            <DataGridTextColumn Header="Когда отключали" Binding="{Binding LastDisconnectedText}" Width="200"/>
                             <DataGridTextColumn Header="Внешнее устройство?" Binding="{Binding ExternalityText}" Width="200">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
@@ -601,20 +653,15 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
                             <DataGridTextColumn Header="Что это за запись" Binding="{Binding UserMeaning}" Width="250"/>
-                            <DataGridTextColumn Header="Имя устройства" Binding="{Binding DisplayName}" Width="220"/>
                             <DataGridTextColumn Header="Вид записи" Binding="{Binding CategoryText}" Width="210"/>
                             <DataGridTextColumn Header="Transport" Binding="{Binding Transport}" Width="170"/>
                             <DataGridTextColumn Header="Connection" Binding="{Binding Connection}" Width="170"/>
                             <DataGridTextColumn Header="Classification" Binding="{Binding Classification}" Width="130"/>
                             <DataGridTextColumn Header="Confidence / evidence" Binding="{Binding ClassificationEvidenceText}" Width="300"/>
-                            <DataGridTextColumn Header="Когда подключали" Binding="{Binding FirstConnectedText}" Width="170"/>
-                            <DataGridTextColumn Header="Когда отключали" Binding="{Binding LastDisconnectedText}" Width="220"/>
                             <DataGridTextColumn Header="Последняя активность" Binding="{Binding LastSeenText}" Width="170"/>
                             <DataGridTextColumn Header="Пояснение по датам" Binding="{Binding DateConfidenceText}" Width="320"/>
                             <DataGridTextColumn Header="Производитель" Binding="{Binding ManufacturerText}" Width="140"/>
                             <DataGridTextColumn Header="Модель" Binding="{Binding ModelText}" Width="160"/>
-                            <DataGridTextColumn Header="VID / PID" Binding="{Binding VidPidText}" Width="120"/>
-                            <DataGridTextColumn Header="Серийный номер" Binding="{Binding SerialText}" Width="160"/>
                             <DataGridTextColumn Header="Расположение в USB" Binding="{Binding LocationDisplayText}" Width="180"/>
                             <DataGridTextColumn Header="Откуда взята информация" Binding="{Binding SourceText}" Width="220"/>
                             <DataGridTextColumn Header="Системный ID" Binding="{Binding DeviceInstanceId}" Width="300"/>

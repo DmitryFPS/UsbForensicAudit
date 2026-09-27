@@ -20,6 +20,29 @@ public class DeviceRemovalTests
         new() { DeviceInstanceId = id, CanonicalDeviceId = canonical };
 
     [Fact]
+    public async Task Empty_selection_and_plan_cannot_start_backup_or_removal()
+    {
+        var platform = new FakePlatform(Node());
+        var service = new DeviceRemovalService(platform);
+        Assert.Throws<InvalidOperationException>(() => service.Preview(Scan(Record()), []));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ExecuteAsync(new("TEST-PC", "test", DateTimeOffset.UtcNow, [])));
+        Assert.Empty(platform.Actions);
+    }
+
+    [Theory]
+    [InlineData("OTHER-PC", "test")]
+    [InlineData("TEST-PC", "offline-test")]
+    public async Task Execution_rejects_foreign_or_offline_plan_before_backup(string computer, string session)
+    {
+        var platform = new FakePlatform(Node());
+        var service = new DeviceRemovalService(platform);
+        var record = Record();
+        var plan = service.Preview(Scan(record), [record]) with { ComputerName = computer, SessionId = session };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ExecuteAsync(plan));
+        Assert.Empty(platform.Actions);
+    }
+
+    [Fact]
     public void Preview_of_one_model_instance_does_not_select_another_with_same_vid_pid()
     {
         var selected = Record();
@@ -111,6 +134,16 @@ public class DeviceRemovalTests
         var plan = new DeviceRemovalService(platform).Preview(Scan(parent, child, other), [parent, child, parent]);
         Assert.Equal(2, plan.RemovableCount);
         Assert.DoesNotContain(plan.Items, x => x.InstanceId == OtherId);
+    }
+
+    [Fact]
+    public void Portable_history_alias_resolves_its_backing_pnp_instance()
+    {
+        var record = Record(@"SWD\WPDBUSENUM\WRAPPER");
+        record.IdentityAliases.Add(Id);
+        var plan = new DeviceRemovalService(new FakePlatform(Node(), Node(OtherId))).Preview(Scan(record), [record]);
+        Assert.Equal(Id, Assert.Single(plan.Items).InstanceId);
+        Assert.Equal(1, plan.RemovableCount);
     }
 
     [Theory]

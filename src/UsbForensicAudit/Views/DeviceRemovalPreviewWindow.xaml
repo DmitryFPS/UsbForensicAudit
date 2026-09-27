@@ -40,13 +40,16 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <TextBlock x:Name="SummaryText" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
         <TextBlock Grid.Row="1" Margin="0,12,0,16" TextWrapping="Wrap" Foreground="#BAC7DD"
-                   Text="Проверьте каждый экземпляр в списке. Перед удалением программа сохранит копии его записей и повторно проверит подключение. Не подключайте выбранные устройства до завершения. Исторические следы в журналах, usbflags и сохранённых отчётах могут остаться; следующая установка устройства выполняется при его подключении."/>
-        <DataGrid Grid.Row="2" x:Name="PlanGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                   Text="Ниже — точные записи, которые будут удалены из Windows, и причины пропуска остальных. Перед удалением сохраняются копии и повторно проверяется подключение. После успешного удаления карточки автоматически убираются из рабочей базы; при ошибке или пропуске сохраняются. Не подключайте устройства до завершения. Общие журналы событий, SetupAPI и архив доказательств не очищаются."/>
+        <CheckBox Grid.Row="2" x:Name="ShowProtected" Content="Показать недоступные записи" Foreground="#BAC7DD" Margin="0,0,0,10"
+                  Checked="ShowProtected_Changed" Unchecked="ShowProtected_Changed"/>
+        <DataGrid Grid.Row="3" x:Name="PlanGrid" AutoGenerateColumns="False" IsReadOnly="True"
                   CanUserAddRows="False" CanUserDeleteRows="False"
                   HeadersVisibility="Column" HorizontalGridLinesBrush="#26344B"
                   Background="#111726" Foreground="#E6EDF7" RowBackground="#111726"
@@ -54,11 +57,11 @@
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Устройство" Binding="{Binding Name}" Width="220" ElementStyle="{StaticResource WrappedCell}"/>
                 <DataGridTextColumn Header="Результат проверки" Binding="{Binding StatusText}" Width="310" ElementStyle="{StaticResource WrappedCell}"/>
-                <DataGridTextColumn Header="Точный ID экземпляра" Binding="{Binding InstanceId}" Width="440"/>
+                <DataGridTextColumn Header="Экземпляр или запись Windows" Binding="{Binding InstanceId}" Width="440"/>
                 <DataGridTextColumn Header="Запись для резервной копии" Binding="{Binding RegistryPath}" Width="500"/>
             </DataGrid.Columns>
         </DataGrid>
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button Content="Закрыть без удаления" IsCancel="True" Padding="16,9" Margin="0,0,12,0"/>
             <Button x:Name="RemoveButton" Content="Удалить проверенные экземпляры" Click="RemoveButton_Click"
                     Padding="16,9" Background="#8C263B" Foreground="White"/>

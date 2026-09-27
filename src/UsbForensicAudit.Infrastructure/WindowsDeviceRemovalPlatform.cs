@@ -9,7 +9,7 @@ using Microsoft.Win32;
 namespace UsbForensicAudit;
 
 /// <summary>Только точечное удаление PnP-экземпляра штатной командой Windows.</summary>
-public sealed class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatform
+public sealed partial class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatform, IRegistryTracePlatform
 {
     private const string EnumRoot = @"SYSTEM\CurrentControlSet\Enum\";
     private readonly string _backupRoot;
@@ -17,6 +17,7 @@ public sealed class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatform
     private readonly Func<string, bool> _exists;
     private readonly Func<string, string[], CancellationToken, Task<DeviceRemovalCommandResult>> _run;
     private readonly Action _ensureSupported;
+    private readonly Func<string, string?> _readTrace;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public WindowsDeviceRemovalPlatform(string dataDirectory)
@@ -25,13 +26,15 @@ public sealed class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatform
     }
 
     internal WindowsDeviceRemovalPlatform(string dataDirectory, Func<string, bool> present, Func<string, bool> exists,
-        Func<string, string[], CancellationToken, Task<DeviceRemovalCommandResult>> run, Action ensureSupported)
+        Func<string, string[], CancellationToken, Task<DeviceRemovalCommandResult>> run, Action ensureSupported,
+        Func<string, string?>? readTrace = null)
     {
         _backupRoot = Path.GetFullPath(Path.Combine(dataDirectory, "device-removal"));
         _present = present;
         _exists = exists;
         _run = run;
         _ensureSupported = ensureSupported;
+        _readTrace = readTrace ?? NativeReadTraceFingerprint;
     }
 
     public string ComputerName => Environment.MachineName;
@@ -127,10 +130,19 @@ public sealed class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatform
         foreach (var item in plan.Items.Where(x => x.CanRemove))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ValidateId(item.InstanceId);
-            if (!InstanceExists(item.InstanceId))
+            if (item.Trace is null)
             {
-                if (IsPresent(item.InstanceId))
+                ValidateId(item.InstanceId);
+            }
+            else if (DeviceTracePolicy.NormalizePath(item.Trace.RegistryPath) is null)
+            {
+                throw new ArgumentException("Недопустимый путь записи.");
+            }
+
+            var exists = item.Trace is { } trace ? ReadTraceFingerprint(trace.RegistryPath) is not null : InstanceExists(item.InstanceId);
+            if (!exists)
+            {
+                if (item.Trace is null && IsPresent(item.InstanceId))
                 {
                     throw new IOException("Состояние устройства изменилось при резервном копировании.");
                 }
@@ -138,8 +150,14 @@ public sealed class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatform
                 exports.Add(new { item.InstanceId, AlreadyAbsent = true });
                 continue;
             }
+            if (item.Trace is { } before && ReadTraceFingerprint(before.RegistryPath) != before.Fingerprint)
+            {
+                throw new IOException("Запись реестра изменилась перед резервным копированием.");
+            }
+
             var file = Path.Combine(directory, $"device-{exports.Count + 1:D4}.reg");
-            var command = await _run("reg.exe", ["export", @"HKLM\" + EnumRoot + item.InstanceId, file, "/y"], cancellationToken);
+            var exportPath = item.Trace?.RegistryPath ?? @"HKLM\" + EnumRoot + item.InstanceId;
+            var command = await _run("reg.exe", ["export", exportPath, file, "/y"], cancellationToken);
             if (command.ExitCode != 0 || !File.Exists(file) || new FileInfo(file).Length == 0)
             {
                 throw new IOException($"Не удалось сохранить копию {item.InstanceId}. Удаление не начато. {command.Output}");
@@ -147,9 +165,13 @@ public sealed class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatform
 
             var content = await File.ReadAllTextAsync(file, cancellationToken);
             if (!content.StartsWith("Windows Registry Editor Version 5.00", StringComparison.Ordinal)
-                || !content.Contains("[HKEY_LOCAL_MACHINE\\" + EnumRoot + item.InstanceId + "]", StringComparison.OrdinalIgnoreCase))
+                || !content.Contains("[" + item.RegistryPath + "]", StringComparison.OrdinalIgnoreCase))
             {
                 throw new IOException("Резервная копия не содержит выбранную запись. Удаление не начато.");
+            }
+            if (item.Trace is { } after && ReadTraceFingerprint(after.RegistryPath) != after.Fingerprint)
+            {
+                throw new IOException("Запись реестра изменилась при резервном копировании. Удаление не начато.");
             }
 
             using var stream = File.OpenRead(file);

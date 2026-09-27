@@ -6,7 +6,7 @@ using Microsoft.Data.Sqlite;
 
 namespace UsbForensicAudit;
 
-public sealed class AuditStorage : IAuditStorage
+public sealed partial class AuditStorage : IAuditStorage
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

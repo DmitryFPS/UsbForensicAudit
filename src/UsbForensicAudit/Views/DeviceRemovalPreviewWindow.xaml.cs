@@ -4,14 +4,31 @@ namespace UsbForensicAudit;
 
 public partial class DeviceRemovalPreviewWindow : Window
 {
+    private readonly DeviceRemovalPlan _plan;
     public DeviceRemovalPreviewWindow(DeviceRemovalPlan plan)
     {
+        _plan = plan;
         InitializeComponent();
         DarkWindowChrome.Apply(this);
-        PlanGrid.ItemsSource = plan.Items;
-        SummaryText.Text = $"Можно удалить: {plan.RemovableCount}. Только просмотр: {plan.ProtectedCount}.";
-        RemoveButton.Content = $"Удалить экземпляры: {plan.RemovableCount}";
+        ShowProtected.IsChecked = plan.RemovableCount == 0;
+        ShowProtected.Content = $"Показать недоступные для удаления записи ({plan.ProtectedCount})";
+        RefreshItems();
+        SummaryText.Text = $"Удаление из Windows: {plan.RemovableCount}. Не будут удалены: {plan.ProtectedCount}.";
+        RemoveButton.Content = $"Удалить из Windows: {plan.RemovableCount}";
         RemoveButton.IsEnabled = plan.RemovableCount > 0;
+    }
+
+    private void ShowProtected_Changed(object sender, RoutedEventArgs e) => RefreshItems();
+
+    private void RefreshItems()
+    {
+        if (PlanGrid is null)
+        {
+            return;
+        }
+
+        PlanGrid.ItemsSource = _plan.Items.Where(x => x.CanRemove || ShowProtected.IsChecked == true)
+            .OrderByDescending(x => x.CanRemove).ToArray();
     }
 
     private void RemoveButton_Click(object sender, RoutedEventArgs e) => DialogResult = true;

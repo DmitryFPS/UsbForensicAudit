@@ -8,6 +8,23 @@ namespace UsbForensicAudit.Tests;
 
 public class DeviceGroupingAndConnectionTests
 {
+    [Fact]
+    public void Preview_separates_removable_records_from_protected_records()
+    {
+        OnSta(() =>
+        {
+            var plan = new DeviceRemovalPlan("TEST", "test", DateTimeOffset.UtcNow,
+                [new("A", "Allowed", true, "", null, []), new("B", "Blocked", false, "Connected", null, [])]);
+            var window = new DeviceRemovalPreviewWindow(plan);
+            var grid = (System.Windows.Controls.DataGrid)window.FindName("PlanGrid");
+            Assert.Single(grid.Items);
+            ((System.Windows.Controls.CheckBox)window.FindName("ShowProtected")).IsChecked = true;
+            Assert.Equal(2, grid.Items.Count);
+            Assert.True(((DeviceRemovalItem)grid.Items[0]).CanRemove);
+            window.Close();
+        });
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -80,10 +97,12 @@ public class DeviceGroupingAndConnectionTests
             var view = new ListCollectionView(list);
             view.GroupDescriptions.Add(grouping);
             var groups = view.Groups!.Cast<CollectionViewGroup>().ToArray();
-            Assert.Equal(3, groups.Length);
+            Assert.Equal(2, groups.Length);
             Assert.True(((DeviceDisplayGroup)groups[0].Name).IsGrouped);
             Assert.Equal("VID ABCD · PID 1234", ((DeviceDisplayGroup)groups[0].Name).Title);
             Assert.Equal(2, groups[0].ItemCount);
+            Assert.Equal("Другие записи", ((DeviceDisplayGroup)groups[1].Name).Title);
+            Assert.Equal(2, groups[1].ItemCount);
             Assert.Equal([first, second, missing, single], view.Cast<UsbDeviceRecord>());
             Assert.NotEqual(first.Serial, second.Serial);
 
@@ -93,6 +112,10 @@ public class DeviceGroupingAndConnectionTests
             Assert.False(((DeviceDisplayGroup)((CollectionViewGroup)view.Groups![0]).Name).IsExpanded);
             grouping.Reset(list, expandMatches: true);
             view.Refresh();
+            Assert.True(((DeviceDisplayGroup)((CollectionViewGroup)view.Groups![0]).Name).IsExpanded);
+            grouping.SetExpanded(false);
+            Assert.False(((DeviceDisplayGroup)((CollectionViewGroup)view.Groups![0]).Name).IsExpanded);
+            grouping.SetExpanded(true);
             Assert.True(((DeviceDisplayGroup)((CollectionViewGroup)view.Groups![0]).Name).IsExpanded);
 
             // После фильтрации оставшаяся одиночная запись теряет групповой заголовок.

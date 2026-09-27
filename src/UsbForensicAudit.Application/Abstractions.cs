@@ -113,6 +113,9 @@ public sealed record NetworkArtifactSet(
 /// </summary>
 public interface IAuditStorage
 {
+    public DatabaseDeviceRemovalResult DeleteDeviceRecords(string sessionId, IReadOnlyCollection<string> instanceIds) =>
+        throw new NotSupportedException("Хранилище не поддерживает удаление записей.");
+
     public string DataDirectory { get; }
 
     public string DatabasePath { get; }
