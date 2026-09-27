@@ -20,12 +20,8 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
         var databaseRecords = new List<DeviceRemovalDatabaseRecord>();
         foreach (var record in selected)
         {
-            var artifact = DeviceComposition.IsVolumeMetadata(record) || record.DeviceType.Equals("USBFlags", StringComparison.OrdinalIgnoreCase);
-            var sources = result.Devices.Where(x => ReferenceEquals(x, record)
-                || (!string.IsNullOrWhiteSpace(record.DeviceInstanceId)
-                    && x.DeviceInstanceId.Equals(record.DeviceInstanceId, StringComparison.OrdinalIgnoreCase))
-                || (!artifact && !string.IsNullOrWhiteSpace(record.CanonicalDeviceId)
-                    && x.CanonicalDeviceId.Equals(record.CanonicalDeviceId, StringComparison.OrdinalIgnoreCase))).ToArray();
+            var artifact = DeviceRemovalSelection.IsSharedArtifact(record);
+            var sources = DeviceRemovalSelection.Records(record, result, inventory);
             var before = items.Count;
             if (platform is IRegistryTracePlatform registry)
             {
@@ -34,14 +30,28 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
                     foreach (var path in DeviceTracePolicy.SourcePaths(source))
                     {
                         string? fingerprint;
-                        try { fingerprint = registry.ReadTraceFingerprint(path); }
+                        try
+                        {
+                            if (DeviceTracePolicy.EnumInstanceId(path) is not null && registry.IsActiveEnumPath(path))
+                            {
+                                continue;
+                            }
+
+                            fingerprint = registry.ReadTraceFingerprint(path);
+                        }
                         catch (Exception ex) when (ex is UnauthorizedAccessException or System.IO.IOException or System.Security.SecurityException)
                         {
                             items.Add(new(path, source.DisplayName, false, "Не удалось прочитать запись: " + ex.Message, null, []));
                             continue;
                         }
-                        if (fingerprint is null || DeviceTracePolicy.Bind(path, source, fingerprint) is not { } trace)
+                        if (fingerprint is null)
                         {
+                            continue;
+                        }
+                        if (DeviceTracePolicy.Bind(path, source, fingerprint) is not { } trace)
+                        {
+                            items.Add(new(path, source.DisplayName, false,
+                                "Не подтверждена принадлежность записи удаляемому USB-устройству или запись относится к инфраструктуре Windows.", null, []));
                             continue;
                         }
 
@@ -51,16 +61,14 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
                     }
                 }
             }
-            var identifiers = (artifact ? [] : sources).SelectMany(source => new[] { source.DeviceInstanceId }.Concat(source.IdentityAliases))
-                .Select(Normalize).Where(x => x.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var matches = inventory.Where(node => identifiers.Contains(Normalize(node.InstanceId))
-                    || (node.AuditInstanceId.Length > 0 && identifiers.Contains(Normalize(node.AuditInstanceId))))
-                .DistinctBy(x => x.InstanceId, StringComparer.OrdinalIgnoreCase).ToArray();
+            var matches = DeviceRemovalSelection.Nodes(artifact ? [] : sources.Where(x => !DeviceRemovalSelection.IsSharedArtifact(x)), inventory);
             if (matches.Length == 0)
             {
                 if (items.Count == before)
                 {
-                    items.Add(Protected(record, "Нет поддерживаемой записи в текущей Windows. Карточка останется в базе."));
+                    items.Add(Protected(record, artifact
+                        ? "Общий кэш или сопоставление томов. Выборочная очистка этого источника не поддерживается; одного имени или буквы диска недостаточно для связи с устройством."
+                        : "Нет доступной для выборочной очистки записи Windows. Карточка останется в базе."));
                 }
             }
             foreach (var node in matches)
@@ -167,7 +175,8 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
                     protocolError = ex.Message;
                 }
             }
-            var result = new DeviceRemovalResult(backupDirectory, outcomes) { ProtocolError = protocolError };
+            var result = new DeviceRemovalResult(backupDirectory, outcomes)
+            { ProtocolError = protocolError, SkippedCount = plan.ProtectedCount };
             if (storage is not null)
             {
                 result = DeviceRemovalDatabaseSync.Apply(plan, result, storage);
@@ -195,6 +204,10 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
             if (platform is not IRegistryTracePlatform registry || target.InstanceId != trace.RegistryPath)
             {
                 return "Некорректный план удаления записи реестра.";
+            }
+            if (DeviceTracePolicy.EnumInstanceId(trace.RegistryPath) is not null && registry.IsActiveEnumPath(trace.RegistryPath))
+            {
+                return "Активные PnP-записи удаляются только штатной командой Windows.";
             }
 
             var traceReason = DeviceTracePolicy.ProtectionReason(trace, inventory, platform.IsPresent);
@@ -239,7 +252,6 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
         && a.HardwareIds.Equals(b.HardwareIds, StringComparison.OrdinalIgnoreCase)
         && a.ParentIdPrefix.Equals(b.ParentIdPrefix, StringComparison.OrdinalIgnoreCase);
 
-    private static string Normalize(string id) => DeviceRemovalPolicy.NormalizeInstanceId(id);
     private bool IsAbsent(DeviceRemovalItem target) => target.Trace is { } trace
         ? ((IRegistryTracePlatform)platform).ReadTraceFingerprint(trace.RegistryPath) is null
         : !platform.InstanceExists(target.InstanceId) && !platform.IsPresent(target.InstanceId);

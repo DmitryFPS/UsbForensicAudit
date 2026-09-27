@@ -9,6 +9,36 @@ namespace UsbForensicAudit.Tests;
 public class DeviceRemovalBackupTests : IDisposable
 {
     [Fact]
+    public async Task Native_backup_rejects_active_enum_and_only_exports_inactive_control_set()
+    {
+        using var machine = Microsoft.Win32.RegistryKey.OpenBaseKey(Microsoft.Win32.RegistryHive.LocalMachine, Microsoft.Win32.RegistryView.Registry64);
+        using var select = machine.OpenSubKey(@"SYSTEM\Select");
+        var current = Assert.IsType<int>(select!.GetValue("Current"));
+        var active = $@"HKEY_LOCAL_MACHINE\SYSTEM\ControlSet{current:D3}\Enum\{Id}";
+        var inactive = $@"HKEY_LOCAL_MACHINE\SYSTEM\ControlSet{(current == 1 ? 2 : 1):D3}\Enum\{Id}";
+        var calls = new List<string>();
+        var platform = new WindowsDeviceRemovalPlatform(_directory, _ => false, _ => false,
+            async (_, args, token) =>
+            {
+                calls.Add(args[1]);
+                await File.WriteAllTextAsync(args[2], "Windows Registry Editor Version 5.00\r\n[" + args[1] + "]\r\n", Encoding.Unicode, token);
+                return new(0, "");
+            }, () => { }, _ => "original");
+        var trace = new DeviceRegistryTrace(active, "original", [Id]);
+        var item = new DeviceRemovalItem(active, "USB", true, "", null, [Id], trace);
+        var plan = new DeviceRemovalPlan("TEST", "test", DateTimeOffset.UtcNow, [item]);
+        Assert.True(platform.IsActiveEnumPath(active));
+        Assert.False(platform.IsActiveEnumPath(inactive));
+        await Assert.ThrowsAsync<IOException>(() => platform.BackupAsync(plan, CancellationToken.None));
+        await Assert.ThrowsAsync<IOException>(() => platform.RemoveTraceAsync(trace));
+        Assert.Empty(calls);
+        var backup = await platform.BackupAsync(plan with { Items = [item with { InstanceId = inactive, Trace = trace with { RegistryPath = inactive } }] }, CancellationToken.None);
+        Assert.Equal(inactive, Assert.Single(calls));
+        Assert.True(File.Exists(Path.Combine(backup, "manifest.json")));
+        Assert.Throws<ArgumentOutOfRangeException>(() => WindowsDeviceRemovalPlatform.IsActiveEnumPath(inactive, 0));
+    }
+
+    [Fact]
     public async Task Historical_trace_backup_exports_exact_key_and_checks_snapshot_after_export()
     {
         const string path = @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Portable Devices\Devices\USB#VID_1234&PID_5678#SERIAL";

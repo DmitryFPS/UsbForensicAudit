@@ -64,7 +64,7 @@ public class DeviceRemovalTests
         var platform = new FakePlatform(Node(container: container), Node(OtherId, present, container));
         var plan = new DeviceRemovalService(platform).Preview(Scan(record), [record]);
         Assert.Equal(0, plan.RemovableCount);
-        Assert.Equal(1, plan.ProtectedCount);
+        Assert.Equal(2, plan.ProtectedCount);
     }
 
     [Fact]

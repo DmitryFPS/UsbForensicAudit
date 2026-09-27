@@ -14,6 +14,8 @@ public interface IDeviceRemovalPlatform
 
 public interface IRegistryTracePlatform
 {
+    // По умолчанию прямое удаление Enum не разрешено: адаптер должен проверить SYSTEM\Select.
+    public bool IsActiveEnumPath(string registryPath) => true;
     public string? ReadTraceFingerprint(string registryPath);
     public Task<DeviceRemovalCommandResult> RemoveTraceAsync(DeviceRegistryTrace trace);
 }

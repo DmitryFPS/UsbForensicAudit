@@ -10,10 +10,11 @@ public partial class DeviceRemovalPreviewWindow : Window
         _plan = plan;
         InitializeComponent();
         DarkWindowChrome.Apply(this);
-        ShowProtected.IsChecked = plan.RemovableCount == 0;
+        ShowProtected.IsChecked = plan.ProtectedCount > 0;
         ShowProtected.Content = $"Показать недоступные для удаления записи ({plan.ProtectedCount})";
         RefreshItems();
-        SummaryText.Text = $"Удаление из Windows: {plan.RemovableCount}. Не будут удалены: {plan.ProtectedCount}.";
+        SummaryText.Text = $"Удаление из Windows: {plan.RemovableCount}. Не будут удалены: {plan.ProtectedCount}."
+            + (plan.ProtectedCount > 0 ? " Очистка будет частичной." : "");
         RemoveButton.Content = $"Удалить из Windows: {plan.RemovableCount}";
         RemoveButton.IsEnabled = plan.RemovableCount > 0;
     }

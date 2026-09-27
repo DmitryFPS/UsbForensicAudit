@@ -8,6 +8,29 @@ namespace UsbForensicAudit;
 
 public sealed partial class WindowsDeviceRemovalPlatform
 {
+    public bool IsActiveEnumPath(string registryPath)
+    {
+        using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+        using var select = machine.OpenSubKey(@"SYSTEM\Select");
+        if (select?.GetValue("Current") is not int current || current is < 1 or > 999)
+        {
+            throw new IOException("Не удалось определить активный набор настроек Windows.");
+        }
+        return IsActiveEnumPath(registryPath, current);
+    }
+
+    internal static bool IsActiveEnumPath(string registryPath, int current)
+    {
+        if (current is < 1 or > 999)
+        {
+            throw new ArgumentOutOfRangeException(nameof(current));
+        }
+
+        var normalized = DeviceTracePolicy.NormalizePath(registryPath);
+        return normalized is null || DeviceTracePolicy.EnumInstanceId(normalized) is null
+            || normalized.StartsWith($@"HKEY_LOCAL_MACHINE\SYSTEM\ControlSet{current:D3}\", StringComparison.OrdinalIgnoreCase);
+    }
+
     public string? ReadTraceFingerprint(string registryPath)
         => _readTrace(DeviceTracePolicy.NormalizePath(registryPath) ?? throw new ArgumentException("Неподдерживаемая запись реестра."));
 
@@ -60,6 +83,7 @@ public sealed partial class WindowsDeviceRemovalPlatform
     {
         EnsureRemovalSupported();
         var path = DeviceTracePolicy.NormalizePath(trace.RegistryPath) ?? throw new ArgumentException("Неподдерживаемая запись реестра.");
+        EnsureInactiveEnumPath(path);
         var reason = DeviceTracePolicy.ProtectionReason(trace, ReadInventory(), IsPresent);
         if (reason.Length > 0)
         {
@@ -81,5 +105,13 @@ public sealed partial class WindowsDeviceRemovalPlatform
         // Только явно выбранный конечный ключ. Права/владельцы реестра не меняются.
         machine.DeleteSubKeyTree(path[19..], throwOnMissingSubKey: false);
         return Task.FromResult(new DeviceRemovalCommandResult(ReadTraceFingerprint(path) is null ? 0 : 1, ""));
+    }
+
+    private void EnsureInactiveEnumPath(string path)
+    {
+        if (DeviceTracePolicy.EnumInstanceId(path) is not null && IsActiveEnumPath(path))
+        {
+            throw new IOException("Активные PnP-записи удаляются только штатной командой Windows.");
+        }
     }
 }

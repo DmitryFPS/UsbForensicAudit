@@ -521,8 +521,8 @@ public sealed class MaturityCoverageParserTests
             new UsbDeviceRecord { DeviceInstanceId = @"USB\ABC" },
             new UsbDeviceRecord { DeviceInstanceId = @"usb\abc" }));
         Assert.True(UsbRegistryForensicHelpers.IdentitiesCorrelate(
-            new UsbDeviceRecord { ContainerId = "{A}" },
-            new UsbDeviceRecord { ContainerId = "{a}" }));
+            new UsbDeviceRecord { ContainerId = "{A16E7A86-EEBF-4265-A98F-027BF4E86158}" },
+            new UsbDeviceRecord { ContainerId = "{a16e7a86-eebf-4265-a98f-027bf4e86158}" }));
         Assert.True(UsbRegistryForensicHelpers.IdentitiesCorrelate(
             new UsbDeviceRecord { Serial = "SERIAL-123" },
             new UsbDeviceRecord { Serial = "{serial-123&0}" }));

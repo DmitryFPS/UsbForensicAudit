@@ -88,9 +88,11 @@ public partial class MainWindow
             {
                 AppendLog($"Резервная копия карточек базы: {databaseRemoval.BackupDirectory}");
             }
-            MessageBox.Show(this, result.Summary + Environment.NewLine + "Копии и протокол: " + result.BackupDirectory,
+            MessageBox.Show(this, result.Summary + Environment.NewLine
+                + "Результат относится к записям подтверждённого плана. Общие журналы Windows и неподдерживаемые источники не очищались."
+                + Environment.NewLine + "Копии и протокол: " + result.BackupDirectory,
                 "Результат удаления", MessageBoxButton.OK,
-                result.FailedCount > 0 || result.DatabaseError.Length > 0 || result.ProtocolError.Length > 0
+                result.FailedCount > 0 || result.SkippedCount > 0 || result.DatabaseError.Length > 0 || result.ProtocolError.Length > 0
                     ? MessageBoxImage.Warning : MessageBoxImage.Information);
         }
         catch (Exception ex)

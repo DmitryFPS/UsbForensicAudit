@@ -632,7 +632,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
             LastDisconnectedProvenance = DateProvenance(deviceId, dates.LastDisconnectedProvenance),
             RawJson = JsonSerializer.Serialize(new
             {
-                RegistryPath = $@"HKLM\{path}\{familyName}\{instanceName}",
+                RegistryPath = instance.Name,
                 ControlSet = controlSet,
                 Values = ReadValues(instance),
                 PnpDevProperties = dateProperties,
@@ -996,7 +996,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         return JsonSerializer.Serialize(new { MergedRegistryEvidence = entries });
     }
 
-    private static void CorrelatePortableDevices(List<UsbDeviceRecord> records)
+    internal static void CorrelatePortableDevices(List<UsbDeviceRecord> records)
     {
         var portable = records
             .Where(x => x.Source.Contains("Portable Devices", StringComparison.OrdinalIgnoreCase)
@@ -1009,14 +1009,14 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
 
         foreach (var wpd in portable)
         {
-            var match = usb.FirstOrDefault(candidate =>
+            var candidates = usb.Where(candidate =>
                 !ReferenceEquals(candidate, wpd)
-                && UsbRegistryForensicHelpers.IdentitiesCorrelate(wpd, candidate));
-            if (match is null)
+                && UsbRegistryForensicHelpers.IdentitiesCorrelate(wpd, candidate)).ToArray();
+            if (candidates.Length == 0 || UsbRegistryForensicHelpers.HaveConflictingModels(candidates))
             {
                 continue;
             }
-
+            var match = candidates[0];
             UsbRegistryForensicHelpers.MergeRecord(wpd, match);
             UsbRegistryForensicHelpers.MergeRecord(match, wpd);
         }
@@ -1355,7 +1355,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         }
     }
 
-    private static void EnrichUsbStorVidPid(List<UsbDeviceRecord> records)
+    internal static void EnrichUsbStorVidPid(List<UsbDeviceRecord> records)
     {
         var usbRecords = records
             .Where(x => x.Source.Contains("Registry: USB", StringComparison.OrdinalIgnoreCase)
@@ -1370,12 +1370,12 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                 continue;
             }
 
-            var match = usbRecords.FirstOrDefault(usb => IsSamePhysicalDevice(storage, usb));
-            if (match is null)
+            var candidates = usbRecords.Where(usb => IsSamePhysicalDevice(storage, usb)).ToArray();
+            if (candidates.Length == 0 || UsbRegistryForensicHelpers.HaveConflictingModels(candidates))
             {
                 continue;
             }
-
+            var match = candidates[0];
             storage.Vid = match.Vid;
             storage.Pid = match.Pid;
             if (string.IsNullOrWhiteSpace(storage.LocationInformation))
@@ -1392,33 +1392,19 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
 
     private static bool IsSamePhysicalDevice(UsbDeviceRecord storage, UsbDeviceRecord usb)
     {
-        var storageSerial = NormalizeKey(storage.Serial);
-        var usbSerial = NormalizeKey(usb.Serial);
-        if (storageSerial.Length >= 5 && usbSerial.Length >= 5 && (storageSerial.Contains(usbSerial, StringComparison.OrdinalIgnoreCase) || usbSerial.Contains(storageSerial, StringComparison.OrdinalIgnoreCase)))
+        if (UsbRegistryForensicHelpers.IdentitiesCorrelate(storage, usb))
         {
             return true;
         }
 
-        if (!string.IsNullOrWhiteSpace(storage.ContainerId)
-            && storage.ContainerId.Equals(usb.ContainerId, StringComparison.OrdinalIgnoreCase))
+        if (UsbRegistryForensicHelpers.HaveConflictingModels([storage, usb]))
         {
-            return true;
+            return false;
         }
 
-        if (!string.IsNullOrWhiteSpace(storage.ParentIdPrefix)
-            && (usb.Serial.Contains(storage.ParentIdPrefix, StringComparison.OrdinalIgnoreCase)
-                || usb.ParentIdPrefix.Contains(storage.ParentIdPrefix, StringComparison.OrdinalIgnoreCase)))
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private static string NormalizeKey(string value)
-    {
-        var normalized = value.Trim().Trim('{', '}');
-        return normalized.EndsWith("&0", StringComparison.OrdinalIgnoreCase) ? normalized[..^2] : normalized;
+        var parent = new DeviceRemovalNode(usb.DeviceInstanceId, "", false, Service: usb.Service, ParentIdPrefix: usb.ParentIdPrefix);
+        var child = new DeviceRemovalNode(storage.DeviceInstanceId, "", false, Service: storage.Service);
+        return DeviceRemovalPolicy.Related(parent, [parent, child]).Count == 2;
     }
 
     private static string CleanSerial(string instanceName)

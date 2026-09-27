@@ -17,10 +17,11 @@ public class DeviceGroupingAndConnectionTests
                 [new("A", "Allowed", true, "", null, []), new("B", "Blocked", false, "Connected", null, [])]);
             var window = new DeviceRemovalPreviewWindow(plan);
             var grid = (System.Windows.Controls.DataGrid)window.FindName("PlanGrid");
-            Assert.Single(grid.Items);
-            ((System.Windows.Controls.CheckBox)window.FindName("ShowProtected")).IsChecked = true;
             Assert.Equal(2, grid.Items.Count);
             Assert.True(((DeviceRemovalItem)grid.Items[0]).CanRemove);
+            Assert.Contains("частичной", ((System.Windows.Controls.TextBlock)window.FindName("SummaryText")).Text);
+            ((System.Windows.Controls.CheckBox)window.FindName("ShowProtected")).IsChecked = false;
+            Assert.Single(grid.Items);
             window.Close();
         });
     }

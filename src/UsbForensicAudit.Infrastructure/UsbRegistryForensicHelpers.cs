@@ -176,6 +176,13 @@ internal static class UsbRegistryForensicHelpers
         target.LocationPaths = Prefer(target.LocationPaths, candidate.LocationPaths);
         target.DriveLetters = MergeText(target.DriveLetters, candidate.DriveLetters);
         target.VolumeHints = MergeText(target.VolumeHints, candidate.VolumeHints);
+        foreach (var alias in candidate.IdentityAliases.Where(x => !string.IsNullOrWhiteSpace(x)))
+        {
+            if (!target.IdentityAliases.Contains(alias, StringComparer.OrdinalIgnoreCase))
+            {
+                target.IdentityAliases.Add(alias);
+            }
+        }
         foreach (var volume in candidate.Volumes)
         {
             if (!target.Volumes.Any(existing =>
@@ -385,27 +392,20 @@ internal static class UsbRegistryForensicHelpers
 
     internal static bool IdentitiesCorrelate(UsbDeviceRecord left, UsbDeviceRecord right)
     {
-        if (!string.IsNullOrWhiteSpace(left.DeviceInstanceId)
-            && left.DeviceInstanceId.Equals(right.DeviceInstanceId, StringComparison.OrdinalIgnoreCase))
+        if (DeviceLiveMatcher.AreLikelySameDevice(left, right))
         {
             return true;
         }
 
-        if (!string.IsNullOrWhiteSpace(left.ContainerId)
-            && left.ContainerId.Equals(right.ContainerId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (!DeviceIdentityGraph.IsHardwareSerial(left.Serial)
-            || !DeviceIdentityGraph.IsHardwareSerial(right.Serial))
-        {
-            return false;
-        }
-
-        return DeviceIdentityGraph.NormalizeSerial(left.Serial)
-            .Equals(DeviceIdentityGraph.NormalizeSerial(right.Serial), StringComparison.OrdinalIgnoreCase);
+        static IEnumerable<string> Ids(UsbDeviceRecord record) => new[] { record.DeviceInstanceId }.Concat(record.IdentityAliases)
+            .SelectMany(id => new[] { DeviceLiveMatcher.NormalizePnpId(id) }.Concat(DeviceTracePolicy.PhysicalIds(id)))
+            .Where(x => x.Length > 0);
+        return Ids(left).Intersect(Ids(right), StringComparer.OrdinalIgnoreCase).Any();
     }
+
+    internal static bool HaveConflictingModels(IEnumerable<UsbDeviceRecord> records) =>
+        records.Select(x => x.Vid.Trim()).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any()
+        || records.Select(x => x.Pid.Trim()).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any();
 
     private static string NormalizeIdentity(string value) =>
         value.Trim().Trim('{', '}').Replace("&0", "", StringComparison.OrdinalIgnoreCase);

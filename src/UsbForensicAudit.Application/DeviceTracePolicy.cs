@@ -22,12 +22,39 @@ public static class DeviceTracePolicy
         }
 
         if (SystemTrace.IsMatch(relative)
-            || IsLeaf(relative, Portable) || IsLeaf(relative, ReadyBoost))
+            || IsLeaf(relative, Portable) || IsLeaf(relative, ReadyBoost)
+            || EnumInstanceId(relative) is not null)
         {
             return @"HKEY_LOCAL_MACHINE\" + relative;
         }
 
         return null;
+    }
+
+    public static string? EnumInstanceId(string path)
+    {
+        var relative = path.StartsWith(@"HKEY_LOCAL_MACHINE\", StringComparison.OrdinalIgnoreCase) ? path[19..]
+            : path.StartsWith(@"HKLM\", StringComparison.OrdinalIgnoreCase) ? path[5..] : path;
+        const int prefixLength = 26; // SYSTEM\ControlSetNNN\Enum\
+        if (!Regex.IsMatch(relative, @"^SYSTEM\\ControlSet[0-9]{3}\\Enum\\", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            return null;
+        }
+        var id = relative[prefixLength..];
+        return DeviceRemovalPolicy.IsInstanceId(id) ? id : null;
+    }
+
+    private static string? NormalizeSourcePath(string path)
+    {
+        if (NormalizePath(path) is { } normalized)
+        {
+            return normalized;
+        }
+        // Старые сканирования дважды дописывали одноуровневый экземпляр WPDBUSENUM.
+        var parts = path.Split('\\');
+        return parts.Length >= 2 && parts[^1].Equals(parts[^2], StringComparison.OrdinalIgnoreCase)
+            && path.Contains(@"\Enum\SWD\WPDBUSENUM\", StringComparison.OrdinalIgnoreCase)
+            ? NormalizePath(path[..path.LastIndexOf('\\')]) : null;
     }
 
     private static bool IsLeaf(string path, string root) => path.StartsWith(root, StringComparison.OrdinalIgnoreCase)
@@ -61,7 +88,7 @@ public static class DeviceTracePolicy
         {
             if (property.Name == "RegistryPath" && property.Value.ValueKind == JsonValueKind.String)
             {
-                if (NormalizePath(property.Value.GetString()!) is { } path)
+                if (NormalizeSourcePath(property.Value.GetString()!) is { } path)
                 {
                     paths.Add(path);
                 }
@@ -70,7 +97,7 @@ public static class DeviceTracePolicy
             {
                 foreach (var value in property.Value.EnumerateArray())
                 {
-                    if (value.ValueKind == JsonValueKind.String && NormalizePath(value.GetString()!) is { } path)
+                    if (value.ValueKind == JsonValueKind.String && NormalizeSourcePath(value.GetString()!) is { } path)
                     {
                         paths.Add(path);
                     }
@@ -114,6 +141,11 @@ public static class DeviceTracePolicy
         {
             return null;
         }
+        if (EnumInstanceId(normalized) is { } enumId
+            && DeviceRemovalPolicy.IsInfrastructure(new(enumId, record.DisplayName, false, Service: record.Service)))
+        {
+            return null;
+        }
 
         if (normalized.Contains(@"\Control\usbflags\", StringComparison.OrdinalIgnoreCase))
         {
@@ -128,7 +160,8 @@ public static class DeviceTracePolicy
         }
         var owners = new[] { record.DeviceInstanceId }.Concat(record.IdentityAliases).SelectMany(PhysicalIds)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var ids = PhysicalIds(normalized[(normalized.LastIndexOf('\\') + 1)..]).Where(owners.Contains).Distinct().ToArray();
+        var ids = PhysicalIds(EnumInstanceId(normalized) ?? normalized[(normalized.LastIndexOf('\\') + 1)..])
+            .Where(owners.Contains).Distinct().ToArray();
         return ids.Length == 0 ? null : new(normalized, fingerprint, ids);
     }
 
@@ -145,7 +178,7 @@ public static class DeviceTracePolicy
             return "Связь записи с устройством не подтверждена.";
         }
 
-        var leaf = trace.RegistryPath[(trace.RegistryPath.LastIndexOf('\\') + 1)..];
+        var leaf = EnumInstanceId(trace.RegistryPath) ?? trace.RegistryPath[(trace.RegistryPath.LastIndexOf('\\') + 1)..];
         if (modelCache)
         {
             if (!trace.RegistryPath.Contains(@"\Control\usbflags\", StringComparison.OrdinalIgnoreCase)
@@ -163,6 +196,8 @@ public static class DeviceTracePolicy
             ? x.InstanceId.Contains($"VID_{trace.Vid}&PID_{trace.Pid}", StringComparison.OrdinalIgnoreCase)
             : trace.DeviceIds.Any(id => PhysicalIds(x.InstanceId).Contains(id, StringComparer.OrdinalIgnoreCase)
                 || PhysicalIds(x.AuditInstanceId).Contains(id, StringComparer.OrdinalIgnoreCase))).ToArray();
+        var usbEvidence = modelCache || trace.DeviceIds.Any(id => id.StartsWith(@"USB\", StringComparison.OrdinalIgnoreCase)
+            || id.StartsWith(@"USBSTOR\", StringComparison.OrdinalIgnoreCase));
         foreach (var node in nodes)
         {
             var family = DeviceRemovalPolicy.Related(node, inventory);
@@ -171,12 +206,18 @@ public static class DeviceTracePolicy
             {
                 return reason;
             }
+            usbEvidence = true;
 
             if (family.Any(x => isPresent(x.InstanceId)))
             {
                 return "Устройство или его компонент сейчас подключены.";
             }
         }
+        if (!usbEvidence)
+        {
+            return "Связь записи с USB-устройством не подтверждена.";
+        }
+
         return trace.DeviceIds.Any(isPresent) ? "Устройство сейчас подключено." : "";
     }
 }

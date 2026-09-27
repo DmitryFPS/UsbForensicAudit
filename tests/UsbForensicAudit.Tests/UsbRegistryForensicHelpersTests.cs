@@ -83,6 +83,7 @@ public sealed class UsbRegistryForensicHelpersTests
         var candidate = new UsbDeviceRecord
         {
             DeviceInstanceId = target.DeviceInstanceId,
+            IdentityAliases = [@"USBSTOR\DISK&VEN_TEST\SERIAL&0", @"usbstor\disk&ven_test\serial&0"],
             Manufacturer = "Vendor",
             FirstConnectedUtc = new DateTimeOffset(2021, 1, 1, 0, 0, 0, TimeSpan.Zero),
             DateConfidence = "FirstInstallDate (0065)",
@@ -93,6 +94,7 @@ public sealed class UsbRegistryForensicHelpersTests
         UsbRegistryForensicHelpers.MergeRecord(target, candidate);
 
         Assert.Equal("Vendor", target.Manufacturer);
+        Assert.Equal(@"USBSTOR\DISK&VEN_TEST\SERIAL&0", Assert.Single(target.IdentityAliases));
         Assert.Equal(candidate.FirstConnectedUtc, target.FirstConnectedUtc);
         Assert.Equal(candidate.LastSeenUtc, target.LastSeenUtc);
         Assert.Equal("PnpDevProperty", target.ConnectionDisplayKind);

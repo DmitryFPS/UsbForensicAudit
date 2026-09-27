@@ -38,10 +38,13 @@ public sealed record DeviceRemovalResult(string BackupDirectory, IReadOnlyList<D
     public DatabaseDeviceRemovalResult? DatabaseRemoval { get; init; }
     public string DatabaseError { get; init; } = "";
     public string ProtocolError { get; init; } = "";
+    public int SkippedCount { get; init; }
     public int RemovedCount => Items.Count(x => x.Status == "Removed");
     public int AbsentCount => Items.Count(x => x.Status == "AlreadyAbsent");
     public int FailedCount => Items.Count(x => x.Status is not "Removed" and not "AlreadyAbsent");
     public string Summary => $"Удалено из Windows: {RemovedCount}. Уже отсутствуют: {AbsentCount}. Не удалено: {FailedCount}."
+        + $" Пропущено при проверке: {SkippedCount}."
+        + (FailedCount > 0 || SkippedCount > 0 ? " Очистка выполнена не полностью." : "")
         + (DatabaseRemoval is null ? "" : $" Удалено карточек из базы: {DatabaseRemoval.RemovedCount}.")
         + (DatabaseError.Length == 0 ? "" : $" Не удалось обновить базу: {DatabaseError}")
         + (ProtocolError.Length == 0 ? "" : $" Не удалось сохранить протокол: {ProtocolError}");

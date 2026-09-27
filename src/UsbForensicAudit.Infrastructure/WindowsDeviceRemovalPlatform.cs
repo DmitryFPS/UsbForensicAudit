@@ -138,6 +138,10 @@ public sealed partial class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatfor
             {
                 throw new ArgumentException("Недопустимый путь записи.");
             }
+            if (item.Trace is { } enumTrace)
+            {
+                EnsureInactiveEnumPath(enumTrace.RegistryPath);
+            }
 
             var exists = item.Trace is { } trace ? ReadTraceFingerprint(trace.RegistryPath) is not null : InstanceExists(item.InstanceId);
             if (!exists)
