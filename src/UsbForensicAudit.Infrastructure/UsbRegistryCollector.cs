@@ -325,6 +325,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                             record.IdentityAliases.Add(identity.BackingDeviceInstanceId);
                         }
 
+                        DeviceIdentifierMetadata.FillMissingCodes(record);
                         records.Add(record);
                     }
                 }

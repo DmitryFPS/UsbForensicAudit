@@ -267,6 +267,44 @@ public static class UserDisplayText
     /// вкладке стояло «@usb.inf,%usb\composite.devicedesc%;USB Composite Device»
     /// вместо «USB Composite Device».
     /// </summary>
+    public static string DeviceDisplayName(UsbDeviceRecord record)
+    {
+        var resolved = DeviceDisplayName(record.FriendlyName, record.Manufacturer, record.Product, record.DeviceInstanceId);
+        var genericUsb = resolved.Equals("USB", StringComparison.OrdinalIgnoreCase)
+            || resolved.Equals("USB Device", StringComparison.OrdinalIgnoreCase)
+            || resolved.Equals("USB-устройство", StringComparison.OrdinalIgnoreCase);
+        if (!genericUsb && !string.IsNullOrWhiteSpace(resolved) && !DeviceNameQuality.LooksLikeIdentifier(resolved))
+        {
+            return resolved;
+        }
+
+        if (record.DeviceType.Equals("USBFlags", StringComparison.OrdinalIgnoreCase)
+            || record.Source.Contains("usbflags", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Кэш USB-дескрипторов";
+        }
+        var pair = DeviceIdentifierMetadata.Pair(record.DeviceInstanceId);
+        var isUsb = record.Transport.Contains("USB", StringComparison.OrdinalIgnoreCase)
+            || record.Transport == "UASP/SCSI" || pair.HasValue
+            || record.DeviceInstanceId.StartsWith(@"USB\", StringComparison.OrdinalIgnoreCase)
+            || record.DeviceInstanceId.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase);
+        if (!isUsb && !genericUsb)
+        {
+            return resolved;
+        }
+
+        var model = IndirectString.Resolve(record.Product);
+        if (genericUsb && model.Length > 0 && !DeviceNameQuality.IsClassName(model))
+        {
+            return model;
+        }
+
+        var kind = record.DeviceKind == DeviceKindResolver.Storage || record.DeviceInstanceId.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase)
+            ? "USB-накопитель" : record.DeviceKind == DeviceKindResolver.PortableDevice ? "Переносимое USB-устройство" : "USB-устройство";
+        var vendor = UsbVendorDatabase.Lookup(record.Vid.Length > 0 ? record.Vid : pair?.Vid).VendorName;
+        return $"{kind}{(string.IsNullOrWhiteSpace(vendor) ? "" : " · " + vendor)} (модель неизвестна)";
+    }
+
     public static string DeviceDisplayName(string friendlyName, string manufacturer, string product, string deviceInstanceId)
     {
         var name = IndirectString.Resolve(friendlyName);

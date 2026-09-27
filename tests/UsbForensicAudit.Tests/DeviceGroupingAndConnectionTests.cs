@@ -81,31 +81,40 @@ public class DeviceGroupingAndConnectionTests
     [InlineData("1234", "")]
     [InlineData("ZZZZ", "1234")]
     public void Incomplete_or_invalid_pairs_are_not_group_keys(string vid, string pid) =>
-        Assert.Null(DeviceVidPidGrouping.Pair(new() { Vid = vid, Pid = pid }));
+        Assert.Null(DevicePhysicalGrouping.Pair(new() { Vid = vid, Pid = pid }));
 
     [Fact]
-    public void Repeated_pairs_precede_singles_and_missing_pairs_in_the_actual_wpf_view()
+    public void Physical_groups_include_missing_pairs_and_precede_independent_records_in_the_wpf_view()
     {
         OnSta(() =>
         {
             var missing = new UsbDeviceRecord { FriendlyName = "Без VID/PID" };
             var single = new UsbDeviceRecord { Vid = "0001", Pid = "0002" };
-            var first = new UsbDeviceRecord { Vid = "abcd", Pid = "1234", Serial = "ONE" };
-            var second = new UsbDeviceRecord { Vid = " ABCD ", Pid = "1234", Serial = "TWO" };
+            var first = new UsbDeviceRecord { FriendlyName = "Накопитель", CanonicalDeviceId = "ONE", IsCanonicalPrimary = true, Vid = "abcd", Pid = "1234", Serial = "SERIAL-ONE" };
+            var second = new UsbDeviceRecord { FriendlyName = "Другая запись", CanonicalDeviceId = "one", Serial = "SERIAL-ONE" };
             var list = new List<UsbDeviceRecord> { missing, single, first, second };
-            var grouping = new DeviceVidPidGrouping();
+            var grouping = new DevicePhysicalGrouping();
             grouping.Reset(list);
             var view = new ListCollectionView(list);
             view.GroupDescriptions.Add(grouping);
             var groups = view.Groups!.Cast<CollectionViewGroup>().ToArray();
             Assert.Equal(2, groups.Length);
             Assert.True(((DeviceDisplayGroup)groups[0].Name).IsGrouped);
-            Assert.Equal("VID ABCD · PID 1234", ((DeviceDisplayGroup)groups[0].Name).Title);
+            Assert.Equal("Накопитель", ((DeviceDisplayGroup)groups[0].Name).Title);
+            Assert.Contains("VID ABCD · PID 1234", ((DeviceDisplayGroup)groups[0].Name).Description);
+            Assert.Contains("S/N SERIAL-ONE", ((DeviceDisplayGroup)groups[0].Name).Description);
             Assert.Equal(2, groups[0].ItemCount);
-            Assert.Equal("Другие записи", ((DeviceDisplayGroup)groups[1].Name).Title);
+            Assert.Equal("Отдельные записи", ((DeviceDisplayGroup)groups[1].Name).Title);
             Assert.Equal(2, groups[1].ItemCount);
             Assert.Equal([first, second, missing, single], view.Cast<UsbDeviceRecord>());
-            Assert.NotEqual(first.Serial, second.Serial);
+            var deviceGroup = (DeviceDisplayGroup)groups[0].Name;
+            Assert.False(deviceGroup.IsExpanded);
+            grouping.UpdateSelection([first]);
+            Assert.Null(deviceGroup.IsSelected);
+            grouping.UpdateSelection([first, second]);
+            Assert.True(deviceGroup.IsSelected);
+            grouping.UpdateSelection([]);
+            Assert.False(deviceGroup.IsSelected);
 
             ((DeviceDisplayGroup)groups[0].Name).IsExpanded = false;
             grouping.Reset(list);
@@ -125,7 +134,28 @@ public class DeviceGroupingAndConnectionTests
             view.Refresh();
             Assert.All(view.Groups!.Cast<CollectionViewGroup>(), g => Assert.False(((DeviceDisplayGroup)g.Name).IsGrouped));
             Assert.Equal(3, view.Cast<UsbDeviceRecord>().Count());
+            grouping.Clear();
+            grouping.Reset(list);
+            view.Filter = null;
+            view.Refresh();
+            Assert.False(((DeviceDisplayGroup)((CollectionViewGroup)view.Groups![0]).Name).IsExpanded);
         });
+    }
+
+    [Fact]
+    public void Identical_vid_pid_never_combines_two_physical_devices()
+    {
+        var first = new UsbDeviceRecord { CanonicalDeviceId = "ONE", Vid = "0951", Pid = "1666" };
+        var second = new UsbDeviceRecord { CanonicalDeviceId = "TWO", Vid = "0951", Pid = "1666" };
+        var a = new UsbDeviceRecord { CanonicalDeviceId = "ONE" };
+        var b = new UsbDeviceRecord { CanonicalDeviceId = "TWO" };
+        var grouping = new DevicePhysicalGrouping();
+        grouping.Reset([first, a, second, b]);
+        var one = grouping.GroupNameFromItem(first, 0, CultureInfo.InvariantCulture);
+        var two = grouping.GroupNameFromItem(second, 0, CultureInfo.InvariantCulture);
+        Assert.NotSame(one, two);
+        Assert.Same(one, grouping.GroupNameFromItem(a, 0, CultureInfo.InvariantCulture));
+        Assert.Same(two, grouping.GroupNameFromItem(b, 0, CultureInfo.InvariantCulture));
     }
 
     [Theory]

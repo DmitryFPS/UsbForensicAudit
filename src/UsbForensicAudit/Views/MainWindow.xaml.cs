@@ -188,37 +188,7 @@ public partial class MainWindow : Window
     }
 
     private bool FilterDevice(object item)
-    {
-        if (item is not UsbDeviceRecord device)
-        {
-            return false;
-        }
-
-        // Windows описывает одно устройство несколькими записями. По умолчанию
-        // список показывает устройства, а не строки реестра: услуги телефона,
-        // грани составных устройств и части шины свёрнуты в свои устройства и
-        // видны в окне сведений. Галочка возвращает их все — счёт строк должен
-        // сходиться с реестром, иначе отчёт нечем проверить.
-        if (AllRecordsCheck?.IsChecked != true && DeviceComposition.IsFoldedByDefault(device))
-        {
-            return false;
-        }
-        if (!DeviceSearch.Matches(device, DeviceSearchBox?.Text))
-        {
-            return false;
-        }
-
-        var selected = (DeviceFilterCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
-        return selected switch
-        {
-            "All" => true,
-            "ExternalOnly" => device.IsExternalDevice,
-            "ExternalMedia" => device.Externality == DeviceExternality.ExternalMedia,
-            _ => device.Classification.Equals(selected, StringComparison.OrdinalIgnoreCase)
-                 || device.Transport.Equals(selected, StringComparison.OrdinalIgnoreCase)
-                 || device.Connection.Equals(selected, StringComparison.OrdinalIgnoreCase)
-        };
-    }
+        => item is UsbDeviceRecord device && _visibleDeviceRecords.Contains(device);
 
     private void AllRecordsCheck_Changed(object sender, RoutedEventArgs e)
     {
@@ -310,6 +280,10 @@ public partial class MainWindow : Window
 
     private void BindResult(AuditResult result)
     {
+        // Старые сканирования тоже получают уточнённые коды, связи и подписи.
+        // Исходные имена и RawJson в архиве доказательств не переписываются.
+        DeviceIdentityGraph.Process(result.Devices);
+        _deviceGrouping.Clear();
         // Заметки эксперта возвращаются на находки до привязки коллекций,
         // чтобы таблица и отчёты сразу показывали их.
         ApplyExpertNotes(result);

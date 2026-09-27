@@ -119,7 +119,7 @@ public sealed class UsbDeviceRecord
     /// <summary>Имя из значений самой записи, без заимствования у соседей.</summary>
     [JsonIgnore]
     public string OwnDisplayName =>
-        UserDisplayText.DeviceDisplayName(FriendlyName, Manufacturer, Product, DeviceInstanceId);
+        UserDisplayText.DeviceDisplayName(this);
 
     [JsonIgnore]
     public string FirstConnectedText => UserDisplayText.ConnectionText(ConnectionDisplayKind, FirstConnectedUtc);

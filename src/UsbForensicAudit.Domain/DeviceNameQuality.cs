@@ -12,6 +12,9 @@ public static class DeviceNameQuality
     private static readonly string[] ClassNames =
     [
         "USB Composite Device",
+        "USB",
+        "USB Device",
+        "USB-устройство",
         "Составное USB устройство",
         "USB Input Device",
         "USB-устройство ввода",
@@ -40,18 +43,24 @@ public static class DeviceNameQuality
         }
 
         return ClassNames.Any(x => text.Equals(x, StringComparison.OrdinalIgnoreCase))
+               || text.Contains("модель неизвестна", StringComparison.OrdinalIgnoreCase)
                || LooksLikeIdentifier(text);
     }
 
     /// <summary>
     /// Имени нет вовсе, и вместо него показан идентификатор из реестра.
     /// </summary>
-    private static bool LooksLikeIdentifier(string text) =>
+    public static bool LooksLikeIdentifier(string text) => IsIdentifierPrefix(text.Replace('#', '\\').TrimStart('\\', '?'));
+
+    private static bool IsIdentifierPrefix(string text) =>
         text.Contains('\\')
         && (text.StartsWith(@"USB\", StringComparison.OrdinalIgnoreCase)
             || text.StartsWith(@"USBSTOR\", StringComparison.OrdinalIgnoreCase)
             || text.StartsWith(@"BTHENUM\", StringComparison.OrdinalIgnoreCase)
             || text.StartsWith(@"SWD\", StringComparison.OrdinalIgnoreCase)
+            || text.StartsWith(@"HID\", StringComparison.OrdinalIgnoreCase)
+            || text.StartsWith(@"SCSI\", StringComparison.OrdinalIgnoreCase)
+            || text.StartsWith(@"STORAGE\", StringComparison.OrdinalIgnoreCase)
             || text.StartsWith(@"HKLM\", StringComparison.OrdinalIgnoreCase)
             || text.StartsWith(@"PCI\", StringComparison.OrdinalIgnoreCase));
 }

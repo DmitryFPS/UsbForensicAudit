@@ -20,6 +20,11 @@ public static class DeviceIdentityGraph
             return;
         }
 
+        foreach (var device in devices)
+        {
+            DeviceIdentifierMetadata.FillMissingCodes(device);
+            device.GroupDisplayName = "";
+        }
         var union = new UnionFind(devices.Count);
         var ambiguousSerials = devices.Where(d => IsHardwareSerial(d.Serial))
             .GroupBy(d => NormalizeSerial(d.Serial), StringComparer.OrdinalIgnoreCase)
@@ -64,6 +69,7 @@ public static class DeviceIdentityGraph
             var provenance = BuildProvenance(members);
             var confidence = provenance.Any(x => x.StartsWith("ContainerID", StringComparison.Ordinal)) ? "High"
                 : provenance.Any(x => x.StartsWith("HardwareSerial", StringComparison.Ordinal)) ? "High"
+                : provenance.Any(x => x.StartsWith("ExactDeviceReference", StringComparison.Ordinal)) ? "High"
                 : provenance.Any(x => x.StartsWith("Topology", StringComparison.Ordinal)) ? "Medium"
                 : "SingleSource";
 
@@ -117,26 +123,17 @@ public static class DeviceIdentityGraph
                 continue;
             }
 
-            var key = NormalizeInstance(devices[i].DeviceInstanceId);
-            if (!string.IsNullOrWhiteSpace(key))
-            {
-                byInstance.TryAdd(key, i);
-            }
-        }
-
-        for (var i = 0; i < devices.Count; i++)
-        {
-            if (IsUsbFlags(devices[i]))
-            {
-                continue;
-            }
-
-            foreach (var alias in devices[i].IdentityAliases)
+            foreach (var alias in new[] { devices[i].DeviceInstanceId }.Concat(devices[i].IdentityAliases)
+                         .SelectMany(id => new[] { id }.Concat(DeviceTracePolicy.PhysicalIds(id))))
             {
                 var key = NormalizeInstance(alias);
                 if (!string.IsNullOrWhiteSpace(key) && byInstance.TryGetValue(key, out var other) && other != i)
                 {
                     union.Union(i, other);
+                }
+                else if (key.Length > 0)
+                {
+                    byInstance.TryAdd(key, i);
                 }
             }
         }
@@ -211,6 +208,10 @@ public static class DeviceIdentityGraph
         AddShared(result, "HardwareSerial", members.Select(x => IsHardwareSerial(x.Serial) ? NormalizeSerial(x.Serial) : ""));
         AddShared(result, "Topology", members.Select(x => NormalizeTopology(x.ParentIdPrefix, x.LocationPaths)));
         AddShared(result, "ExactInstanceId", members.Select(x => NormalizeInstance(x.DeviceInstanceId)));
+        AddShared(result, "ExactDeviceReference", members.Where(x => !IsUsbFlags(x)).SelectMany(member =>
+            new[] { member.DeviceInstanceId }.Concat(member.IdentityAliases)
+                .SelectMany(id => new[] { id }.Concat(DeviceTracePolicy.PhysicalIds(id)))
+                .Select(NormalizeInstance).Distinct(StringComparer.OrdinalIgnoreCase)));
         if (members.Any(IsUsbFlags) && members.Any(x => !IsUsbFlags(x)))
         {
             result.Add("usbflags: unique VID/PID candidate (weak supporting link)");

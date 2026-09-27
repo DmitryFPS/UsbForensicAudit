@@ -1,5 +1,6 @@
 using System.IO;
 using System.Reflection;
+using System.Xml.Linq;
 using UsbForensicAudit;
 using Xunit;
 
@@ -93,14 +94,14 @@ public class DeviceExternalityPaletteTests
     [Fact]
     public void Devices_grid_externality_column_takes_its_colour_from_the_palette()
     {
-        var markup = File.ReadAllText(FindRepositoryFile("MainWindow.xaml"));
-        var devicesGrid = markup[markup.IndexOf("x:Name=\"DevicesGrid\"", StringComparison.Ordinal)..];
-        var firstColumn = devicesGrid[devicesGrid.IndexOf("<DataGrid.Columns>", StringComparison.Ordinal)..];
-        firstColumn = firstColumn[..firstColumn.IndexOf("</DataGridTextColumn>", StringComparison.Ordinal)];
+        var markup = XDocument.Load(FindRepositoryFile("MainWindow.xaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var grid = markup.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "DevicesGrid");
+        var column = grid.Descendants().Single(element => (string?)element.Attribute("Binding") == "{Binding ExternalityText}").ToString();
 
-        Assert.Contains("Binding Externality, Converter={StaticResource DeviceExternalityBrushConverter}", firstColumn, StringComparison.Ordinal);
-        Assert.Contains("ConverterParameter=Foreground", firstColumn, StringComparison.Ordinal);
-        Assert.DoesNotContain("VisualCategory", firstColumn, StringComparison.Ordinal);
+        Assert.Contains("Binding Externality, Converter={StaticResource DeviceExternalityBrushConverter}", column, StringComparison.Ordinal);
+        Assert.Contains("ConverterParameter=Foreground", column, StringComparison.Ordinal);
+        Assert.DoesNotContain("VisualCategory", column, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryFile(string fileName)

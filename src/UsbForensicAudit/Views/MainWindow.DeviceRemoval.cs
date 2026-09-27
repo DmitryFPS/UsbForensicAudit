@@ -6,7 +6,8 @@ namespace UsbForensicAudit;
 
 public partial class MainWindow
 {
-    private readonly DeviceVidPidGrouping _deviceGrouping = new();
+    private readonly DevicePhysicalGrouping _deviceGrouping = new();
+    private HashSet<UsbDeviceRecord> _visibleDeviceRecords = [];
     private bool _deviceRemovalActive;
     private bool _deviceActionsBusy;
 
@@ -18,6 +19,7 @@ public partial class MainWindow
         }
 
         var count = DevicesGrid.SelectedItems.Count;
+        _deviceGrouping.UpdateSelection(DevicesGrid.SelectedItems.OfType<UsbDeviceRecord>());
         var ready = !_deviceActionsBusy && _vm.LastResult is not null && count > 0;
         PreviewDeviceRemovalButton.IsEnabled = ready && !_vm.LastResult!.IsOfflineSource;
         DeviceSelectionText.Text = count == 0 ? "Выберите записи галочками или с Ctrl / Shift" : $"Выбрано записей: {count}";
@@ -28,6 +30,29 @@ public partial class MainWindow
     private void ClearDeviceSelection_Click(object sender, RoutedEventArgs e) => DevicesGrid.UnselectAll();
     private void SelectDeviceList_Click(object sender, RoutedEventArgs e) => DevicesGrid.SelectAll();
 
+    private void DeviceGroupSelection_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not CheckBox { DataContext: System.Windows.Data.CollectionViewGroup { Name: DeviceDisplayGroup group } })
+        {
+            return;
+        }
+
+        var remove = group.Items.All(DevicesGrid.SelectedItems.Contains);
+        foreach (var item in group.Items)
+        {
+            if (remove)
+            {
+                DevicesGrid.SelectedItems.Remove(item);
+            }
+            else if (!DevicesGrid.SelectedItems.Contains(item))
+            {
+                DevicesGrid.SelectedItems.Add(item);
+            }
+        }
+        UpdateDeviceSelectionActions();
+        e.Handled = true;
+    }
+
     private void RefreshDeviceGrouping()
     {
         if (_devicesView is null)
@@ -35,13 +60,15 @@ public partial class MainWindow
             return;
         }
 
-        _deviceGrouping.Reset(_devices.Where(x => FilterDevice(x)),
+        _visibleDeviceRecords = DeviceListPresentation.Select(_devices, AllRecordsCheck?.IsChecked == true,
+            DeviceSearchBox?.Text, (DeviceFilterCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All");
+        _deviceGrouping.Reset(_devices.Where(_visibleDeviceRecords.Contains),
             !string.IsNullOrWhiteSpace(DeviceSearchBox?.Text));
         _devicesView.Refresh();
         UpdateDeviceCount();
         var groups = _devicesView.Groups?.Cast<System.Windows.Data.CollectionViewGroup>()
             .Count(x => ((DeviceDisplayGroup)x.Name).IsGrouped) ?? 0;
-        DeviceListSummaryText.Text = $"Показано записей: {_devicesView.Cast<object>().Count()}. Групп VID/PID: {groups}. Одиночные записи — внизу списка.";
+        DeviceListSummaryText.Text = $"Устройств с несколькими записями: {groups}. Всего записей в списке: {_visibleDeviceRecords.Count}. Галочка у группы выбирает все её записи.";
         UpdateDeviceSelectionActions();
     }
 

@@ -241,8 +241,8 @@
             <StackPanel>
                 <Border Background="#182131" Padding="14,8" Margin="0,8,0,0" BorderBrush="#34415A" BorderThickness="0,1,0,1">
                     <StackPanel>
-                        <TextBlock Text="Другие записи" Foreground="#D7E0F0" FontWeight="SemiBold" FontSize="14"/>
-                        <TextBlock Text="Одиночные VID/PID и записи без этих кодов" Foreground="#8B98B8" Margin="0,3,0,0"/>
+                        <TextBlock Text="Отдельные записи" Foreground="#D7E0F0" FontWeight="SemiBold" FontSize="14"/>
+                        <TextBlock Text="Другие записи этого устройства не найдены или связь не подтверждена" Foreground="#8B98B8" Margin="0,3,0,0"/>
                     </StackPanel>
                 </Border>
                 <ItemsPresenter/>
@@ -250,21 +250,22 @@
         </ControlTemplate>
         <ControlTemplate x:Key="GroupedDeviceRows" TargetType="GroupItem">
             <StackPanel Margin="0,8,0,0">
+                <DockPanel Background="#162840">
+                <CheckBox x:Name="GroupSelection" DockPanel.Dock="Left" VerticalAlignment="Center" Margin="12,0,8,0"
+                          IsThreeState="True" IsChecked="{Binding Name.IsSelected, Mode=OneWay}"
+                          AutomationProperties.Name="Выбрать все записи устройства" Click="DeviceGroupSelection_Click"/>
                 <ToggleButton x:Name="GroupToggle" IsChecked="{Binding Name.IsExpanded, Mode=TwoWay}"
                               HorizontalContentAlignment="Stretch" Cursor="Hand">
                     <ToggleButton.Template>
                         <ControlTemplate TargetType="ToggleButton">
                             <Border Background="#162840" BorderBrush="#35577B" BorderThickness="3,0,0,1" Padding="12,7">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock x:Name="Arrow" Text="&#x25B6;" Foreground="#7FB4FF" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <DockPanel>
+                                    <TextBlock x:Name="Arrow" DockPanel.Dock="Left" Text="&#x25B6;" Foreground="#7FB4FF" VerticalAlignment="Center" Margin="0,0,12,0"/>
                                     <StackPanel>
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding Name.Title}" Foreground="#C8E4FF" FontSize="14" FontWeight="SemiBold"/>
-                                            <TextBlock Text="{Binding ItemCount, StringFormat=Записей: {0}}" Foreground="#AFC4DF" Margin="20,0,0,0" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                        <TextBlock Text="{Binding Name.Description}" Foreground="#9EAFCA" Margin="0,3,0,0" MaxWidth="560" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left"/>
+                                        <TextBlock Text="{Binding Name.Title}" Foreground="#C8E4FF" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Name.Description}" Foreground="#9EAFCA" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
-                                </StackPanel>
+                                </DockPanel>
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsChecked" Value="True"><Setter TargetName="Arrow" Property="Text" Value="&#x25BC;"/></Trigger>
@@ -273,13 +274,14 @@
                         </ControlTemplate>
                     </ToggleButton.Template>
                 </ToggleButton>
+                </DockPanel>
                 <ItemsPresenter x:Name="GroupRows"/>
             </StackPanel>
             <ControlTemplate.Triggers>
                 <Trigger SourceName="GroupToggle" Property="IsChecked" Value="False"><Setter TargetName="GroupRows" Property="Visibility" Value="Collapsed"/></Trigger>
             </ControlTemplate.Triggers>
         </ControlTemplate>
-        <GroupStyle x:Key="DeviceModelGroupStyle" HidesIfEmpty="True">
+        <GroupStyle x:Key="DevicePhysicalGroupStyle" HidesIfEmpty="True">
             <GroupStyle.ContainerStyle>
                 <Style TargetType="GroupItem">
                     <Setter Property="Template" Value="{StaticResource UngroupedDeviceRow}"/>
@@ -524,7 +526,7 @@
                                        Foreground="#B8A9FF"
                                        TextWrapping="Wrap"
                                        Margin="0,4,0,0"/>
-                            <TextBlock Text="Двойной щелчок открывает досье. Повторяющиеся VID/PID собраны в группы; это могут быть разные устройства одной модели. Одиночные и неполные пары показаны ниже."
+                            <TextBlock Text="Записи одного устройства собраны под общим именем. Стрелка раскрывает его записи, галочка выбирает всю группу. Совпадения VID/PID недостаточно для объединения. Двойной щелчок по записи открывает досье."
                                        Foreground="{StaticResource Accent2}"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
@@ -552,7 +554,7 @@
                                           Foreground="{StaticResource TextMuted}"
                                           VerticalAlignment="Center"
                                           Margin="16,0,0,0"
-                                          ToolTip="Покажет также службы Bluetooth, интерфейсы составных устройств, контроллеры, внутренние диски и записи томов Windows. Это технические записи, а не дополнительные физические устройства."
+                                          ToolTip="Покажет также отдельные служебные записи: контроллеры, внутренние диски и тома Windows. Связанные записи устройства уже доступны внутри его группы."
                                           Checked="AllRecordsCheck_Changed"
                                           Unchecked="AllRecordsCheck_Changed"/>
                             </StackPanel>
@@ -595,7 +597,7 @@
                               SelectionChanged="DevicesGrid_SelectionChanged"
                               MouseDoubleClick="DevicesGrid_MouseDoubleClick">
                         <DataGrid.GroupStyle>
-                            <StaticResource ResourceKey="DeviceModelGroupStyle"/>
+                            <StaticResource ResourceKey="DevicePhysicalGroupStyle"/>
                         </DataGrid.GroupStyle>
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
@@ -618,7 +620,15 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Устройство" Binding="{Binding DisplayName}" Width="270"/>
+                            <DataGridTextColumn Header="Устройство" Binding="{Binding DisplayName}" Width="270">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="Margin" Value="2,0"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                             <DataGridTextColumn Header="VID / PID" Binding="{Binding VidPidText}" Width="125"/>
                             <DataGridTextColumn Header="Серийный номер" Binding="{Binding SerialText}" Width="175"/>
                             <DataGridTextColumn Header="Когда подключали" Binding="{Binding FirstConnectedText}" Width="180"/>
