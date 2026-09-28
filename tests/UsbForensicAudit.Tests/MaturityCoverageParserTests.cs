@@ -411,8 +411,8 @@ public sealed class MaturityCoverageParserTests
     }
 
     [Theory]
-    [InlineData(@"prefix#USB#VID_1234%26PID_5678#SERIAL%260", @"USB\VID_1234&PID_5678\SERIAL&0", "SERIAL")]
-    [InlineData(@"prefix#SWD#WPDBUSENUM#PHONE%260", @"SWD\WPDBUSENUM\PHONE&0", "PHONE")]
+    [InlineData(@"prefix#USB#VID_1234%26PID_5678#SERIAL%260", @"USB\VID_1234&PID_5678\SERIAL&0", "SERIAL&0")]
+    [InlineData(@"prefix#SWD#WPDBUSENUM#PHONE%260", @"SWD\WPDBUSENUM\PHONE&0", "PHONE&0")]
     [InlineData(@"unstructured%20name", "unstructured name", "")]
     public void Wpd_identity_decodes_embedded_ids_and_normalizes_serial_suffix(
         string key, string instanceId, string serial)

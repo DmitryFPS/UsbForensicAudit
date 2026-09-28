@@ -60,7 +60,11 @@ public static class DeviceTracePolicy
     private static bool IsLeaf(string path, string root) => path.StartsWith(root, StringComparison.OrdinalIgnoreCase)
         && path.Length > root.Length && !path[root.Length..].Contains('\\');
 
-    public static IReadOnlyList<string> SourcePaths(UsbDeviceRecord record)
+    public static IReadOnlyList<string> SourcePaths(UsbDeviceRecord record) => ReadSourcePaths(record, false);
+
+    public static IReadOnlyList<string> UnsupportedSourcePaths(UsbDeviceRecord record) => ReadSourcePaths(record, true);
+
+    private static IReadOnlyList<string> ReadSourcePaths(UsbDeviceRecord record, bool unsupported)
     {
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (string.IsNullOrWhiteSpace(record.RawJson))
@@ -71,13 +75,13 @@ public static class DeviceTracePolicy
         try
         {
             using var document = JsonDocument.Parse(record.RawJson);
-            Read(document.RootElement, paths);
+            Read(document.RootElement, paths, unsupported);
         }
         catch (JsonException) { }
         return paths.ToArray();
     }
 
-    private static void Read(JsonElement element, HashSet<string> paths)
+    private static void Read(JsonElement element, HashSet<string> paths, bool unsupported)
     {
         if (element.ValueKind != JsonValueKind.Object)
         {
@@ -88,18 +92,15 @@ public static class DeviceTracePolicy
         {
             if (property.Name == "RegistryPath" && property.Value.ValueKind == JsonValueKind.String)
             {
-                if (NormalizeSourcePath(property.Value.GetString()!) is { } path)
-                {
-                    paths.Add(path);
-                }
+                AddSourcePath(property.Value.GetString()!, paths, unsupported);
             }
             else if (property.Name == "RegistryPaths" && property.Value.ValueKind == JsonValueKind.Array)
             {
                 foreach (var value in property.Value.EnumerateArray())
                 {
-                    if (value.ValueKind == JsonValueKind.String && NormalizeSourcePath(value.GetString()!) is { } path)
+                    if (value.ValueKind == JsonValueKind.String)
                     {
-                        paths.Add(path);
+                        AddSourcePath(value.GetString()!, paths, unsupported);
                     }
                 }
             }
@@ -107,8 +108,31 @@ public static class DeviceTracePolicy
             {
                 foreach (var child in property.Value.EnumerateArray())
                 {
-                    Read(child, paths);
+                    Read(child, paths, unsupported);
                 }
+            }
+        }
+    }
+
+    private static void AddSourcePath(string path, HashSet<string> paths, bool unsupported)
+    {
+        if (NormalizeSourcePath(path) is { } normalized)
+        {
+            if (!unsupported)
+            {
+                paths.Add(normalized);
+            }
+        }
+        else if (unsupported && !string.IsNullOrWhiteSpace(path))
+        {
+            // CurrentControlSet\Enum обслуживается PnP, а не прямым удалением ключа.
+            var relative = path.StartsWith(@"HKLM\", StringComparison.OrdinalIgnoreCase) ? path[5..]
+                : path.StartsWith(@"HKEY_LOCAL_MACHINE\", StringComparison.OrdinalIgnoreCase) ? path[19..] : path;
+            const string activeEnum = @"SYSTEM\CurrentControlSet\Enum\";
+            if (!relative.StartsWith(activeEnum, StringComparison.OrdinalIgnoreCase)
+                || !DeviceRemovalPolicy.IsInstanceId(relative[activeEnum.Length..]))
+            {
+                paths.Add(path);
             }
         }
     }
@@ -141,8 +165,9 @@ public static class DeviceTracePolicy
         {
             return null;
         }
-        if (EnumInstanceId(normalized) is { } enumId
-            && DeviceRemovalPolicy.IsInfrastructure(new(enumId, record.DisplayName, false, Service: record.Service)))
+        if (DeviceRemovalPolicy.IsInfrastructure(new(record.DeviceInstanceId, record.DisplayName, false, Service: record.Service))
+            || (EnumInstanceId(normalized) is { } enumId
+                && DeviceRemovalPolicy.IsInfrastructure(new(enumId, record.DisplayName, false, Service: record.Service))))
         {
             return null;
         }

@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace UsbForensicAudit;
 
 /// <summary>
@@ -19,6 +21,25 @@ public static class BluetoothEnumeratorId
     /// <summary>Запись описывает услугу сопряжённого устройства, а не его само.</summary>
     public static bool IsServiceRecord(string? deviceInstanceId) =>
         TryReadServiceUuid(deviceInstanceId, out _);
+
+    /// <summary>Адрес удалённого устройства, а не общий префикс Bluetooth-адаптера.</summary>
+    public static string DeviceAddress(string deviceInstanceId)
+    {
+        var parts = DevicePathNormalizer.CanonicalDeviceId(deviceInstanceId, replaceHashes: true).Split('\\');
+        if (parts.Length != 3 || parts[0] is not ("BTHENUM" or "BTHLEDEVICE" or "BTHLE"))
+        {
+            return "";
+        }
+
+        var match = Regex.Match(parts[1], @"^(?:DEV_|\{[0-9A-F-]{36}\}_)([0-9A-F]{12})$", RegexOptions.CultureInvariant);
+        if (!match.Success && parts[0] == "BTHENUM")
+        {
+            match = Regex.Match(parts[2], @"(?:^|&)(?:BLUETOOTHDEVICE_)?([0-9A-F]{12})(?:_C[0-9A-F]{8})?$", RegexOptions.CultureInvariant);
+        }
+
+        var address = match.Success ? match.Groups[1].Value : "";
+        return address is "000000000000" or "FFFFFFFFFFFF" ? "" : address;
+    }
 
     /// <summary>Запись описывает само сопряжённое устройство.</summary>
     public static bool IsPairedDeviceRecord(string? deviceInstanceId)

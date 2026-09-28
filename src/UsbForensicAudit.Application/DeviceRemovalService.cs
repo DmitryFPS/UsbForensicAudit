@@ -23,6 +23,14 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
             var artifact = DeviceRemovalSelection.IsSharedArtifact(record);
             var sources = DeviceRemovalSelection.Records(record, result, inventory);
             var before = items.Count;
+            foreach (var source in sources)
+            {
+                foreach (var path in DeviceTracePolicy.UnsupportedSourcePaths(source))
+                {
+                    items.Add(new(path, source.DisplayName, false,
+                        "Выборочная очистка этого источника не поддерживается. Запись Windows не удаляется, карточка останется в базе.", null, []));
+                }
+            }
             if (platform is IRegistryTracePlatform registry)
             {
                 foreach (var source in sources)
@@ -103,12 +111,17 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
                 throw new InvalidOperationException("План относится к другому компьютеру или офлайн-источнику.");
             }
             var targets = plan.Items.Where(x => x.CanRemove).DistinctBy(x => x.InstanceId, StringComparer.OrdinalIgnoreCase)
-                .OrderBy(x => x.Trace is null ? 0 : 1).ToArray();
+                .ToArray();
             if (targets.Length == 0)
             {
                 throw new InvalidOperationException("В плане нет доступных для удаления экземпляров.");
             }
             var inventory = platform.ReadInventory();
+            // История SCSI и дочерние PnP-узлы подтверждают связь с USB через родителей.
+            // Обрабатываем их, пока родитель ещё существует и доступен повторной проверке.
+            targets = targets.OrderBy(x => x.Trace is null ? 1 : 0)
+                .ThenBy(x => x.Identity is { } node && DeviceRemovalPolicy.HasUsbEvidence(node) ? 1 : 0)
+                .ThenByDescending(x => x.Identity is { } node ? ParentDepth(node, inventory, []) : 0).ToArray();
             foreach (var target in targets)
             {
                 var error = ValidateCurrent(target, inventory);
@@ -251,6 +264,19 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
         && a.ClassGuid.Equals(b.ClassGuid, StringComparison.OrdinalIgnoreCase)
         && a.HardwareIds.Equals(b.HardwareIds, StringComparison.OrdinalIgnoreCase)
         && a.ParentIdPrefix.Equals(b.ParentIdPrefix, StringComparison.OrdinalIgnoreCase);
+
+    private static int ParentDepth(DeviceRemovalNode node, IReadOnlyList<DeviceRemovalNode> inventory, HashSet<string> ancestors)
+    {
+        if (!ancestors.Add(node.InstanceId))
+        {
+            return 0;
+        }
+        var parents = inventory.Where(other => !other.InstanceId.Equals(node.InstanceId, StringComparison.OrdinalIgnoreCase)
+            && DeviceRemovalPolicy.IsChild(other, node)).ToArray();
+        var depth = parents.Length == 0 ? 0 : 1 + parents.Max(parent => ParentDepth(parent, inventory, ancestors));
+        ancestors.Remove(node.InstanceId);
+        return depth;
+    }
 
     private bool IsAbsent(DeviceRemovalItem target) => target.Trace is { } trace
         ? ((IRegistryTracePlatform)platform).ReadTraceFingerprint(trace.RegistryPath) is null

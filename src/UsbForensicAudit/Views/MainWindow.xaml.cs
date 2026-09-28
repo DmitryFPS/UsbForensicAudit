@@ -282,6 +282,7 @@ public partial class MainWindow : Window
     {
         // Старые сканирования тоже получают уточнённые коды, связи и подписи.
         // Исходные имена и RawJson в архиве доказательств не переписываются.
+        SetupApiDeviceRelations.Apply(result.Devices, result.Evidence);
         DeviceIdentityGraph.Process(result.Devices);
         _deviceGrouping.Clear();
         // Заметки эксперта возвращаются на находки до привязки коллекций,

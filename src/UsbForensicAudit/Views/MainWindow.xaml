@@ -284,6 +284,7 @@
         <GroupStyle x:Key="DevicePhysicalGroupStyle" HidesIfEmpty="True">
             <GroupStyle.ContainerStyle>
                 <Style TargetType="GroupItem">
+                    <Setter Property="local:DeviceGridScroll.PreserveGroupViewport" Value="True"/>
                     <Setter Property="Template" Value="{StaticResource UngroupedDeviceRow}"/>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding Name.IsGrouped}" Value="True">
@@ -588,6 +589,7 @@
                             <ColumnDefinition x:Name="DeviceDetailColumn" Width="0"/>
                         </Grid.ColumnDefinitions>
                     <DataGrid x:Name="DevicesGrid"
+                              local:DeviceGridScroll.IsEnabled="True"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
                               SelectionMode="Extended"
@@ -620,15 +622,16 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Устройство" Binding="{Binding DisplayName}" Width="270">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
-                                        <Setter Property="Margin" Value="2,0"/>
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Header="Устройство" SortMemberPath="DisplayName" Width="330">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="3,3">
+                                            <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding InstanceSummary}" FontSize="10" Foreground="#9EAFCA" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="VID / PID" Binding="{Binding VidPidText}" Width="125"/>
                             <DataGridTextColumn Header="Серийный номер" Binding="{Binding SerialText}" Width="175"/>
                             <DataGridTextColumn Header="Когда подключали" Binding="{Binding FirstConnectedText}" Width="180"/>

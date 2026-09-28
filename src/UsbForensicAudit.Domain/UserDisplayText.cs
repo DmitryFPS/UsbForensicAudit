@@ -305,6 +305,26 @@ public static class UserDisplayText
         return $"{kind}{(string.IsNullOrWhiteSpace(vendor) ? "" : " · " + vendor)} (модель неизвестна)";
     }
 
+    public static string DeviceInstanceSummary(UsbDeviceRecord record)
+    {
+        var address = BluetoothEnumeratorId.DeviceAddress(record.DeviceInstanceId);
+        if (address.Length > 0)
+        {
+            return "Bluetooth · " + string.Join(":", Enumerable.Range(0, 6).Select(i => address.Substring(i * 2, 2)));
+        }
+
+        if (record.DeviceType.Equals("USBFlags", StringComparison.OrdinalIgnoreCase)
+            || record.Source.Contains("usbflags", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Общий кэш модели, без серийного номера";
+        }
+
+        var id = DevicePathNormalizer.NormalizeDeviceId(record.DeviceInstanceId, replaceHashes: true);
+        var tail = id.Split('\\', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? "";
+        var bus = id.StartsWith("USB", StringComparison.OrdinalIgnoreCase) || id.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase) ? "USB" : record.Transport;
+        return tail.Length > 0 ? $"{bus} · экземпляр {tail}" : "Идентификатор экземпляра не сохранён";
+    }
+
     public static string DeviceDisplayName(string friendlyName, string manufacturer, string product, string deviceInstanceId)
     {
         var name = IndirectString.Resolve(friendlyName);

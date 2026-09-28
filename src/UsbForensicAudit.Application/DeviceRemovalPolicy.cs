@@ -75,7 +75,7 @@ public static class DeviceRemovalPolicy
         return "";
     }
 
-    private static bool HasUsbEvidence(DeviceRemovalNode node) =>
+    internal static bool HasUsbEvidence(DeviceRemovalNode node) =>
         node.InstanceId.StartsWith(@"USB\VID_", StringComparison.OrdinalIgnoreCase)
         || node.InstanceId.StartsWith(@"USBSTOR\", StringComparison.OrdinalIgnoreCase)
         || IsUsbVolume(node.InstanceId)
@@ -92,7 +92,7 @@ public static class DeviceRemovalPolicy
         || node.Service.StartsWith("Usb4", StringComparison.OrdinalIgnoreCase)
         || node.Service.Equals("nhi", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsChild(DeviceRemovalNode parent, DeviceRemovalNode child)
+    internal static bool IsChild(DeviceRemovalNode parent, DeviceRemovalNode child)
     {
         if (string.IsNullOrWhiteSpace(parent.ParentIdPrefix) || IsInfrastructure(parent))
         {

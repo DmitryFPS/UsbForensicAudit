@@ -172,6 +172,7 @@ internal static class UsbRegistryForensicHelpers
         target.CompatibleIds = MergeText(target.CompatibleIds, candidate.CompatibleIds);
         target.ContainerId = Prefer(target.ContainerId, candidate.ContainerId);
         target.ParentIdPrefix = Prefer(target.ParentIdPrefix, candidate.ParentIdPrefix);
+        target.ParentDeviceInstanceId = Prefer(target.ParentDeviceInstanceId, candidate.ParentDeviceInstanceId);
         target.LocationInformation = Prefer(target.LocationInformation, candidate.LocationInformation);
         target.LocationPaths = Prefer(target.LocationPaths, candidate.LocationPaths);
         target.DriveLetters = MergeText(target.DriveLetters, candidate.DriveLetters);
@@ -298,7 +299,7 @@ internal static class UsbRegistryForensicHelpers
         }
 
         var instanceId = string.Join('\\', parts);
-        var serial = parts.Count >= 3 ? NormalizeInstanceSuffix(parts[^1]) : "";
+        var serial = parts.Count >= 3 ? NormalizeInstanceSuffix(parts[^1], parts.Any(x => StripDevicePathEscape(x).Equals("USBSTOR", StringComparison.OrdinalIgnoreCase))) : "";
 
         return new WpdIdentity(instanceId, serial, FindBackingInstanceId(parts));
     }
@@ -377,11 +378,11 @@ internal static class UsbRegistryForensicHelpers
     /// Убирает у идентификатора экземпляра хвост, добавленный шиной (&amp;0, &amp;1 и т.п.),
     /// оставляя серийный номер в том виде, в каком его сообщило устройство.
     /// </summary>
-    private static string NormalizeInstanceSuffix(string segment)
+    private static string NormalizeInstanceSuffix(string segment, bool storage)
     {
         var value = segment.Trim().Trim('{', '}');
         var ampersand = value.LastIndexOf('&');
-        if (ampersand > 0 && ampersand < value.Length - 1
+        if (storage && !DeviceIdentityTrust.IsWindowsGeneratedSerial(value) && ampersand > 0 && ampersand < value.Length - 1
             && value[(ampersand + 1)..].All(char.IsDigit))
         {
             value = value[..ampersand];

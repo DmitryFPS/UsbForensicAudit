@@ -65,7 +65,10 @@ public sealed class DevicePhysicalGrouping : GroupDescription
     {
         _items.Clear();
         var other = new List<UsbDeviceRecord>();
-        foreach (var physical in visibleDevices.GroupBy(DeviceListPresentation.GroupKey))
+        var physicalGroups = visibleDevices.GroupBy(DeviceListPresentation.GroupKey).ToArray();
+        var duplicateNames = physicalGroups.Select(g => (g.FirstOrDefault(x => x.IsCanonicalPrimary) ?? g.First()).DisplayName)
+            .GroupBy(x => x, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var physical in physicalGroups)
         {
             var members = physical.ToArray();
             if (members.Length < 2)
@@ -86,15 +89,26 @@ public sealed class DevicePhysicalGrouping : GroupDescription
             var pairs = members.Select(Pair).Where(x => x is not null).Distinct();
             var details = new List<string> { $"Записей: {members.Length}" };
             var serial = string.Join(", ", serials);
+            var bluetooth = members.Select(x => BluetoothEnumeratorId.DeviceAddress(x.DeviceInstanceId)).FirstOrDefault(x => x.Length > 0);
+            var identity = serial.Length > 0 ? "S/N " + serial : primary.InstanceSummary;
+            if (duplicateNames.Contains(primary.DisplayName))
+            {
+                group.Title += " · " + identity;
+            }
+            else if (bluetooth is not null)
+            {
+                group.Title += " · Bluetooth";
+            }
+
             if (serial.Length > 0)
             {
                 details.Add("S/N " + serial);
             }
 
             details.AddRange(pairs.Select(x => x!));
-            if (serial.Length == 0 && !pairs.Any())
+            if (serial.Length == 0)
             {
-                details.Add("Связь по идентификаторам Windows");
+                details.Add(identity);
             }
 
             group.Description = string.Join("   ·   ", details);

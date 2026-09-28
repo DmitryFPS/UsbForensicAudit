@@ -33,8 +33,11 @@ public static class DeviceIdentityGraph
         JoinByStrongKey(devices, union, "instance", d => NormalizeInstance(d.DeviceInstanceId));
         JoinByAliases(devices, union);
         JoinByStrongKey(devices, union, "container", d => NormalizeContainer(d.ContainerId));
+        JoinByStrongKey(devices, union, "bluetooth-address", d => BluetoothEnumeratorId.DeviceAddress(d.DeviceInstanceId));
         JoinByStrongKey(devices, union, "serial", d => IsHardwareSerial(d.Serial) ? NormalizeSerial(d.Serial) : "");
-        JoinByStrongKey(devices, union, "topology", d => NormalizeTopology(d.ParentIdPrefix, d.LocationPaths));
+        // Путь порта переиспользуется разными устройствами и не задаёт идентичность.
+        JoinByStrongKey(devices, union, "topology", d => NormalizeTopology(d.ParentIdPrefix, ""));
+        JoinByExplicitParent(devices, union);
         JoinByStrongKey(devices, union, "composite-parent", CompositeParentKey);
         JoinByStrongKey(devices, union, "composite-child", CompositeChildKey);
 
@@ -60,7 +63,7 @@ public static class DeviceIdentityGraph
         {
             var members = group.Select(i => devices[i]).ToArray();
             var primary = members.OrderByDescending(PrimaryScore).ThenBy(d => d.DeviceInstanceId, StringComparer.OrdinalIgnoreCase).First();
-            var canonicalId = BuildCanonicalId(members, ambiguousSerials);
+            var canonicalId = BuildCanonicalId(members, ambiguousSerials, group.Key);
             var linkedIds = members.Select(d => d.DeviceInstanceId)
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -70,6 +73,7 @@ public static class DeviceIdentityGraph
             var confidence = provenance.Any(x => x.StartsWith("ContainerID", StringComparison.Ordinal)) ? "High"
                 : provenance.Any(x => x.StartsWith("HardwareSerial", StringComparison.Ordinal)) ? "High"
                 : provenance.Any(x => x.StartsWith("ExactDeviceReference", StringComparison.Ordinal)) ? "High"
+                : provenance.Any(x => x.StartsWith("BluetoothAddress", StringComparison.Ordinal) || x.StartsWith("ParentDevice", StringComparison.Ordinal)) ? "High"
                 : provenance.Any(x => x.StartsWith("Topology", StringComparison.Ordinal)) ? "Medium"
                 : "SingleSource";
 
@@ -84,6 +88,30 @@ public static class DeviceIdentityGraph
             }
 
             BorrowNameForGroup(primary, members);
+        }
+    }
+
+    private static void JoinByExplicitParent(IList<UsbDeviceRecord> devices, UnionFind union)
+    {
+        var byId = Enumerable.Range(0, devices.Count).GroupBy(i => NormalizeInstance(devices[i].DeviceInstanceId))
+            .ToDictionary(x => x.Key, x => x.ToArray());
+        for (var i = 0; i < devices.Count; i++)
+        {
+            var child = devices[i];
+            if (!SetupApiDeviceRelations.IsCompositeParent(child.DeviceInstanceId, child.ParentDeviceInstanceId)
+                || !byId.TryGetValue(NormalizeInstance(child.ParentDeviceInstanceId), out var parents))
+            {
+                continue;
+            }
+
+            foreach (var parent in parents)
+            {
+                var node = devices[parent];
+                if (!DeviceRemovalPolicy.IsInfrastructure(new(node.DeviceInstanceId, "", false, Service: node.Service)))
+                {
+                    union.Union(i, parent);
+                }
+            }
         }
     }
 
@@ -208,6 +236,14 @@ public static class DeviceIdentityGraph
         AddShared(result, "HardwareSerial", members.Select(x => IsHardwareSerial(x.Serial) ? NormalizeSerial(x.Serial) : ""));
         AddShared(result, "Topology", members.Select(x => NormalizeTopology(x.ParentIdPrefix, x.LocationPaths)));
         AddShared(result, "ExactInstanceId", members.Select(x => NormalizeInstance(x.DeviceInstanceId)));
+        AddShared(result, "BluetoothAddress", members.Select(x => BluetoothEnumeratorId.DeviceAddress(x.DeviceInstanceId)));
+        foreach (var member in members.Where(x => SetupApiDeviceRelations.IsCompositeParent(x.DeviceInstanceId, x.ParentDeviceInstanceId)))
+        {
+            if (members.Any(x => x.DeviceInstanceId.Equals(member.ParentDeviceInstanceId, StringComparison.OrdinalIgnoreCase)))
+            {
+                result.Add($"ParentDevice: {member.DeviceInstanceId} -> {member.ParentDeviceInstanceId}");
+            }
+        }
         AddShared(result, "ExactDeviceReference", members.Where(x => !IsUsbFlags(x)).SelectMany(member =>
             new[] { member.DeviceInstanceId }.Concat(member.IdentityAliases)
                 .SelectMany(id => new[] { id }.Concat(DeviceTracePolicy.PhysicalIds(id)))
@@ -236,7 +272,7 @@ public static class DeviceIdentityGraph
         }
     }
 
-    private static string BuildCanonicalId(IReadOnlyList<UsbDeviceRecord> members, ISet<string> ambiguousSerials)
+    private static string BuildCanonicalId(IReadOnlyList<UsbDeviceRecord> members, ISet<string> ambiguousSerials, int unidentifiableIndex)
     {
         // Ключ выбирается детерминированно, иначе один и тот же носитель получает
         // разные идентификаторы в разных прогонах и отчёты нельзя сопоставить.
@@ -250,11 +286,9 @@ public static class DeviceIdentityGraph
                   ?? members.Select(x => NormalizeContainer(x.ContainerId))
                       .Where(x => x.Length > 0).Select(x => $"CONTAINER:{x}")
                       .OrderBy(x => x, StringComparer.Ordinal).FirstOrDefault()
-                  ?? members.Select(x => NormalizeTopology(x.ParentIdPrefix, x.LocationPaths))
-                      .Where(x => x.Length > 0).OrderBy(x => x, StringComparer.Ordinal).FirstOrDefault()
                   ?? members.Select(x => NormalizeInstance(x.DeviceInstanceId))
                       .Where(x => x.Length > 0).OrderBy(x => x, StringComparer.Ordinal).FirstOrDefault()
-                  ?? string.Join('|', members.Select(x => x.Source).OrderBy(x => x, StringComparer.Ordinal));
+                  ?? $"UNIDENTIFIED:{unidentifiableIndex}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
         return $"DEV-{Convert.ToHexString(hash.AsSpan(0, 10))}";
     }

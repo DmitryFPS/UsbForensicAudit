@@ -189,6 +189,21 @@ public sealed class DeviceRemovalRegressionTests
         Assert.Contains("инфраструктуре", item.Reason);
     }
 
+    [Theory]
+    [InlineData(@"HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Control\DeviceClasses\{53f56307-b6bf-11d0-94f2-00a0c91efb8b}\##?#USB#VID_1234&PID_5678#HUB#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}")]
+    [InlineData(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Portable Devices\Devices\USB#VID_1234&PID_5678#HUB")]
+    public void Known_hub_history_in_other_sources_remains_protected_without_live_node(string path)
+    {
+        var record = Record(@"USB\VID_1234&PID_5678\HUB", path);
+        record.Service = "USBHUB3";
+        var world = new World();
+        world.Traces.Add(path, "original");
+        var item = Assert.Single(new DeviceRemovalService(world).Preview(Scan(record), [record]).Items);
+        Assert.False(item.CanRemove);
+        Assert.Contains("инфраструктуре", item.Reason);
+        Assert.Empty(world.Actions);
+    }
+
     [Fact]
     public void Unbound_existing_history_is_reported_and_prevents_database_card_removal()
     {
@@ -201,6 +216,97 @@ public sealed class DeviceRemovalRegressionTests
         Assert.Equal(1, plan.RemovableCount);
         Assert.Equal(1, plan.ProtectedCount);
         Assert.Empty(DeviceRemovalDatabaseSync.CompletedRecords(plan, new("backup", [new(Disk, "", "Removed", "")])));
+    }
+
+    [Theory]
+    [InlineData(@"HKLM\SYSTEM\ControlSet001\Enum\BTHENUM\DEV_001122334455\8&1234&0")]
+    [InlineData(@"HKLM\SOFTWARE\Microsoft\Windows Search\VolumeInfoCache\E:")]
+    [InlineData(@"HKU\S-1-5-21-123\Software\Microsoft\Windows\CurrentVersion\Explorer\MountPoints2\volume")]
+    public async Task Unsupported_source_in_device_group_is_reported_and_prevents_false_database_completion(string path)
+    {
+        const string usb = @"USB\VID_1234&PID_5678\SERIAL-A";
+        var selected = Record(usb);
+        var history = Record("history", path);
+        selected.CanonicalDeviceId = history.CanonicalDeviceId = "physical-device";
+        var world = new World();
+        world.Nodes.Add(new(usb, "Device", false, Service: "USBSTOR"));
+        var service = new DeviceRemovalService(world);
+        var plan = service.Preview(Scan(selected, history), [selected]);
+        Assert.Equal(1, plan.RemovableCount);
+        Assert.Equal(1, plan.ProtectedCount);
+        Assert.Equal(path, plan.Items.Single(x => !x.CanRemove).InstanceId);
+        var result = await service.ExecuteAsync(plan);
+        Assert.Equal(1, result.RemovedCount);
+        Assert.Equal(1, result.SkippedCount);
+        Assert.Contains("не полностью", result.Summary);
+        Assert.Empty(DeviceRemovalDatabaseSync.CompletedRecords(plan, result));
+    }
+
+    [Fact]
+    public void Unsupported_paths_are_read_only_from_declared_evidence_and_active_pnp_path_is_not_misreported()
+    {
+        const string usb = @"USB\VID_1234&PID_5678\SERIAL-A";
+        const string unsupported = @"HKLM\SOFTWARE\Unknown\Device";
+        var record = Record(usb);
+        record.RawJson = JsonSerializer.Serialize(new
+        {
+            MergedRegistryEvidence = new object[]
+            {
+                new { RegistryPath = @"HKLM\SYSTEM\CurrentControlSet\Enum\" + usb },
+                new { RegistryPaths = new[] { unsupported, unsupported, "", Portable() } },
+                new { Values = new { RegistryPath = "not a source" } }
+            }
+        });
+        Assert.Equal([unsupported], DeviceTracePolicy.UnsupportedSourcePaths(record));
+        Assert.Equal([Portable()], DeviceTracePolicy.SourcePaths(record));
+        record.RawJson = "invalid json";
+        Assert.Empty(DeviceTracePolicy.UnsupportedSourcePaths(record));
+
+        record = Record(usb, @"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Enum\" + usb);
+        var world = new World();
+        world.Nodes.Add(new(usb, "Device", false, Service: "USBSTOR"));
+        Assert.True(Assert.Single(new DeviceRemovalService(world).Preview(Scan(record), [record]).Items).CanRemove);
+    }
+
+    [Fact]
+    public async Task Scsi_history_and_component_are_removed_before_their_usb_parent_disappears()
+    {
+        const string usb = @"USB\VID_1234&PID_5678\SERIAL-A";
+        const string scsi = @"SCSI\Disk&Ven_External&Prod_Disk\6&1234&0";
+        const string container = "{1352bcbf-4624-43b3-9d1f-dea941d249a0}";
+        var path = @"HKEY_LOCAL_MACHINE\SYSTEM\ControlSet002\Enum\" + scsi;
+        var selected = Record(usb);
+        var history = Record(scsi, path);
+        var world = new World();
+        world.Nodes.Add(new(usb, "USB", false, container, Service: "UASPStor"));
+        world.Nodes.Add(new(scsi, "Disk", false, container, Service: "disk"));
+        world.Traces.Add(path, "original");
+        var service = new DeviceRemovalService(world);
+        var plan = service.Preview(Scan(selected, history), [selected]);
+        Assert.Equal(3, plan.RemovableCount);
+        var result = await service.ExecuteAsync(plan);
+        Assert.Equal(3, result.RemovedCount);
+        Assert.Equal(0, result.FailedCount);
+        Assert.Equal(["backup", "trace:" + path, "pnp:" + scsi, "pnp:" + usb], world.Actions);
+        Assert.Equal(2, DeviceRemovalDatabaseSync.CompletedRecords(plan, result).Count);
+    }
+
+    [Fact]
+    public async Task Indirect_hid_descendants_are_removed_from_leaves_towards_usb_parent()
+    {
+        const string usb = @"USB\VID_1234&PID_5678\SERIAL-A";
+        const string child = @"HID\VID_1234&PID_5678\6&1234&0&0000";
+        const string grandchild = @"HID\VID_1234&PID_5678&COL01\7&2345&0&0000";
+        var selected = Record(usb);
+        var world = new World();
+        world.Nodes.Add(new(usb, "USB", false, Service: "USBCCGP", ParentIdPrefix: "6&1234&0"));
+        world.Nodes.Add(new(child, "HID", false, Service: "HidUsb", ParentIdPrefix: "7&2345&0"));
+        world.Nodes.Add(new(grandchild, "HID leaf", false, Service: "HidUsb"));
+        var service = new DeviceRemovalService(world);
+        var result = await service.ExecuteAsync(service.Preview(Scan(selected), [selected]));
+        Assert.Equal(3, result.RemovedCount);
+        Assert.Equal(0, result.FailedCount);
+        Assert.Equal(["backup", "pnp:" + grandchild, "pnp:" + child, "pnp:" + usb], world.Actions);
     }
 
     private sealed class World : IDeviceRemovalPlatform, IRegistryTracePlatform

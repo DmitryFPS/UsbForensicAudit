@@ -52,6 +52,8 @@ public sealed class UsbDeviceRecord
     public string CompatibleIds { get; set; } = "";
     public string ContainerId { get; set; } = "";
     public string ParentIdPrefix { get; set; } = "";
+    /// <summary>Точный PnP-ID родителя из свойств Windows или секции SetupAPI этого экземпляра.</summary>
+    public string ParentDeviceInstanceId { get; set; } = "";
     public string LocationInformation { get; set; } = "";
     public string LocationPaths { get; set; } = "";
     public string DriveLetters { get; set; } = "";
@@ -120,6 +122,9 @@ public sealed class UsbDeviceRecord
     [JsonIgnore]
     public string OwnDisplayName =>
         UserDisplayText.DeviceDisplayName(this);
+
+    [JsonIgnore]
+    public string InstanceSummary => UserDisplayText.DeviceInstanceSummary(this);
 
     [JsonIgnore]
     public string FirstConnectedText => UserDisplayText.ConnectionText(ConnectionDisplayKind, FirstConnectedUtc);

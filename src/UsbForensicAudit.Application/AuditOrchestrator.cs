@@ -148,6 +148,7 @@ public sealed class AuditOrchestrator
 
             progress?.Report("Корреляция physical device -> volumes -> user artifacts...");
             DeviceTransportClassifier.ClassifyAll(result.Devices);
+            SetupApiDeviceRelations.Apply(result.Devices, result.Evidence);
             DeviceIdentityGraph.Process(result.Devices);
             VolumeCorrelationService.Process(result);
             result.Evidence.AddRange(_correlationService.BuildDeviceCorrelations(result));
