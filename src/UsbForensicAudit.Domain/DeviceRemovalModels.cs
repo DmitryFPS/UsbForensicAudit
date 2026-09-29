@@ -3,18 +3,21 @@ namespace UsbForensicAudit;
 public sealed record DeviceRemovalNode(
     string InstanceId, string Name, bool? Present,
     string ContainerId = "", string Service = "", string ClassGuid = "",
-    string ParentIdPrefix = "", string HardwareIds = "", string AuditInstanceId = "");
+    string ParentIdPrefix = "", string HardwareIds = "", string AuditInstanceId = "", string ParentDeviceInstanceId = "");
 
 public sealed record DeviceRemovalItem(
     string InstanceId, string Name, bool CanRemove, string Reason,
     DeviceRemovalNode? Identity, IReadOnlyList<string> RelatedInstanceIds, DeviceRegistryTrace? Trace = null)
 {
     public string RegistryPath => Trace?.RegistryPath ?? (CanRemove ? @"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Enum\" + InstanceId : "");
-    public string StatusText => CanRemove ? Trace is null ? "Удаление экземпляра Windows" : "Удаление записи реестра" : Reason;
+    public string StatusText => !CanRemove ? Reason : Trace is null ? "Удаление экземпляра Windows"
+        : Trace.Fingerprint.Length == 0 ? "Уже отсутствует в Windows — проверка перед очисткой базы"
+        : Trace.MountedValueSnapshot.Length > 0 ? "Удаление значения сопоставления тома" : "Удаление записи реестра";
 }
 
 public sealed record DeviceRegistryTrace(string RegistryPath, string Fingerprint,
-    IReadOnlyList<string> DeviceIds, string Vid = "", string Pid = "");
+    IReadOnlyList<string> DeviceIds, string Vid = "", string Pid = "", string VolumeCacheSnapshotFingerprint = "",
+    string MountedValueSnapshot = "", string UsbAncestorInstanceId = "");
 
 public sealed record DatabaseDeviceRemovalResult(int RemovedCount, string BackupDirectory);
 

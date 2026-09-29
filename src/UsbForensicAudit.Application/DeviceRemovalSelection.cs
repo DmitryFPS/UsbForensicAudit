@@ -2,6 +2,16 @@ namespace UsbForensicAudit;
 
 internal static class DeviceRemovalSelection
 {
+    internal static IReadOnlyList<DeviceRemovalNode> WithHistoricalParents(IReadOnlyList<DeviceRemovalNode> inventory, IEnumerable<DeviceRemovalNode> identities)
+    {
+        var parents = identities.Where(x => SetupApiDeviceRelations.IsStorageUsbParent(x.InstanceId, x.ParentDeviceInstanceId))
+            .GroupBy(x => x.InstanceId, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new { Id = x.Key, Parents = x.Select(n => n.ParentDeviceInstanceId).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() })
+            .Where(x => x.Parents.Length == 1).ToDictionary(x => x.Id, x => x.Parents[0], StringComparer.OrdinalIgnoreCase);
+        return inventory.Select(node => node.ParentDeviceInstanceId.Length == 0 && parents.TryGetValue(node.InstanceId, out var parent)
+            ? node with { ParentDeviceInstanceId = parent } : node).ToArray();
+    }
+
     public static bool IsSharedArtifact(UsbDeviceRecord record) => DeviceComposition.IsVolumeMetadata(record)
         || record.DeviceType.Equals("USBFlags", StringComparison.OrdinalIgnoreCase);
 
@@ -51,12 +61,15 @@ internal static class DeviceRemovalSelection
             }
             var additions = result.Devices.Where(x => !sources.Contains(x) && !IsSharedArtifact(x)
                 && Identities([x]).Overlaps(ids)).ToArray();
-            if (additions.Length == 0)
+            var mappings = result.Devices.Where(x => !sources.Contains(x)
+                && DeviceTracePolicy.MountedDeviceIds(x).Any(ids.Contains)).ToArray();
+            if (additions.Length == 0 && mappings.Length == 0)
             {
                 return sources.ToArray();
             }
 
             sources.UnionWith(additions);
+            sources.UnionWith(mappings);
         }
     }
 }

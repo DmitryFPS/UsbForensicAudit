@@ -100,6 +100,57 @@ public sealed class SetupApiDeviceRelationsTests
     private static EvidenceRecord Evidence(string text) => new() { Provider = "SetupAPI", RawText = text };
 
     [Fact]
+    public void KernelPnpParentLinksExternalScsiDiskToExactUsbDevice()
+    {
+        const string diskId = @"SCSI\Disk&Ven_ADATA&Prod_SE800\6&24666AF7&0&000000";
+        var disk = new UsbDeviceRecord { DeviceInstanceId = diskId, Service = "disk", CompatibleIds = @"SCSI\GenDisk", Transport = "Internal Disk", Classification = "BuiltIn" };
+        var usb = new UsbDeviceRecord { DeviceInstanceId = Parent };
+        SetupApiDeviceRelations.Apply([disk, usb], [ParentEvent(diskId, Parent)]);
+        Assert.Equal(Parent, disk.ParentDeviceInstanceId);
+        Assert.Equal("UASP/SCSI", disk.Transport);
+        Assert.Equal("External", disk.Classification);
+        DeviceIdentityGraph.Process([disk, usb]);
+        Assert.Equal(disk.CanonicalDeviceId, usb.CanonicalDeviceId);
+        Assert.Contains(disk, DeviceListPresentation.Select([disk, usb], false, ""));
+        var node = new DeviceRemovalNode(diskId, "Disk", false, Service: "disk", ParentDeviceInstanceId: disk.ParentDeviceInstanceId);
+        Assert.Empty(DeviceRemovalPolicy.ProtectionReason(node, [node]));
+        var path = @"HKLM\SYSTEM\ControlSet002\Enum\" + diskId;
+        var trace = DeviceTracePolicy.Bind(path, disk, "hash")!;
+        Assert.Equal(Parent, trace.UsbAncestorInstanceId);
+        Assert.Empty(DeviceTracePolicy.ProtectionReason(trace, [node], _ => false));
+        Assert.NotEmpty(DeviceTracePolicy.ProtectionReason(trace, [node], id => id == Parent));
+        Assert.NotEmpty(DeviceTracePolicy.ProtectionReason(trace, [node with { ParentDeviceInstanceId = Parent + "-OTHER" }], _ => false));
+    }
+
+    [Fact]
+    public void ConflictingOrForgedKernelPnpParentsCannotAuthorizeStorageRemoval()
+    {
+        const string diskId = @"SCSI\Disk&Ven_ADATA&Prod_SE800\6&24666AF7&0&000000";
+        var disk = new UsbDeviceRecord { DeviceInstanceId = diskId };
+        SetupApiDeviceRelations.Apply([disk], [ParentEvent(diskId, Parent), ParentEvent(diskId, @"PCI\VEN_1234&DEV_5678\INTERNAL")]);
+        Assert.Empty(disk.ParentDeviceInstanceId);
+        var forged = ParentEvent(diskId, Parent);
+        forged.RawText = forged.RawText.Replace("Microsoft-Windows-Kernel-PnP", "OtherProvider", StringComparison.Ordinal);
+        SetupApiDeviceRelations.Apply([disk], [forged]);
+        Assert.Empty(disk.ParentDeviceInstanceId);
+        forged.RawText = "truncated xml";
+        SetupApiDeviceRelations.Apply([disk], [forged]);
+        Assert.Empty(disk.ParentDeviceInstanceId);
+    }
+
+    private static EvidenceRecord ParentEvent(string child, string parent) => new()
+    {
+        Provider = "Microsoft-Windows-Kernel-PnP",
+        EventId = "400",
+        RawText = new System.Xml.Linq.XElement("Event",
+            new System.Xml.Linq.XElement("System", new System.Xml.Linq.XElement("Provider", new System.Xml.Linq.XAttribute("Name", "Microsoft-Windows-Kernel-PnP")),
+                new System.Xml.Linq.XElement("EventID", "400")),
+            new System.Xml.Linq.XElement("EventData",
+                new System.Xml.Linq.XElement("Data", new System.Xml.Linq.XAttribute("Name", "DeviceInstanceId"), child),
+                new System.Xml.Linq.XElement("Data", new System.Xml.Linq.XAttribute("Name", "ParentDeviceInstanceId"), parent))).ToString()
+    };
+
+    [Fact]
     public void ReadsSingleLineStoredEvidenceAndDoesNotLeakAcrossClosedBlocks()
     {
         var child = new UsbDeviceRecord { DeviceInstanceId = Child };

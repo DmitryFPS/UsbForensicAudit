@@ -17,6 +17,10 @@ public partial class DeviceRemovalPreviewWindow : Window
             + (plan.ProtectedCount > 0 ? " Очистка будет частичной." : "");
         RemoveButton.Content = $"Удалить из Windows: {plan.RemovableCount}";
         RemoveButton.IsEnabled = plan.RemovableCount > 0;
+        if (plan.Items.Any(x => x.CanRemove && x.Trace is null && BluetoothEnumeratorId.IsClassicPairingTarget(x.InstanceId)))
+        {
+            ExplanationText.Text += " Bluetooth-сопряжение с выбранным устройством будет отменено; для следующего подключения потребуется повторное сопряжение.";
+        }
     }
 
     private void ShowProtected_Changed(object sender, RoutedEventArgs e) => RefreshItems();

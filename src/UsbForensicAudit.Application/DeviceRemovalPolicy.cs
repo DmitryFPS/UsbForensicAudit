@@ -9,7 +9,10 @@ public static class DeviceRemovalPolicy
         var parts = id.Split('\\');
         return parts.Length == 3
                && parts.All(p => !string.IsNullOrWhiteSpace(p) && p is not "." and not "..")
-               && Buses.Contains(parts[0], StringComparer.OrdinalIgnoreCase)
+               && (Buses.Contains(parts[0], StringComparer.OrdinalIgnoreCase)
+                   || BluetoothEnumeratorId.DeviceAddress(id).Length > 0
+                   || (parts[0].Equals("BTHHFENUM", StringComparison.OrdinalIgnoreCase)
+                       && parts[1].Equals("BthHFPAudio", StringComparison.OrdinalIgnoreCase)))
                && !id.Any(c => char.IsControl(c) || c is '"' or '/' or '*')
                && (!id.Contains('?') || id.StartsWith(@"SWD\WPDBUSENUM\", StringComparison.OrdinalIgnoreCase)
                    || IsUsbVolume(id))
@@ -39,6 +42,7 @@ public static class DeviceRemovalPolicy
             {
                 if (!seen.Contains(other.InstanceId)
                     && (SameContainer(member.ContainerId, other.ContainerId)
+                        || SameBluetoothAddress(member.InstanceId, other.InstanceId)
                         || IsChild(member, other) || IsChild(other, member)
                         || IsBackingWrapper(member, other) || IsBackingWrapper(other, member)))
                 {
@@ -64,13 +68,19 @@ public static class DeviceRemovalPolicy
         {
             return "Не удалось достоверно проверить подключение.";
         }
-        if (string.IsNullOrWhiteSpace(node.Service) && !Guid.TryParse(node.ClassGuid, out _))
+        if (string.IsNullOrWhiteSpace(node.Service) && !Guid.TryParse(node.ClassGuid, out _)
+            && BluetoothEnumeratorId.DeviceAddress(node.InstanceId).Length == 0)
         {
             return "Недостаточно сведений о роли устройства.";
         }
-        if (!HasUsbEvidence(node) && !related.Any(HasUsbEvidence))
+        if (related.Select(x => BluetoothEnumeratorId.DeviceAddress(x.InstanceId)).Where(x => x.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Take(2).Count() > 1)
         {
-            return "Связь с USB-устройством не подтверждена.";
+            return "В группе обнаружены разные адреса Bluetooth. Принадлежность компонентов неоднозначна.";
+        }
+        if (!HasExternalDeviceEvidence(node) && !related.Any(HasExternalDeviceEvidence))
+        {
+            return "Связь с USB-устройством или удалённым устройством Bluetooth не подтверждена.";
         }
         return "";
     }
@@ -78,10 +88,20 @@ public static class DeviceRemovalPolicy
     internal static bool HasUsbEvidence(DeviceRemovalNode node) =>
         node.InstanceId.StartsWith(@"USB\VID_", StringComparison.OrdinalIgnoreCase)
         || node.InstanceId.StartsWith(@"USBSTOR\", StringComparison.OrdinalIgnoreCase)
+        || SetupApiDeviceRelations.IsStorageUsbParent(node.InstanceId, node.ParentDeviceInstanceId)
         || IsUsbVolume(node.InstanceId)
         || (node.InstanceId.StartsWith(@"SWD\WPDBUSENUM\", StringComparison.OrdinalIgnoreCase)
             && (node.InstanceId.Contains("USB#", StringComparison.OrdinalIgnoreCase)
                 || node.InstanceId.Contains("USBSTOR#", StringComparison.OrdinalIgnoreCase)));
+
+    internal static bool HasExternalDeviceEvidence(DeviceRemovalNode node) => HasUsbEvidence(node)
+        || BluetoothEnumeratorId.DeviceAddress(node.InstanceId).Length > 0;
+
+    private static bool SameBluetoothAddress(string left, string right)
+    {
+        var address = BluetoothEnumeratorId.DeviceAddress(left);
+        return address.Length > 0 && address.Equals(BluetoothEnumeratorId.DeviceAddress(right), StringComparison.OrdinalIgnoreCase);
+    }
 
     internal static bool IsInfrastructure(DeviceRemovalNode node) =>
         node.InstanceId.StartsWith(@"USB\ROOT_", StringComparison.OrdinalIgnoreCase)
@@ -90,10 +110,18 @@ public static class DeviceRemovalPolicy
         || node.Service.Contains("EHCI", StringComparison.OrdinalIgnoreCase)
         || node.Service.Contains("OHCI", StringComparison.OrdinalIgnoreCase)
         || node.Service.StartsWith("Usb4", StringComparison.OrdinalIgnoreCase)
-        || node.Service.Equals("nhi", StringComparison.OrdinalIgnoreCase);
+        || node.Service.Equals("nhi", StringComparison.OrdinalIgnoreCase)
+        || node.Service.Equals("BTHUSB", StringComparison.OrdinalIgnoreCase)
+        || node.Service.Equals("BTHMINI", StringComparison.OrdinalIgnoreCase)
+        || node.InstanceId.StartsWith(@"BTH\", StringComparison.OrdinalIgnoreCase);
 
     internal static bool IsChild(DeviceRemovalNode parent, DeviceRemovalNode child)
     {
+        if (!IsInfrastructure(parent) && SetupApiDeviceRelations.IsSupportedParent(child.InstanceId, child.ParentDeviceInstanceId)
+            && parent.InstanceId.Equals(child.ParentDeviceInstanceId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
         if (string.IsNullOrWhiteSpace(parent.ParentIdPrefix) || IsInfrastructure(parent))
         {
             return false;

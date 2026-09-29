@@ -1,5 +1,7 @@
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Xml;
+using System.Xml.Linq;
 
 namespace UsbForensicAudit;
 
@@ -7,13 +9,21 @@ public static partial class SetupApiDeviceRelations
 {
     public static void Apply(IEnumerable<UsbDeviceRecord> devices, IEnumerable<EvidenceRecord> evidence)
     {
+        var records = devices.ToArray();
         var parents = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var record in evidence.Where(x => x.Provider.Equals("SetupAPI", StringComparison.OrdinalIgnoreCase)))
+        foreach (var record in evidence)
         {
-            ReadParents(record.RawText, parents);
+            if (record.Provider.Equals("SetupAPI", StringComparison.OrdinalIgnoreCase))
+            {
+                ReadParents(record.RawText, parents);
+            }
+            else if (record.Provider.Equals("Microsoft-Windows-Kernel-PnP", StringComparison.OrdinalIgnoreCase) && record.EventId == "400")
+            {
+                ReadEventParent(record.RawText, parents);
+            }
         }
 
-        foreach (var device in devices)
+        foreach (var device in records)
         {
             if (!string.IsNullOrWhiteSpace(device.ParentDeviceInstanceId)
                 || !parents.TryGetValue(device.DeviceInstanceId, out var candidates)
@@ -23,12 +33,45 @@ public static partial class SetupApiDeviceRelations
             }
 
             var parent = candidates.Single();
-            if (IsCompositeParent(device.DeviceInstanceId, parent))
+            if (IsSupportedParent(device.DeviceInstanceId, parent))
             {
                 device.ParentDeviceInstanceId = parent;
             }
         }
+        foreach (var device in records.Where(x => IsStorageUsbParent(x.DeviceInstanceId, x.ParentDeviceInstanceId)))
+        {
+            // В старой базе диск мог ошибочно сохраниться как внутренний и исчезнуть из обычного списка.
+            DeviceTransportClassifier.Classify(device);
+        }
     }
+
+    private static void ReadEventParent(string xml, Dictionary<string, HashSet<string>> parents)
+    {
+        try
+        {
+            var root = XDocument.Parse(xml).Root;
+            var system = root?.Elements().SingleOrDefault(x => x.Name.LocalName == "System");
+            if (system?.Elements().SingleOrDefault(x => x.Name.LocalName == "Provider")?.Attribute("Name")?.Value != "Microsoft-Windows-Kernel-PnP"
+                || system.Elements().SingleOrDefault(x => x.Name.LocalName == "EventID")?.Value != "400")
+            {
+                return;
+            }
+            var fields = root!.Elements().SingleOrDefault(x => x.Name.LocalName == "EventData")?.Elements()
+                .Where(x => x.Name.LocalName == "Data").ToArray() ?? [];
+            var children = fields.Where(x => x.Attribute("Name")?.Value == "DeviceInstanceId").ToArray();
+            var parentFields = fields.Where(x => x.Attribute("Name")?.Value == "ParentDeviceInstanceId").ToArray();
+            if (children.Length != 1 || parentFields.Length != 1) { return; }
+            var child = children[0].Value;
+            if (!parents.TryGetValue(child, out var candidates)) { parents[child] = candidates = new(StringComparer.OrdinalIgnoreCase); }
+            candidates.Add(parentFields[0].Value);
+        }
+        catch (Exception ex) when (ex is XmlException or InvalidOperationException) { }
+    }
+
+    internal static bool IsSupportedParent(string child, string parent) => IsCompositeParent(child, parent) || IsStorageUsbParent(child, parent);
+
+    internal static bool IsStorageUsbParent(string child, string parent) => child.StartsWith(@"SCSI\DISK&", StringComparison.OrdinalIgnoreCase)
+        && DeviceRemovalPolicy.IsInstanceId(child) && PhysicalDeviceRegex().IsMatch(parent) && DeviceRemovalPolicy.IsInstanceId(parent);
 
     private static void ReadParents(string rawText, Dictionary<string, HashSet<string>> parents)
     {

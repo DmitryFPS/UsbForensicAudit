@@ -171,6 +171,33 @@ public class DeviceRemovalBackupTests : IDisposable
         Assert.Throws<ArgumentException>(() => platform.InstanceExists(@"USB\*"));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Privileged_backup_uses_exact_key_hive_and_rejects_invalid_output(bool invalid)
+    {
+        var called = false;
+        var platform = new WindowsDeviceRemovalPlatform(_directory, _ => false, _ => true,
+            (_, _, _) => throw new Exception("reg.exe cannot read protected Properties"), () => { },
+            saveRegistryKey: (path, file) =>
+            {
+                Assert.Equal(@"HKLM\SYSTEM\CurrentControlSet\Enum\" + Id, path);
+                Assert.EndsWith(".hiv", file);
+                called = true;
+                File.WriteAllBytes(file, invalid ? [0, 0, 0, 0] : "regf"u8.ToArray());
+            });
+        if (invalid)
+        {
+            await Assert.ThrowsAsync<IOException>(() => platform.BackupAsync(Plan(), CancellationToken.None));
+        }
+        else
+        {
+            var backup = await platform.BackupAsync(Plan(), CancellationToken.None);
+            Assert.Contains("device-0001.hiv", await File.ReadAllTextAsync(Path.Combine(backup, "manifest.json")));
+        }
+        Assert.True(called);
+    }
+
     private WindowsDeviceRemovalPlatform Adapter(
         Func<string, string[], CancellationToken, Task<DeviceRemovalCommandResult>> command,
         bool exists = true, bool present = false) =>

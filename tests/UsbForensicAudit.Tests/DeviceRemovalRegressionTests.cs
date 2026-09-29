@@ -219,8 +219,8 @@ public sealed class DeviceRemovalRegressionTests
     }
 
     [Theory]
-    [InlineData(@"HKLM\SYSTEM\ControlSet001\Enum\BTHENUM\DEV_001122334455\8&1234&0")]
-    [InlineData(@"HKLM\SOFTWARE\Microsoft\Windows Search\VolumeInfoCache\E:")]
+    [InlineData(@"HKLM\SYSTEM\ControlSet001\Enum\BTH\MS_BTHBRB\8&1234&0")]
+    [InlineData(@"HKLM\SOFTWARE\Microsoft\Windows Search\VolumeInfoCache")]
     [InlineData(@"HKU\S-1-5-21-123\Software\Microsoft\Windows\CurrentVersion\Explorer\MountPoints2\volume")]
     public async Task Unsupported_source_in_device_group_is_reported_and_prevents_false_database_completion(string path)
     {
@@ -307,6 +307,54 @@ public sealed class DeviceRemovalRegressionTests
         Assert.Equal(3, result.RemovedCount);
         Assert.Equal(0, result.FailedCount);
         Assert.Equal(["backup", "pnp:" + grandchild, "pnp:" + child, "pnp:" + usb], world.Actions);
+    }
+
+    [Fact]
+    public async Task Already_missing_history_can_complete_database_cleanup_without_a_delete_command()
+    {
+        var selected = Record(Disk, Portable());
+        var world = new World();
+        var service = new DeviceRemovalService(world);
+        var plan = service.Preview(Scan(selected), [selected]);
+        Assert.True(Assert.Single(plan.Items).CanRemove);
+        Assert.Contains("Уже отсутствует", plan.Items[0].StatusText);
+        var result = await service.ExecuteAsync(plan);
+        Assert.Equal(1, result.AbsentCount);
+        Assert.Equal(0, result.RemovedCount);
+        Assert.Equal(["backup"], world.Actions);
+        Assert.Equal([selected.DeviceInstanceId], DeviceRemovalDatabaseSync.CompletedRecords(plan, result));
+    }
+
+    [Fact]
+    public async Task History_reappearing_after_absence_preview_is_not_deleted_or_removed_from_database()
+    {
+        var selected = Record(Disk, Portable());
+        var world = new World { AfterBackup = null };
+        world.AfterBackup = () => world.Traces.Add(Portable(), "new-device-state");
+        var service = new DeviceRemovalService(world);
+        var plan = service.Preview(Scan(selected), [selected]);
+        var result = await service.ExecuteAsync(plan);
+        Assert.Equal("Blocked", Assert.Single(result.Items).Status);
+        Assert.Equal(["backup"], world.Actions);
+        Assert.Single(world.Traces);
+        Assert.Empty(DeviceRemovalDatabaseSync.CompletedRecords(plan, result));
+    }
+
+    [Fact]
+    public async Task Bluetooth_profiles_are_removed_before_cancelling_classic_pairing()
+    {
+        const string phone = @"BTHENUM\DEV_887598C2F5F2\7&2768A9F8&0&BLUETOOTHDEVICE_887598C2F5F2";
+        const string profile = @"BTHENUM\{0000110A-0000-1000-8000-00805F9B34FB}_VID&00010075_PID&0100\7&2768A9F8&0&887598C2F5F2_C00000000";
+        const string le = @"BTHLE\Dev_887598C2F5F2\7&2832959&0&887598C2F5F2";
+        var selected = Record(phone);
+        var world = new World();
+        world.Nodes.Add(new(phone, "Phone", false, Service: "BthEnum"));
+        world.Nodes.Add(new(profile, "Profile", false, Service: "BthA2dp"));
+        world.Nodes.Add(new(le, "LE phone", false, Service: "BthLEEnum"));
+        var service = new DeviceRemovalService(world);
+        var result = await service.ExecuteAsync(service.Preview(Scan(selected), [selected]));
+        Assert.Equal(3, result.RemovedCount);
+        Assert.Equal(["backup", "pnp:" + profile, "pnp:" + le, "pnp:" + phone], world.Actions);
     }
 
     private sealed class World : IDeviceRemovalPlatform, IRegistryTracePlatform

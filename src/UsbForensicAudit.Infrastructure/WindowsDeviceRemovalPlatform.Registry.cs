@@ -1,6 +1,4 @@
 using System.IO;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using Microsoft.Win32;
 
@@ -34,50 +32,44 @@ public sealed partial class WindowsDeviceRemovalPlatform
     public string? ReadTraceFingerprint(string registryPath)
         => _readTrace(DeviceTracePolicy.NormalizePath(registryPath) ?? throw new ArgumentException("Неподдерживаемая запись реестра."));
 
-    private static string? NativeReadTraceFingerprint(string registryPath)
+    public string GetTraceProtectionReason(DeviceRegistryTrace trace)
     {
-        var path = DeviceTracePolicy.NormalizePath(registryPath) ?? throw new ArgumentException("Неподдерживаемая запись реестра.");
+        if (DeviceTracePolicy.MountedValueName(trace.RegistryPath).Length > 0)
+        {
+            return MountedVolumeProtectionReason(trace.RegistryPath);
+        }
+        if (!DeviceTracePolicy.IsVolumeCachePath(trace.RegistryPath))
+        {
+            return "";
+        }
+
+        var path = DeviceTracePolicy.NormalizePath(trace.RegistryPath)!;
         using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
         using var key = machine.OpenSubKey(path[19..]);
         if (key is null)
         {
-            return null;
+            return "";
         }
 
-        var content = new StringBuilder();
-        var remaining = 4096;
-        AppendKey(key, content, 0, ref remaining);
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(content.ToString())));
+        var values = key.GetValueNames().ToDictionary(name => name, name => key.GetValue(name), StringComparer.OrdinalIgnoreCase);
+        var snapshot = DeviceTracePolicy.VolumeCacheValuesFingerprint(JsonSerializer.SerializeToElement(values));
+        var letter = DeviceTracePolicy.VolumeCacheDriveLetter(path);
+        var assigned = DriveInfo.GetDrives().Any(drive => drive.Name.TrimEnd('\\').Equals(letter, StringComparison.OrdinalIgnoreCase));
+        return VolumeCacheProtectionReason(trace, snapshot, assigned);
     }
 
-    private static void AppendKey(RegistryKey key, StringBuilder content, int depth, ref int remaining)
+    internal static string VolumeCacheProtectionReason(DeviceRegistryTrace trace, string currentValuesFingerprint, bool driveAssigned)
     {
-        if (depth > 16 || --remaining < 0)
+        if (trace.VolumeCacheSnapshotFingerprint.Length == 0 || currentValuesFingerprint != trace.VolumeCacheSnapshotFingerprint)
         {
-            throw new IOException("Запись слишком велика для выборочного удаления.");
+            return "Кэш тома изменился со времени сканирования. Выполните новый поиск.";
         }
-
-        content.Append(JsonSerializer.Serialize(key.Name));
-        foreach (var name in key.GetValueNames().Order(StringComparer.OrdinalIgnoreCase))
-        {
-            if (--remaining < 0)
-            {
-                throw new IOException("Запись содержит слишком много значений.");
-            }
-
-            content.Append(JsonSerializer.Serialize(new
-            {
-                Name = name,
-                Kind = key.GetValueKind(name),
-                Value = key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames)
-            }));
-        }
-        foreach (var name in key.GetSubKeyNames().Order(StringComparer.OrdinalIgnoreCase))
-        {
-            using var child = key.OpenSubKey(name) ?? throw new IOException("Состав записи изменился при чтении.");
-            AppendKey(child, content, depth + 1, ref remaining);
-        }
+        return driveAssigned ? "Буква диска из кэша сейчас используется. Отключите носитель и повторите проверку." : "";
     }
+
+    private static string? NativeReadTraceFingerprint(string registryPath) => DeviceTracePolicy.MountedValueName(registryPath).Length > 0
+        ? ReadMountedValue(registryPath) is { } bytes ? DeviceTracePolicy.MountedFingerprint(bytes) : null
+        : RegistryTraceAccess.ReadFingerprint(registryPath);
 
     public Task<DeviceRemovalCommandResult> RemoveTraceAsync(DeviceRegistryTrace trace)
     {
@@ -85,6 +77,10 @@ public sealed partial class WindowsDeviceRemovalPlatform
         var path = DeviceTracePolicy.NormalizePath(trace.RegistryPath) ?? throw new ArgumentException("Неподдерживаемая запись реестра.");
         EnsureInactiveEnumPath(path);
         var reason = DeviceTracePolicy.ProtectionReason(trace, ReadInventory(), IsPresent);
+        if (reason.Length == 0)
+        {
+            reason = GetTraceProtectionReason(trace);
+        }
         if (reason.Length > 0)
         {
             throw new InvalidOperationException(reason);
@@ -101,9 +97,15 @@ public sealed partial class WindowsDeviceRemovalPlatform
             throw new IOException("Запись реестра изменилась. Удаление отменено.");
         }
 
-        using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
-        // Только явно выбранный конечный ключ. Права/владельцы реестра не меняются.
-        machine.DeleteSubKeyTree(path[19..], throwOnMissingSubKey: false);
+        // Повторная проверка и удаление через дескриптор того же ключа; ACL не меняются.
+        if (DeviceTracePolicy.MountedValueName(path).Length > 0)
+        {
+            RemoveMountedValue(trace);
+        }
+        else
+        {
+            RegistryTraceAccess.DeleteTree(path, trace.Fingerprint);
+        }
         return Task.FromResult(new DeviceRemovalCommandResult(ReadTraceFingerprint(path) is null ? 0 : 1, ""));
     }
 

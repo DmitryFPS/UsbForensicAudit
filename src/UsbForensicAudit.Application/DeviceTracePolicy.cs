@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace UsbForensicAudit;
 
-public static class DeviceTracePolicy
+public static partial class DeviceTracePolicy
 {
     private const string Portable = @"SOFTWARE\Microsoft\Windows Portable Devices\Devices\";
     private const string ReadyBoost = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\EMDMgmt\";
@@ -13,6 +13,10 @@ public static class DeviceTracePolicy
 
     public static string? NormalizePath(string path)
     {
+        if (MountedValueName(path) is { Length: > 0 } valueName)
+        {
+            return MountedRoot + @"\" + valueName;
+        }
         var relative = path.StartsWith(@"HKLM\", StringComparison.OrdinalIgnoreCase) ? path[5..]
             : path.StartsWith(@"HKEY_LOCAL_MACHINE\", StringComparison.OrdinalIgnoreCase) ? path[19..] : "";
         if (relative.Length == 0 || relative.Any(c => char.IsControl(c) || c is '*' or '/' or '"')
@@ -22,7 +26,7 @@ public static class DeviceTracePolicy
         }
 
         if (SystemTrace.IsMatch(relative)
-            || IsLeaf(relative, Portable) || IsLeaf(relative, ReadyBoost)
+            || IsLeaf(relative, Portable) || IsLeaf(relative, ReadyBoost) || IsVolumeCacheRelativePath(relative)
             || EnumInstanceId(relative) is not null)
         {
             return @"HKEY_LOCAL_MACHINE\" + relative;
@@ -67,9 +71,13 @@ public static class DeviceTracePolicy
     private static IReadOnlyList<string> ReadSourcePaths(UsbDeviceRecord record, bool unsupported)
     {
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!unsupported && MountedValueName(record.DeviceInstanceId).Length > 0)
+        {
+            paths.Add(NormalizePath(record.DeviceInstanceId)!);
+        }
         if (string.IsNullOrWhiteSpace(record.RawJson))
         {
-            return [];
+            return paths.ToArray();
         }
 
         try
@@ -144,7 +152,7 @@ public static class DeviceTracePolicy
         for (var i = 0; i + 2 < parts.Length; i++)
         {
             var bus = parts[i].TrimStart('_', '?');
-            if (bus is not "USB" and not "USBSTOR" and not "SCSI")
+            if (bus is not ("USB" or "USBSTOR" or "SCSI" or "BTHENUM" or "BTHLEDEVICE" or "BTHLE"))
             {
                 continue;
             }
@@ -164,6 +172,14 @@ public static class DeviceTracePolicy
         if (NormalizePath(path) is not { } normalized)
         {
             return null;
+        }
+        if (IsVolumeCachePath(normalized))
+        {
+            return BindVolumeCache(normalized, record, fingerprint);
+        }
+        if (MountedValueName(normalized).Length > 0)
+        {
+            return BindMountedValue(normalized, record, fingerprint);
         }
         if (DeviceRemovalPolicy.IsInfrastructure(new(record.DeviceInstanceId, record.DisplayName, false, Service: record.Service))
             || (EnumInstanceId(normalized) is { } enumId
@@ -187,7 +203,9 @@ public static class DeviceTracePolicy
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var ids = PhysicalIds(EnumInstanceId(normalized) ?? normalized[(normalized.LastIndexOf('\\') + 1)..])
             .Where(owners.Contains).Distinct().ToArray();
-        return ids.Length == 0 ? null : new(normalized, fingerprint, ids);
+        return ids.Length == 0 ? null : new(normalized, fingerprint, ids,
+            UsbAncestorInstanceId: ids.All(id => SetupApiDeviceRelations.IsStorageUsbParent(id, record.ParentDeviceInstanceId))
+                ? record.ParentDeviceInstanceId : "");
     }
 
     public static string ProtectionReason(DeviceRegistryTrace trace, IReadOnlyList<DeviceRemovalNode> inventory, Func<string, bool> isPresent)
@@ -195,6 +213,17 @@ public static class DeviceTracePolicy
         if (NormalizePath(trace.RegistryPath) is null)
         {
             return "Неподдерживаемый путь реестра.";
+        }
+
+        if (IsVolumeCachePath(trace.RegistryPath))
+        {
+            return trace.DeviceIds.Count == 0 && trace.Vid.Length == 0 && trace.Pid.Length == 0
+                && Regex.IsMatch(trace.VolumeCacheSnapshotFingerprint, "^[0-9A-F]{64}$", RegexOptions.CultureInvariant)
+                ? "" : "Не подтверждён снимок выбранной записи кэша тома.";
+        }
+        if (MountedValueName(trace.RegistryPath).Length > 0)
+        {
+            return MountedProtectionReason(trace, inventory, isPresent);
         }
 
         var modelCache = trace.Vid.Length == 4 && trace.Pid.Length == 4;
@@ -217,14 +246,26 @@ public static class DeviceTracePolicy
             return "Запись не соответствует выбранному экземпляру.";
         }
 
+        if (trace.UsbAncestorInstanceId.Length > 0 && (modelCache || trace.DeviceIds.Any(id => !SetupApiDeviceRelations.IsStorageUsbParent(id, trace.UsbAncestorInstanceId))))
+        {
+            return "Некорректная связь с USB-родителем.";
+        }
+        inventory = DeviceRemovalSelection.WithHistoricalParents(inventory, trace.DeviceIds.Select(id => new DeviceRemovalNode(id, "", false,
+            ParentDeviceInstanceId: trace.UsbAncestorInstanceId)));
         var nodes = inventory.Where(x => modelCache
             ? x.InstanceId.Contains($"VID_{trace.Vid}&PID_{trace.Pid}", StringComparison.OrdinalIgnoreCase)
             : trace.DeviceIds.Any(id => PhysicalIds(x.InstanceId).Contains(id, StringComparer.OrdinalIgnoreCase)
                 || PhysicalIds(x.AuditInstanceId).Contains(id, StringComparer.OrdinalIgnoreCase))).ToArray();
         var usbEvidence = modelCache || trace.DeviceIds.Any(id => id.StartsWith(@"USB\", StringComparison.OrdinalIgnoreCase)
-            || id.StartsWith(@"USBSTOR\", StringComparison.OrdinalIgnoreCase));
+            || id.StartsWith(@"USBSTOR\", StringComparison.OrdinalIgnoreCase)
+            || BluetoothEnumeratorId.DeviceAddress(id).Length > 0) || trace.UsbAncestorInstanceId.Length > 0;
         foreach (var node in nodes)
         {
+            if (trace.UsbAncestorInstanceId.Length > 0 && node.ParentDeviceInstanceId.Length > 0
+                && !node.ParentDeviceInstanceId.Equals(trace.UsbAncestorInstanceId, StringComparison.OrdinalIgnoreCase))
+            {
+                return "USB-родитель устройства изменился со времени сканирования.";
+            }
             var family = DeviceRemovalPolicy.Related(node, inventory);
             var reason = DeviceRemovalPolicy.ProtectionReason(node, family);
             if (reason.Length > 0)
@@ -240,9 +281,10 @@ public static class DeviceTracePolicy
         }
         if (!usbEvidence)
         {
-            return "Связь записи с USB-устройством не подтверждена.";
+            return "Связь записи с USB- или Bluetooth-устройством не подтверждена.";
         }
 
-        return trace.DeviceIds.Any(isPresent) ? "Устройство сейчас подключено." : "";
+        return trace.DeviceIds.Any(isPresent) || trace.UsbAncestorInstanceId.Length > 0 && isPresent(trace.UsbAncestorInstanceId)
+            ? "Устройство сейчас подключено." : "";
     }
 }

@@ -98,7 +98,7 @@ public static class DeviceIdentityGraph
         for (var i = 0; i < devices.Count; i++)
         {
             var child = devices[i];
-            if (!SetupApiDeviceRelations.IsCompositeParent(child.DeviceInstanceId, child.ParentDeviceInstanceId)
+            if (!SetupApiDeviceRelations.IsSupportedParent(child.DeviceInstanceId, child.ParentDeviceInstanceId)
                 || !byId.TryGetValue(NormalizeInstance(child.ParentDeviceInstanceId), out var parents))
             {
                 continue;
@@ -237,7 +237,7 @@ public static class DeviceIdentityGraph
         AddShared(result, "Topology", members.Select(x => NormalizeTopology(x.ParentIdPrefix, x.LocationPaths)));
         AddShared(result, "ExactInstanceId", members.Select(x => NormalizeInstance(x.DeviceInstanceId)));
         AddShared(result, "BluetoothAddress", members.Select(x => BluetoothEnumeratorId.DeviceAddress(x.DeviceInstanceId)));
-        foreach (var member in members.Where(x => SetupApiDeviceRelations.IsCompositeParent(x.DeviceInstanceId, x.ParentDeviceInstanceId)))
+        foreach (var member in members.Where(x => SetupApiDeviceRelations.IsSupportedParent(x.DeviceInstanceId, x.ParentDeviceInstanceId)))
         {
             if (members.Any(x => x.DeviceInstanceId.Equals(member.ParentDeviceInstanceId, StringComparison.OrdinalIgnoreCase)))
             {

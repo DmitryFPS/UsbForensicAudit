@@ -15,7 +15,9 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
         {
             throw new InvalidOperationException("Выберите записи из текущего результата сканирования.");
         }
-        var inventory = platform.ReadInventory();
+        SetupApiDeviceRelations.Apply(result.Devices, result.Evidence);
+        var inventory = DeviceRemovalSelection.WithHistoricalParents(platform.ReadInventory(), result.Devices.Select(x => new DeviceRemovalNode(
+            x.DeviceInstanceId, x.DisplayName, false, ParentDeviceInstanceId: x.ParentDeviceInstanceId)));
         var items = new List<DeviceRemovalItem>();
         var databaseRecords = new List<DeviceRemovalDatabaseRecord>();
         foreach (var record in selected)
@@ -52,18 +54,27 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
                             items.Add(new(path, source.DisplayName, false, "Не удалось прочитать запись: " + ex.Message, null, []));
                             continue;
                         }
-                        if (fingerprint is null)
-                        {
-                            continue;
-                        }
-                        if (DeviceTracePolicy.Bind(path, source, fingerprint) is not { } trace)
+                        if (DeviceTracePolicy.Bind(path, source, fingerprint ?? "") is not { } trace)
                         {
                             items.Add(new(path, source.DisplayName, false,
                                 "Не подтверждена принадлежность записи удаляемому USB-устройству или запись относится к инфраструктуре Windows.", null, []));
                             continue;
                         }
 
-                        var reason = DeviceTracePolicy.ProtectionReason(trace, inventory, platform.IsPresent);
+                        string reason;
+                        try
+                        {
+                            reason = DeviceTracePolicy.ProtectionReason(trace, inventory, platform.IsPresent);
+                            if (reason.Length == 0)
+                            {
+                                reason = registry.GetTraceProtectionReason(trace);
+                            }
+                        }
+                        catch (Exception ex) when (ex is UnauthorizedAccessException or System.IO.IOException
+                            or System.Security.SecurityException or System.ComponentModel.Win32Exception or InvalidOperationException)
+                        {
+                            reason = "Не удалось проверить состояние записи: " + ex.Message;
+                        }
                         var name = source.DisplayName + (trace.Vid.Length > 0 ? " — общий кэш модели" : " — история Windows");
                         items.Add(new(path, name, reason.Length == 0, reason, null, trace.DeviceIds, trace));
                     }
@@ -83,6 +94,17 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
             {
                 var related = DeviceRemovalPolicy.Related(node, inventory);
                 var reason = DeviceRemovalPolicy.ProtectionReason(node, related);
+                if (reason.Length == 0 && sources.Any(source => source.DeviceInstanceId.Equals(node.InstanceId, StringComparison.OrdinalIgnoreCase)
+                    && SetupApiDeviceRelations.IsStorageUsbParent(source.DeviceInstanceId, source.ParentDeviceInstanceId)
+                    && !source.ParentDeviceInstanceId.Equals(node.ParentDeviceInstanceId, StringComparison.OrdinalIgnoreCase)))
+                {
+                    reason = "USB-родитель устройства изменился со времени сканирования.";
+                }
+                if (reason.Length == 0 && SetupApiDeviceRelations.IsSupportedParent(node.InstanceId, node.ParentDeviceInstanceId)
+                    && platform.IsPresent(node.ParentDeviceInstanceId))
+                {
+                    reason = "Родительское устройство сейчас подключено.";
+                }
                 items.Add(new(node.InstanceId, string.IsNullOrWhiteSpace(node.Name) ? record.DisplayName : node.Name,
                     reason.Length == 0, reason, node, related.Select(x => x.InstanceId).ToArray()));
             }
@@ -116,11 +138,12 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
             {
                 throw new InvalidOperationException("В плане нет доступных для удаления экземпляров.");
             }
-            var inventory = platform.ReadInventory();
+            var inventory = DeviceRemovalSelection.WithHistoricalParents(platform.ReadInventory(), targets.Where(x => x.Identity is not null).Select(x => x.Identity!));
             // История SCSI и дочерние PnP-узлы подтверждают связь с USB через родителей.
             // Обрабатываем их, пока родитель ещё существует и доступен повторной проверке.
             targets = targets.OrderBy(x => x.Trace is null ? 1 : 0)
                 .ThenBy(x => x.Identity is { } node && DeviceRemovalPolicy.HasUsbEvidence(node) ? 1 : 0)
+                .ThenBy(x => x.Identity is { } node && BluetoothEnumeratorId.IsClassicPairingTarget(node.InstanceId) ? 1 : 0)
                 .ThenByDescending(x => x.Identity is { } node ? ParentDepth(node, inventory, []) : 0).ToArray();
             foreach (var target in targets)
             {
@@ -224,6 +247,10 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
             }
 
             var traceReason = DeviceTracePolicy.ProtectionReason(trace, inventory, platform.IsPresent);
+            if (traceReason.Length == 0)
+            {
+                traceReason = registry.GetTraceProtectionReason(trace);
+            }
             if (traceReason.Length > 0)
             {
                 return traceReason;
@@ -237,6 +264,7 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
         {
             return "Некорректный ID экземпляра.";
         }
+        inventory = DeviceRemovalSelection.WithHistoricalParents(inventory, [target.Identity]);
         var node = inventory.SingleOrDefault(x => x.InstanceId.Equals(target.InstanceId, StringComparison.OrdinalIgnoreCase));
         if (node is null)
         {
@@ -254,7 +282,8 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
         {
             return "Состав или идентификаторы устройства изменились после предварительной проверки.";
         }
-        return related.Any(x => platform.IsPresent(x.InstanceId))
+        return related.Any(x => platform.IsPresent(x.InstanceId)
+            || SetupApiDeviceRelations.IsSupportedParent(x.InstanceId, x.ParentDeviceInstanceId) && platform.IsPresent(x.ParentDeviceInstanceId))
             ? "Устройство или его компонент подключены после проверки." : "";
     }
 
@@ -263,7 +292,8 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
         && a.Service.Equals(b.Service, StringComparison.OrdinalIgnoreCase)
         && a.ClassGuid.Equals(b.ClassGuid, StringComparison.OrdinalIgnoreCase)
         && a.HardwareIds.Equals(b.HardwareIds, StringComparison.OrdinalIgnoreCase)
-        && a.ParentIdPrefix.Equals(b.ParentIdPrefix, StringComparison.OrdinalIgnoreCase);
+        && a.ParentIdPrefix.Equals(b.ParentIdPrefix, StringComparison.OrdinalIgnoreCase)
+        && a.ParentDeviceInstanceId.Equals(b.ParentDeviceInstanceId, StringComparison.OrdinalIgnoreCase);
 
     private static int ParentDepth(DeviceRemovalNode node, IReadOnlyList<DeviceRemovalNode> inventory, HashSet<string> ancestors)
     {

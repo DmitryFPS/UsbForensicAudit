@@ -31,15 +31,37 @@ public static class BluetoothEnumeratorId
             return "";
         }
 
-        var match = Regex.Match(parts[1], @"^(?:DEV_|\{[0-9A-F-]{36}\}_)([0-9A-F]{12})$", RegexOptions.CultureInvariant);
+        var match = Regex.Match(parts[1], @"^DEV_([0-9A-F]{12})$", RegexOptions.CultureInvariant);
+        if (!match.Success && parts[0] == "BTHLEDEVICE")
+        {
+            match = Regex.Match(parts[1], @"^(\{[0-9A-F-]{36}\})_([0-9A-F]{12})$", RegexOptions.CultureInvariant);
+            return match.Success && Guid.TryParse(match.Groups[1].Value, out _)
+                ? ValidAddress(match.Groups[2].Value) : "";
+        }
         if (!match.Success && parts[0] == "BTHENUM")
         {
+            var service = Regex.Match(parts[1], @"^(\{[0-9A-F-]{36}\})(?:_VID&[0-9A-F]{8}_PID&[0-9A-F]{4})?$", RegexOptions.CultureInvariant);
+            if (!service.Success || !Guid.TryParse(service.Groups[1].Value, out _))
+            {
+                return "";
+            }
             match = Regex.Match(parts[2], @"(?:^|&)(?:BLUETOOTHDEVICE_)?([0-9A-F]{12})(?:_C[0-9A-F]{8})?$", RegexOptions.CultureInvariant);
         }
 
         var address = match.Success ? match.Groups[1].Value : "";
-        return address is "000000000000" or "FFFFFFFFFFFF" ? "" : address;
+        var instanceAddress = Regex.Match(parts[2], @"(?:^|&)(?:BLUETOOTHDEVICE_)?([0-9A-F]{12})(?:_C[0-9A-F]{8})?$", RegexOptions.CultureInvariant);
+        if (parts[1].StartsWith("DEV_", StringComparison.Ordinal) && instanceAddress.Success
+            && !address.Equals(instanceAddress.Groups[1].Value, StringComparison.Ordinal))
+        {
+            return "";
+        }
+        return ValidAddress(address);
     }
+
+    private static string ValidAddress(string address) => address is "000000000000" or "FFFFFFFFFFFF" ? "" : address;
+
+    public static bool IsClassicPairingTarget(string id) => id.StartsWith(@"BTHENUM\Dev_", StringComparison.OrdinalIgnoreCase)
+        && DeviceAddress(id).Length > 0;
 
     /// <summary>Запись описывает само сопряжённое устройство.</summary>
     public static bool IsPairedDeviceRecord(string? deviceInstanceId)

@@ -82,6 +82,15 @@ public static partial class DeviceTransportClassifier
             return;
         }
 
+        if (SetupApiDeviceRelations.IsStorageUsbParent(id, device.ParentDeviceInstanceId))
+        {
+            SetTransport(device, "UASP/SCSI", "High", "Exact USB parent: " + device.ParentDeviceInstanceId);
+            SetConnection(device, "USB", "High", "Kernel-PnP parent device instance");
+            SetClassification(device, "External", "High", "SCSI storage with a confirmed USB parent");
+            ApplyPresentation(device);
+            return;
+        }
+
         if (IsInternalFixedStorage(device, text, id))
         {
             if (IsInternalNvmeStorage(device, text, id))
@@ -243,6 +252,7 @@ public static partial class DeviceTransportClassifier
     {
         var text = EvidenceText(device);
         return device.Service.Equals("uaspstor", StringComparison.OrdinalIgnoreCase)
+               || SetupApiDeviceRelations.IsStorageUsbParent(device.DeviceInstanceId, device.ParentDeviceInstanceId)
                || device.Connection is "USB" or "USB4/Thunderbolt" or "PCIe-tunneled candidate"
                || ContainsAny(text, "REMOVABLE", "EXTERNAL", "USBROOT", "USB(")
                || ContainsAny(text, ThunderboltMarkers);

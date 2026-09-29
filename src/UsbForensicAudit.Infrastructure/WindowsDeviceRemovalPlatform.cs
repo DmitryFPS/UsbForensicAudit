@@ -18,16 +18,20 @@ public sealed partial class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatfor
     private readonly Func<string, string[], CancellationToken, Task<DeviceRemovalCommandResult>> _run;
     private readonly Action _ensureSupported;
     private readonly Func<string, string?> _readTrace;
+    private readonly Action<string, string>? _saveRegistryKey;
+    private readonly Func<ulong, uint> _removeBluetooth;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public WindowsDeviceRemovalPlatform(string dataDirectory)
-        : this(dataDirectory, NativeIsPresent, NativeInstanceExists, RunAsync, EnsureNativeRemovalSupported)
+        : this(dataDirectory, NativeIsPresent, NativeInstanceExists, RunAsync, EnsureNativeRemovalSupported,
+            saveRegistryKey: RegistryTraceAccess.SaveKey)
     {
     }
 
     internal WindowsDeviceRemovalPlatform(string dataDirectory, Func<string, bool> present, Func<string, bool> exists,
         Func<string, string[], CancellationToken, Task<DeviceRemovalCommandResult>> run, Action ensureSupported,
-        Func<string, string?>? readTrace = null)
+        Func<string, string?>? readTrace = null, Func<ulong, uint>? removeBluetooth = null,
+        Action<string, string>? saveRegistryKey = null)
     {
         _backupRoot = Path.GetFullPath(Path.Combine(dataDirectory, "device-removal"));
         _present = present;
@@ -35,6 +39,8 @@ public sealed partial class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatfor
         _run = run;
         _ensureSupported = ensureSupported;
         _readTrace = readTrace ?? NativeReadTraceFingerprint;
+        _saveRegistryKey = saveRegistryKey;
+        _removeBluetooth = removeBluetooth ?? NativeRemoveBluetooth;
     }
 
     public string ComputerName => Environment.MachineName;
@@ -44,7 +50,7 @@ public sealed partial class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatfor
         var nodes = new List<DeviceRemovalNode>();
         using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
         // Неполный список не подтверждает отсутствие подключённых компонентов.
-        foreach (var bus in new[] { "USB", "USBSTOR", "SWD", "SCSI", "STORAGE", "HID", "USBPRINT" })
+        foreach (var bus in new[] { "USB", "USBSTOR", "SWD", "SCSI", "STORAGE", "HID", "USBPRINT", "BTHENUM", "BTHLEDEVICE", "BTHLE", "BTHHFENUM" })
         {
             using var busKey = machine.OpenSubKey(EnumRoot + bus);
             if (busKey is null)
@@ -76,7 +82,7 @@ public sealed partial class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatfor
                         : id;
                     nodes.Add(new(id, UserDisplayText.DeviceDisplayName(name, "", "", id), present,
                         Text(key, "ContainerID"), Text(key, "Service"), Text(key, "ClassGUID"),
-                        Text(key, "ParentIdPrefix"), Text(key, "HardwareID"), auditId));
+                        Text(key, "ParentIdPrefix"), Text(key, "HardwareID"), auditId, ReadParentDeviceId(id)));
                 }
             }
         }
@@ -159,19 +165,36 @@ public sealed partial class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatfor
                 throw new IOException("Запись реестра изменилась перед резервным копированием.");
             }
 
-            var file = Path.Combine(directory, $"device-{exports.Count + 1:D4}.reg");
+            var mountedValue = item.Trace is { } valueTrace && DeviceTracePolicy.MountedValueName(valueTrace.RegistryPath).Length > 0;
+            var file = Path.Combine(directory, $"device-{exports.Count + 1:D4}" + (_saveRegistryKey is null || mountedValue ? ".reg" : ".hiv"));
             var exportPath = item.Trace?.RegistryPath ?? @"HKLM\" + EnumRoot + item.InstanceId;
-            var command = await _run("reg.exe", ["export", exportPath, file, "/y"], cancellationToken);
-            if (command.ExitCode != 0 || !File.Exists(file) || new FileInfo(file).Length == 0)
+            if (mountedValue)
             {
-                throw new IOException($"Не удалось сохранить копию {item.InstanceId}. Удаление не начато. {command.Output}");
+                await File.WriteAllTextAsync(file, MountedValueExport(item.Trace!), System.Text.Encoding.Unicode, cancellationToken);
             }
-
-            var content = await File.ReadAllTextAsync(file, cancellationToken);
-            if (!content.StartsWith("Windows Registry Editor Version 5.00", StringComparison.Ordinal)
-                || !content.Contains("[" + item.RegistryPath + "]", StringComparison.OrdinalIgnoreCase))
+            else if (_saveRegistryKey is not null)
             {
-                throw new IOException("Резервная копия не содержит выбранную запись. Удаление не начато.");
+                _saveRegistryKey(exportPath, file);
+                using var saved = File.OpenRead(file);
+                var header = new byte[4];
+                if (saved.Read(header) != 4 || !header.AsSpan().SequenceEqual("regf"u8))
+                {
+                    throw new IOException("Резервная копия реестра повреждена. Удаление не начато.");
+                }
+            }
+            else
+            {
+                var command = await _run("reg.exe", ["export", exportPath, file, "/y"], cancellationToken);
+                if (command.ExitCode != 0 || !File.Exists(file) || new FileInfo(file).Length == 0)
+                {
+                    throw new IOException($"Не удалось сохранить копию {item.InstanceId}. Удаление не начато. {command.Output}");
+                }
+                var content = await File.ReadAllTextAsync(file, cancellationToken);
+                if (!content.StartsWith("Windows Registry Editor Version 5.00", StringComparison.Ordinal)
+                    || !content.Contains("[" + item.RegistryPath + "]", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new IOException("Резервная копия не содержит выбранную запись. Удаление не начато.");
+                }
             }
             if (item.Trace is { } after && ReadTraceFingerprint(after.RegistryPath) != after.Fingerprint)
             {
@@ -186,12 +209,12 @@ public sealed partial class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatfor
             {
                 Plan = plan,
                 Exports = exports,
-                Note = "Копии .reg сохраняют выбранные записи реестра, но не являются полным откатом PnP. Повторное подключение устройства запускает обычную установку Windows."
+                Note = "Копии .hiv сохраняют постоянные подразделы реестра, .reg — выбранные значения MountedDevices; это не полный откат PnP. Повторное подключение устройства запускает обычную установку Windows. При удалении Bluetooth-сопряжения потребуется заново выполнить сопряжение; ключи аутентификации в эту копию не входят."
             }, JsonOptions), cancellationToken);
         return directory;
     }
 
-    public Task<DeviceRemovalCommandResult> RemoveAsync(string instanceId)
+    public async Task<DeviceRemovalCommandResult> RemoveAsync(string instanceId)
     {
         EnsureRemovalSupported();
         ValidateId(instanceId);
@@ -200,7 +223,26 @@ public sealed partial class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatfor
             throw new InvalidOperationException("Устройство снова подключено. Удаление отменено.");
         }
 
-        return _run("pnputil.exe", ["/remove-device", instanceId], CancellationToken.None);
+        // Штатная операция отменяет только выбранное классическое сопряжение и его кэш услуг.
+        // Услуги и LE-компоненты удаляются по точному PnP-ID, без /subtree и без удаления радио.
+        if (BluetoothEnumeratorId.IsClassicPairingTarget(instanceId))
+        {
+            var address = BluetoothEnumeratorId.DeviceAddress(instanceId);
+            var result = _removeBluetooth(Convert.ToUInt64(address, 16));
+            if (result is not (0 or 1168)) // ERROR_NOT_FOUND: старое сопряжение уже отсутствует.
+            {
+                return new(unchecked((int)result), $"Не удалось отменить Bluetooth-сопряжение (Windows {result}).");
+            }
+            if (IsPresent(instanceId))
+            {
+                throw new InvalidOperationException("Устройство снова подключено. Удаление оставшегося PnP-экземпляра отменено.");
+            }
+            if (!InstanceExists(instanceId))
+            {
+                return new(0, "Bluetooth-сопряжение и PnP-экземпляр отсутствуют.");
+            }
+        }
+        return await _run("pnputil.exe", ["/remove-device", instanceId], CancellationToken.None);
     }
 
     public Task SaveResultAsync(string backupDirectory, DeviceRemovalResult result) =>
@@ -257,4 +299,9 @@ public sealed partial class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatfor
 
     [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern uint CM_Locate_DevNodeW(out uint devInst, string deviceId, uint flags);
+
+    private static uint NativeRemoveBluetooth(ulong address) => BluetoothRemoveDevice(ref address);
+
+    [DllImport("bthprops.cpl", ExactSpelling = true)]
+    private static extern uint BluetoothRemoveDevice(ref ulong address);
 }
