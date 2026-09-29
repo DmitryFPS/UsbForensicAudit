@@ -51,6 +51,10 @@ internal static class ManagerOnePagePdfReport
                 {
                     column.Spacing(10);
 
+                    var coverage = ScanCoverageSummary.From(result);
+                    if (coverage.HasLimitations)
+                        column.Item().Text(T(coverage.Summary)).FontSize(9).FontColor(Colors.Orange.Darken3);
+
                     // Общая оценка — первое и самое крупное на странице.
                     column.Item()
                         .Background(Colors.Grey.Lighten4)
@@ -115,7 +119,8 @@ internal static class ManagerOnePagePdfReport
             return ("требуется разбирательство", Colors.Red.Darken2);
         }
 
-        if (ctx.SuspiciousCount > 0 || ctx.Exfiltration.HasAnyIndication || ctx.AttentionCount > 0)
+        if (ctx.SuspiciousCount > 0 || ctx.Exfiltration.HasAnyIndication || ctx.AttentionCount > 0
+            || ScanCoverageSummary.From(ctx.Result).HasLimitations)
         {
             return ("требуется проверка", Colors.Orange.Darken3);
         }

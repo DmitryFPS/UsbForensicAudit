@@ -104,6 +104,18 @@ internal static class KeyAnswersContent
                     : "Признаков очистки следов не найдено";
         answers.Add(new Answer("Чистили ли следы?", cleanupVerdict, ctx.CleanupVerdict(), cleanupTone));
 
+        var coverage = ScanCoverageSummary.From(ctx.Result);
+        if (coverage.HasLimitations)
+        {
+            for (var i = 0; i < answers.Count; i++)
+            {
+                answers[i] = answers[i] with
+                {
+                    Note = answers[i].Note + " Проверка выполнена с ограничениями.",
+                    Tone = answers[i].Tone == Tone.Ok ? Tone.Attention : answers[i].Tone
+                };
+            }
+        }
         return answers;
     }
 

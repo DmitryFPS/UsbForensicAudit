@@ -429,7 +429,7 @@ public sealed class OfflineWindowsAuditor : IOfflineWindowsAuditor
             {
                 Directory.CreateDirectory(tempDirectory);
                 var copy = Path.Combine(tempDirectory, Path.GetFileName(hivePath));
-                var outcome = LockedFileCopier.Copy(hivePath, copy);
+                var outcome = LockedFileCopier.CopyHiveFamily(hivePath, copy);
                 if (!outcome.Success)
                 {
                     warnings.Add($"Не удалось скопировать офлайн-куст {hivePath}: {outcome.Error}");
@@ -437,14 +437,7 @@ public sealed class OfflineWindowsAuditor : IOfflineWindowsAuditor
                     return null;
                 }
 
-                foreach (var suffix in new[] { ".LOG1", ".LOG2" })
-                {
-                    if (File.Exists(hivePath + suffix))
-                    {
-                        LockedFileCopier.Copy(hivePath + suffix, copy + suffix);
-                    }
-                }
-
+                var sourceHash = HistoricalForensicHelpers.ComputeSha256(copy);
                 var load = RunReg("load", $@"HKLM\{mountName}", copy);
                 if (load.ExitCode != 0)
                 {
@@ -454,7 +447,7 @@ public sealed class OfflineWindowsAuditor : IOfflineWindowsAuditor
                 }
 
                 var hive = new MountedHive(
-                    mountName, tempDirectory, hivePath, HistoricalForensicHelpers.ComputeSha256(hivePath));
+                    mountName, tempDirectory, hivePath, sourceHash);
                 hive._rootKey = Registry.LocalMachine.OpenSubKey(mountName);
                 if (hive._rootKey is null)
                 {
@@ -543,38 +536,6 @@ public sealed class OfflineWindowsAuditor : IOfflineWindowsAuditor
         }
 
         private static (int ExitCode, string Output) RunReg(string action, string key, string? hive = null)
-        {
-            using var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "reg.exe",
-                    Arguments = hive is null ? $"{action} \"{key}\"" : $"{action} \"{key}\" \"{hive}\"",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                }
-            };
-            process.Start();
-            var stdout = process.StandardOutput.ReadToEndAsync();
-            var stderr = process.StandardError.ReadToEndAsync();
-            if (!process.WaitForExit(15_000))
-            {
-                try
-                {
-                    process.Kill(true);
-                }
-                catch
-                {
-                    // Процесс мог уже завершиться; важен только код возврата ниже.
-                }
-
-                return (-1, "reg.exe timeout");
-            }
-
-            Task.WaitAll(stdout, stderr);
-            return (process.ExitCode, TextSanitizer.NormalizeDisplay(stdout.Result + stderr.Result, 1000));
-        }
+        => RegistryHiveCommands.Run(action, key, hive);
     }
 }

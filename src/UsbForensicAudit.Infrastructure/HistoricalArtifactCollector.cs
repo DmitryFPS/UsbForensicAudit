@@ -410,7 +410,7 @@ public sealed partial class HistoricalArtifactCollector : IHistoricalArtifactCol
         {
             Directory.CreateDirectory(workDirectory);
             var copiedHive = CopyHiveFamily(sourceHive, workDirectory);
-            var sourceHash = HistoricalForensicHelpers.ComputeSha256(sourceHive);
+            var sourceHash = HistoricalForensicHelpers.ComputeSha256(copiedHive);
             var load = RunReg("load", $@"HKLM\{mountName}", copiedHive);
             if (load.ExitCode != 0)
             {
@@ -501,7 +501,7 @@ public sealed partial class HistoricalArtifactCollector : IHistoricalArtifactCol
         {
             Directory.CreateDirectory(workDirectory);
             var copiedHive = CopyHiveFamily(sourceHive, workDirectory);
-            var sourceHash = HistoricalForensicHelpers.ComputeSha256(sourceHive);
+            var sourceHash = HistoricalForensicHelpers.ComputeSha256(copiedHive);
             var load = RunReg("load", $@"HKLM\{mountName}", copiedHive);
             if (load.ExitCode != 0)
             {
@@ -700,22 +700,27 @@ public sealed partial class HistoricalArtifactCollector : IHistoricalArtifactCol
         {
             try
             {
-                var sourceHash = HistoricalForensicHelpers.ComputeSha256(log);
-                var safeName = $"{SanitizeFileName(label)}-{Path.GetFileName(log)}-{sourceHash[..12]}";
+                var safeName = $"{SanitizeFileName(label)}-{Path.GetFileName(log)}-{Guid.NewGuid():N}";
                 var destination = Path.Combine(acquisitionRoot, safeName);
-                File.Copy(log, destination, overwrite: false);
+                var outcome = LockedFileCopier.Copy(log, destination);
+                if (!outcome.Success)
+                {
+                    if (File.Exists(destination)) File.Delete(destination);
+                    throw new IOException(outcome.Error);
+                }
                 var copiedHash = HistoricalForensicHelpers.ComputeSha256(destination);
+                var sourceHash = copiedHash;
                 result.Evidence.Add(new EvidenceRecord
                 {
                     Source = "Registry transaction log acquisition",
-                    Provider = "File copy",
+                    Provider = outcome.Method,
                     Channel = "Registry transaction log",
                     SourceFile = log,
                     SourceSha256 = sourceHash,
                     EvidenceCategory = "Coverage limitation",
                     Summary = $"{label}: {HistoricalForensicHelpers.TransactionLogsPresentNotReplayed}",
                     UserExplanation = "LOG1/LOG2 безопасно скопирован, но deleted-cell carving и доказанный replay не выполнялись.",
-                    Provenance = $"Source={log}; Copy={destination}; CopySHA256={copiedHash}",
+                    Provenance = $"Source={log}; acquisition={outcome.Method}; Copy={destination}; CopySHA256={copiedHash}",
                     RawText = HistoricalForensicHelpers.TransactionLogsPresentNotReplayed
                 });
             }
@@ -878,55 +883,14 @@ public sealed partial class HistoricalArtifactCollector : IHistoricalArtifactCol
     private static string CopyHiveFamily(string sourceHive, string destinationDirectory)
     {
         var destinationHive = Path.Combine(destinationDirectory, Path.GetFileName(sourceHive));
-        File.Copy(sourceHive, destinationHive, overwrite: false);
-        foreach (var suffix in new[] { ".LOG1", ".LOG2" })
-        {
-            var sourceLog = sourceHive + suffix;
-            if (File.Exists(sourceLog))
-            {
-                File.Copy(sourceLog, destinationHive + suffix, overwrite: false);
-            }
-        }
+        var outcome = LockedFileCopier.CopyHiveFamily(sourceHive, destinationHive);
+        if (!outcome.Success) throw new IOException(outcome.Error);
 
         return destinationHive;
     }
 
     private static (int ExitCode, string Output) RunReg(string action, string keyPath, string? hivePath = null)
-    {
-        var arguments = hivePath is null
-            ? $"{action} \"{keyPath}\""
-            : $"{action} \"{keyPath}\" \"{hivePath}\"";
-        using var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "reg.exe",
-                Arguments = arguments,
-                CreateNoWindow = true,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            }
-        };
-        process.Start();
-        var outputTask = process.StandardOutput.ReadToEndAsync();
-        var errorTask = process.StandardError.ReadToEndAsync();
-        if (!process.WaitForExit(15_000))
-        {
-            try
-            {
-                process.Kill(entireProcessTree: true);
-            }
-            catch
-            {
-                // Best effort cleanup.
-            }
-            return (-1, "reg.exe timeout");
-        }
-
-        Task.WaitAll(outputTask, errorTask);
-        return (process.ExitCode, TextSanitizer.NormalizeDisplay(outputTask.Result + errorTask.Result, 1000));
-    }
+        => RegistryHiveCommands.Run(action, keyPath, hivePath);
 
     private static string NormalizeMigrationIdentity(string value)
     {

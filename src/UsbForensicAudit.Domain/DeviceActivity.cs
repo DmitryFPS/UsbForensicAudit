@@ -123,6 +123,10 @@ public static class DeviceActivityKind
     public const string Connection = "Connection";
     public const string Unknown = "Unknown";
 
+    /// <summary>Действие с файлом или папкой, а не наличие устройства/программы.</summary>
+    public static bool IsFileAction(string? kind) => kind is
+        FolderBrowse or FolderTyped or FileOpen or FileDialog or FileDelete or ProgramRun or Search;
+
     public static string Describe(string? kind) => kind switch
     {
         FolderBrowse => "Открывали папку в проводнике",
@@ -290,6 +294,17 @@ public sealed class DeviceActivityHistory
 
     [JsonIgnore]
     public bool IsEmpty => Entries.Count == 0;
+
+    public DeviceActivityHistory FileActionsOnly() => new()
+    {
+        DeviceDisplayName = DeviceDisplayName,
+        CanonicalDeviceId = CanonicalDeviceId,
+        Entries = Entries.Where(x => DeviceActivityKind.IsFileAction(x.Kind)).ToList(),
+        CopyIndications = CopyIndications.ToList(),
+        LinkKeys = LinkKeys.ToList(),
+        CanSearchFileActivity = CanSearchFileActivity,
+        JournalCoverage = JournalCoverage.ToList()
+    };
 
     /// <summary>
     /// Короткий вывод для шапки окна и отчёта. Отдельно оговаривает случай, когда

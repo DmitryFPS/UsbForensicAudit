@@ -50,25 +50,15 @@ public sealed class OfflineHiveCollector : IEvidenceCollector
 
             // Куст активного пользователя открыт системой, поэтому обычное
             // копирование на нём падает и профиль выпадает из анализа.
-            var outcome = LockedFileCopier.Copy(sourceHive, copy);
+            var outcome = LockedFileCopier.CopyHiveFamily(sourceHive, copy);
             if (!outcome.Success)
             {
                 warnings.Add($"Не удалось скопировать куст {sourceHive}: {outcome.Error}");
                 return;
             }
 
-            if (!outcome.Method.Equals("File.Copy", StringComparison.Ordinal))
-            {
-                warnings.Add($"Куст {sourceHive} прочитан способом: {outcome.Method}.");
-            }
-
-            foreach (var suffix in new[] { ".LOG1", ".LOG2" })
-            {
-                if (File.Exists(sourceHive + suffix))
-                {
-                    LockedFileCopier.Copy(sourceHive + suffix, copy + suffix);
-                }
-            }
+            var sourceHash = HistoricalForensicHelpers.ComputeSha256(copy);
+            var firstRecord = evidence.Count;
             var load = RunReg("load", $@"HKU\{mount}", copy);
             if (load.ExitCode != 0)
             {
@@ -86,12 +76,11 @@ public sealed class OfflineHiveCollector : IEvidenceCollector
                 UserArtifactCollector.CollectMountedNtUser(
                     Registry.Users, mount, profile, "Offline NTUSER.DAT", evidence);
             }
-            foreach (var record in evidence.Where(x => x.UserSid == profile.Sid
-                                                       && x.Provenance.Contains(mount, StringComparison.OrdinalIgnoreCase)))
+            foreach (var record in evidence.Skip(firstRecord))
             {
                 record.SourceFile = sourceHive;
-                record.SourceSha256 = HistoricalForensicHelpers.ComputeSha256(sourceHive);
-                record.Provenance = $"Source={sourceHive}; disposable copy={copy}; registry={record.Provenance}";
+                record.SourceSha256 = sourceHash;
+                record.Provenance = $"Source={sourceHive}; acquisition={outcome.Method}; acquired copy SHA256={sourceHash}; disposable copy={copy}; registry={record.Provenance}";
             }
         }
         catch (Exception ex)
@@ -102,7 +91,6 @@ public sealed class OfflineHiveCollector : IEvidenceCollector
         {
             if (loaded)
             {
-                Registry.Users.Flush();
                 var unload = RunRegWithRetry("unload", $@"HKU\{mount}");
                 if (unload.ExitCode != 0)
                 {
@@ -121,30 +109,7 @@ public sealed class OfflineHiveCollector : IEvidenceCollector
     }
 
     private static (int ExitCode, string Output) RunReg(string action, string key, string? hive = null)
-    {
-        using var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "reg.exe",
-                Arguments = hive is null ? $"{action} \"{key}\"" : $"{action} \"{key}\" \"{hive}\"",
-                CreateNoWindow = true,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            }
-        };
-        process.Start();
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        if (!process.WaitForExit(15_000))
-        {
-            try { process.Kill(true); } catch { }
-            return (-1, "reg.exe timeout");
-        }
-        Task.WaitAll(stdout, stderr);
-        return (process.ExitCode, TextSanitizer.NormalizeDisplay(stdout.Result + stderr.Result, 1000));
-    }
+        => RegistryHiveCommands.Run(action, key, hive);
 
     private static (int ExitCode, string Output) RunRegWithRetry(string action, string key)
     {

@@ -219,6 +219,7 @@ public partial class MainWindow : Window
 
     private async Task RunScanAsync(string startMessage)
     {
+        var completionStatus = "Сканирование не завершено";
         if (_vm.IsScanning)
         {
             AppendLog("Сканирование уже выполняется, новый запуск пропущен.");
@@ -246,6 +247,9 @@ public partial class MainWindow : Window
             var result = await _vm.RunFullScanAsync(progress, _lifetimeCancellation.Token);
             _vm.LastResult = result;
             BindResult(result);
+            var coverage = ScanCoverageSummary.From(result);
+            completionStatus = coverage.HasLimitations ? "Завершено с ограничениями" : "Готово";
+            if (coverage.HasLimitations) AppendLog(coverage.Summary);
             PdfReportButton.IsEnabled = true;
             ManagerPdfReportButton.IsEnabled = true;
             AnalystNotePdfReportButton.IsEnabled = true;
@@ -261,10 +265,12 @@ public partial class MainWindow : Window
         }
         catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
         {
+            completionStatus = "Сканирование отменено";
             AppendLog("Сканирование отменено при завершении приложения.");
         }
         catch (Exception ex)
         {
+            completionStatus = "Ошибка сканирования";
             AppLog.Error(ex, "Scan failed");
             AppendLog($"Ошибка сканирования: {ex}");
             MessageBox.Show(this, ex.Message, "Ошибка сканирования", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -273,13 +279,17 @@ public partial class MainWindow : Window
         {
             _vm.IsScanning = false;
             SetBusy(false);
-            StatusText.Text = "Готово";
+            StatusText.Text = completionStatus;
             _exclusiveOperation.Release();
         }
     }
 
     private void BindResult(AuditResult result)
     {
+        var coverage = ScanCoverageSummary.From(result);
+        CoverageWarning.Visibility = coverage.HasLimitations ? Visibility.Visible : Visibility.Collapsed;
+        CoverageWarningText.Text = coverage.Summary;
+        CoverageWarningDetails.Text = string.Join(Environment.NewLine + Environment.NewLine, coverage.Details);
         // Старые сканирования тоже получают уточнённые коды, связи и подписи.
         // Исходные имена и RawJson в архиве доказательств не переписываются.
         SetupApiDeviceRelations.Apply(result.Devices, result.Evidence);

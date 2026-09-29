@@ -420,6 +420,14 @@
 
                     <Border Grid.Row="1" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,14">
                         <StackPanel>
+                            <Expander x:Name="CoverageWarning" Visibility="Collapsed" Margin="0,0,0,10" Foreground="#FFC875">
+                                <Expander.Header>
+                                    <TextBlock x:Name="CoverageWarningText" TextWrapping="Wrap" MaxWidth="660"/>
+                                </Expander.Header>
+                                <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                                    <TextBlock x:Name="CoverageWarningDetails" TextWrapping="Wrap" Foreground="{StaticResource TextMuted}"/>
+                                </ScrollViewer>
+                            </Expander>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="Установка Windows: " Foreground="{StaticResource TextMuted}"/>
                                 <TextBlock x:Name="OsInstallDateText" Text="не определена" Foreground="{StaticResource Accent2}" FontWeight="SemiBold"/>

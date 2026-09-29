@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Data.Sqlite;
 
 namespace UsbForensicAudit;
 
@@ -27,7 +28,8 @@ public static class EvidencePackageBuilder
         string archivePath,
         IEnumerable<string> files,
         string? examiner = null,
-        string? caseNumber = null)
+        string? caseNumber = null,
+        string? sqliteDatabasePath = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(archivePath);
 
@@ -44,6 +46,7 @@ public static class EvidencePackageBuilder
         // Пишем во временный файл и переименовываем: незавершённый архив не
         // должен выглядеть готовым пакетом, если сборка прервётся.
         var temporaryPath = archivePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        var snapshotPath = temporaryPath + ".sqlite";
 
         // Имена внутри архива должны быть уникальны: два файла с одинаковым
         // именем из разных папок иначе молча затёрли бы друг друга в ZIP, и
@@ -52,6 +55,12 @@ public static class EvidencePackageBuilder
 
         try
         {
+            if (sqliteDatabasePath is not null)
+            {
+                // Открытый audit.sqlite может хранить последние транзакции в WAL.
+                // BackupDatabase читает согласованное состояние, включая WAL.
+                CreateSqliteSnapshot(sqliteDatabasePath, snapshotPath);
+            }
             using (var zipStream = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
             using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create))
             {
@@ -64,10 +73,10 @@ public static class EvidencePackageBuilder
                     }
 
                     var entryName = UniqueEntryName(Path.GetFileName(file), usedEntryNames);
-                    // Не CreateEntryFromFile: базу audit.sqlite держит открытой сам
-                    // процесс (пул соединений), поэтому читаем с FileShare.ReadWrite.
-                    // Хеш считается в том же проходе, что и копирование: манифест
-                    // описывает ровно те байты, которые легли в архив.
+                    var inputPath = sqliteDatabasePath is not null
+                                    && Path.GetFullPath(file).Equals(Path.GetFullPath(sqliteDatabasePath), StringComparison.OrdinalIgnoreCase)
+                        ? snapshotPath : file;
+                    // Хеш описывает ровно те байты снимка, которые легли в ZIP.
                     var entry = archive.CreateEntry(entryName);
                     var lastWriteTime = File.GetLastWriteTime(file);
                     // ZIP хранит только даты 1980–2107; старый артефакт не должен
@@ -77,7 +86,7 @@ public static class EvidencePackageBuilder
                         : lastWriteTime;
                     string sha256;
                     long sizeBytes;
-                    using (var source = OpenShared(file))
+                    using (var source = OpenShared(inputPath))
                     using (var target = entry.Open())
                     {
                         (sha256, sizeBytes) = CopyAndHash(source, target);
@@ -115,6 +124,10 @@ public static class EvidencePackageBuilder
             {
                 File.Delete(temporaryPath);
             }
+            foreach (var path in new[] { snapshotPath, snapshotPath + "-wal", snapshotPath + "-shm", snapshotPath + "-journal" })
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
         }
 
         return new EvidencePackageResult
@@ -123,6 +136,24 @@ public static class EvidencePackageBuilder
             IncludedFiles = included,
             MissingFiles = missing
         };
+    }
+
+    private static void CreateSqliteSnapshot(string sourcePath, string destinationPath)
+    {
+        using var source = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = sourcePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false
+        }.ToString());
+        using var destination = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = destinationPath, Mode = SqliteOpenMode.ReadWriteCreate, Pooling = false
+        }.ToString());
+        source.Open();
+        destination.Open();
+        source.BackupDatabase(destination);
+        using var command = destination.CreateCommand();
+        command.CommandText = "PRAGMA journal_mode=DELETE;";
+        command.ExecuteNonQuery();
     }
 
     /// <summary>

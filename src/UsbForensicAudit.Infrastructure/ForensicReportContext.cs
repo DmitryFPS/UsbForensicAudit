@@ -212,7 +212,8 @@ internal sealed class ForensicReportContext
     /// </summary>
     public IEnumerable<(UsbDeviceRecord Device, DeviceActivityHistory History)> DevicesWithActivity() =>
         ListedDevices
-            .Select(device => (Device: device, History: GetActivity(device)))
+            .Where(device => device.IsExternalDevice)
+            .Select(device => (Device: device, History: GetActivity(device).FileActionsOnly()))
             .Where(x => !x.History.IsEmpty);
 
     /// <summary>
@@ -228,11 +229,12 @@ internal sealed class ForensicReportContext
         // нельзя: упоминаний может оказаться больше, чем «искомых» устройств,
         // и фраза выродится в бессмыслицу вроде «по 8 устройствам из 4».
         var withActivity = DevicesWithActivity().ToArray();
-        var searchable = ListedDevices.Count(x => GetActivity(x).CanSearchFileActivity);
+        var external = ListedDevices.Where(x => x.IsExternalDevice).ToArray();
+        var searchable = external.Count(x => GetActivity(x).CanSearchFileActivity);
         var bySearch = withActivity.Count(x => x.History.CanSearchFileActivity);
         var byMention = withActivity.Length - bySearch;
         var actions = withActivity.Sum(x => x.History.Entries.Count);
-        var unsearchable = ListedDevices.Count - searchable;
+        var unsearchable = external.Length - searchable;
         var mentionTail = byMention > 0
             ? $" Ещё по {byMention} устройствам найдены упоминания в журналах системы "
               + "(запуски программ, открытия папок): полный поиск по ним был невозможен, "
@@ -260,7 +262,7 @@ internal sealed class ForensicReportContext
     /// Признаки переноса файлов, отобранные по всем устройствам сразу.
     /// </summary>
     public IEnumerable<(UsbDeviceRecord Device, CopyIndication Indication)> Transfers() =>
-        DevicesWithActivity()
+        ListedDevices.Select(device => (Device: device, History: GetActivity(device)))
             .SelectMany(x => x.History.CopyIndications.Select(indication => (x.Device, Indication: indication)));
 
     /// <summary>

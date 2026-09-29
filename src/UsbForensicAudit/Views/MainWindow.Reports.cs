@@ -176,7 +176,8 @@ public partial class MainWindow
             archivePath,
             [html, pdf, csv, _vm.Storage.DatabasePath, Path.Combine(directory, "evidence.jsonl")],
             caseMetadata.Examiner,
-            caseMetadata.CaseNumber);
+            caseMetadata.CaseNumber,
+            sqliteDatabasePath: _vm.Storage.DatabasePath);
 
         return package.ArchivePath;
     }

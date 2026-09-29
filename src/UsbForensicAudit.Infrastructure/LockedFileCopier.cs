@@ -23,18 +23,32 @@ public static class LockedFileCopier
     private const int FileFlagBackupSemantics = 0x02000000;
 
     public static CopyOutcome Copy(string sourcePath, string destinationPath)
+        => CopyFiles([(sourcePath, destinationPath)]);
+
+    /// <summary>Куст и журналы берутся из одного снимка, иначе replay соединит разные моменты времени.</summary>
+    public static CopyOutcome CopyHiveFamily(string sourcePath, string destinationPath)
     {
-        if (TryDirectCopy(sourcePath, destinationPath, out var directError))
+        var files = new List<(string Source, string Destination)> { (sourcePath, destinationPath) };
+        foreach (var suffix in new[] { ".LOG1", ".LOG2" })
+        {
+            if (File.Exists(sourcePath + suffix)) files.Add((sourcePath + suffix, destinationPath + suffix));
+        }
+        return CopyFiles(files);
+    }
+
+    private static CopyOutcome CopyFiles(IReadOnlyList<(string Source, string Destination)> files)
+    {
+        if (TryCopyAll(files, TryDirectCopy, out var directError))
         {
             return new CopyOutcome(true, "File.Copy", "");
         }
 
-        if (TryBackupSemanticsCopy(sourcePath, destinationPath, out var backupError))
+        if (TryCopyAll(files, TryBackupSemanticsCopy, out var backupError))
         {
             return new CopyOutcome(true, "SeBackupPrivilege", "");
         }
 
-        if (TryShadowCopy(sourcePath, destinationPath, out var shadowError))
+        if (TryShadowCopy(files, out var shadowError))
         {
             return new CopyOutcome(true, "Теневая копия тома", "");
         }
@@ -43,6 +57,18 @@ public static class LockedFileCopier
             false,
             "",
             $"File.Copy: {directError}; backup-привилегия: {backupError}; теневая копия: {shadowError}");
+    }
+
+    private delegate bool CopyFile(string source, string destination, out string error);
+
+    private static bool TryCopyAll(IReadOnlyList<(string Source, string Destination)> files, CopyFile copy, out string error)
+    {
+        foreach (var file in files)
+        {
+            if (!copy(file.Source, file.Destination, out error)) return false;
+        }
+        error = "";
+        return true;
     }
 
     private static bool TryDirectCopy(string sourcePath, string destinationPath, out string error)
@@ -101,13 +127,13 @@ public static class LockedFileCopier
     /// Теневая копия даёт согласованный снимок тома, из которого файл читается
     /// без блокировок. Копия удаляется сразу после чтения.
     /// </summary>
-    private static bool TryShadowCopy(string sourcePath, string destinationPath, out string error)
+    private static bool TryShadowCopy(IReadOnlyList<(string Source, string Destination)> files, out string error)
     {
         error = "";
         var shadowId = "";
         try
         {
-            var root = Path.GetPathRoot(Path.GetFullPath(sourcePath));
+            var root = Path.GetPathRoot(Path.GetFullPath(files[0].Source));
             if (string.IsNullOrWhiteSpace(root))
             {
                 error = "не удалось определить том";
@@ -135,9 +161,14 @@ public static class LockedFileCopier
                 return false;
             }
 
-            var relativePath = Path.GetFullPath(sourcePath)[root.Length..];
-            var shadowPath = $@"{deviceObject}\{relativePath}";
-            return TryBackupSemanticsCopy(shadowPath, destinationPath, out error);
+            foreach (var file in files)
+            {
+                var relativePath = Path.GetFullPath(file.Source)[root.Length..];
+                var shadowPath = $@"{deviceObject}\{relativePath}";
+                if (!TryBackupSemanticsCopy(shadowPath, file.Destination, out error)) return false;
+            }
+            error = "";
+            return true;
         }
         catch (Exception ex)
         {

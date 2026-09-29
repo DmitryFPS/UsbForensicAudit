@@ -49,10 +49,28 @@ internal static class DeviceEvidenceTokens
 
     public static bool Contains(EvidenceRecord evidence, string token)
     {
-        return evidence.DeviceHint.Contains(token, StringComparison.OrdinalIgnoreCase)
-               || evidence.Summary.Contains(token, StringComparison.OrdinalIgnoreCase)
-               || evidence.RawText.Contains(token, StringComparison.OrdinalIgnoreCase);
+        var normalizedToken = DevicePathNormalizer.NormalizeDeviceId(token, replaceHashes: true);
+        return ContainsToken(evidence.DeviceHint, normalizedToken)
+               || ContainsToken(evidence.Summary, normalizedToken)
+               || ContainsToken(evidence.RawText, normalizedToken);
     }
+
+    private static bool ContainsToken(string text, string token)
+    {
+        if (token.Length == 0) return false;
+        var normalized = DevicePathNormalizer.NormalizeDeviceId(text, replaceHashes: true);
+        var offset = 0;
+        while ((offset = normalized.IndexOf(token, offset, StringComparison.OrdinalIgnoreCase)) >= 0)
+        {
+            var end = offset + token.Length;
+            if ((offset == 0 || !IsIdentifierCharacter(normalized[offset - 1]))
+                && (end == normalized.Length || !IsIdentifierCharacter(normalized[end]))) return true;
+            offset = end;
+        }
+        return false;
+    }
+
+    private static bool IsIdentifierCharacter(char value) => char.IsLetterOrDigit(value) || value is '_' or '-';
 
     private static string NormalizeStrong(string value)
         => DevicePathNormalizer.NormalizeDeviceId(value);

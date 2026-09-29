@@ -150,14 +150,9 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
         {
             Directory.CreateDirectory(temp);
             var copy = Path.Combine(temp, "Amcache.hve");
-            File.Copy(source, copy);
-            foreach (var suffix in new[] { ".LOG1", ".LOG2" })
-            {
-                if (File.Exists(source + suffix))
-                {
-                    File.Copy(source + suffix, copy + suffix);
-                }
-            }
+            var outcome = LockedFileCopier.CopyHiveFamily(source, copy);
+            if (!outcome.Success) throw new IOException(outcome.Error);
+            var sourceHash = HistoricalForensicHelpers.ComputeSha256(copy);
 
             var load = RunReg("load", $@"HKLM\{mount}", copy);
             if (load.ExitCode != 0)
@@ -203,7 +198,7 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
                         Provider = "Amcache.hve",
                         Channel = area,
                         SourceFile = source,
-                        SourceSha256 = HistoricalForensicHelpers.ComputeSha256(source),
+                        SourceSha256 = sourceHash,
                         SourceRecord = $@"{area}\{name}",
                         EventId = "INVENTORY_PRESENCE",
                         EvidenceCategory = "Program/file presence",
@@ -212,7 +207,7 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
                         DeviceHint = path,
                         Summary = $"Amcache inventory: {path}",
                         UserExplanation = "Amcache inventory confirms recorded file/application presence; it does not by itself prove execution.",
-                        Provenance = $"Source={source}; disposable copy={copy}; key={area}\\{name}",
+                        Provenance = $"Source={source}; acquisition={outcome.Method}; acquired copy SHA256={sourceHash}; disposable copy={copy}; key={area}\\{name}",
                         RawText = $"Name={First(item, "Name")}; Publisher={First(item, "Publisher")}; ProgramId={First(item, "ProgramId")}",
                         CanEstablishConnectionDate = false
                     });
@@ -224,7 +219,6 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
         {
             if (loaded)
             {
-                Registry.LocalMachine.Flush();
                 var unload = RunReg("unload", $@"HKLM\{mount}");
                 if (unload.ExitCode != 0)
                 {
@@ -392,28 +386,5 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
             : null;
 
     private static (int ExitCode, string Output) RunReg(string action, string key, string? hive = null)
-    {
-        using var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "reg.exe",
-                Arguments = hive is null ? $"{action} \"{key}\"" : $"{action} \"{key}\" \"{hive}\"",
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            }
-        };
-        process.Start();
-        var output = process.StandardOutput.ReadToEndAsync();
-        var error = process.StandardError.ReadToEndAsync();
-        if (!process.WaitForExit(15_000))
-        {
-            try { process.Kill(true); } catch { }
-            return (-1, "reg.exe timeout");
-        }
-        Task.WaitAll(output, error);
-        return (process.ExitCode, TextSanitizer.NormalizeDisplay(output.Result + error.Result, 1000));
-    }
+        => RegistryHiveCommands.Run(action, key, hive);
 }

@@ -53,8 +53,8 @@ public partial class MainWindow
 
     /// <summary>
     /// Мини-лента: последние события, где упомянуто это устройство. Совпадение
-    /// ищется по серийнику, системному ID и имени — той же подсказке DeviceHint,
-    /// по которой доказательства связываются с устройствами в остальном коде.
+    /// ищется по подтверждённым идентификаторам устройства/тома. Общее имя
+    /// модели и переиспользуемая буква диска не приписывают событие этой вещи.
     /// </summary>
     private void PopulateDeviceEvents(UsbDeviceRecord device)
     {
@@ -66,13 +66,10 @@ public partial class MainWindow
             return;
         }
 
-        var keys = new[] { device.Serial, device.DeviceInstanceId, device.DisplayName }
-            .Where(x => !string.IsNullOrWhiteSpace(x) && x.Length > 3)
-            .ToArray();
+        var keys = DeviceLinkKeys.Build(device, _vm.LastResult!.Devices);
 
         var events = evidence
-            .Where(x => !string.IsNullOrWhiteSpace(x.DeviceHint)
-                        && keys.Any(k => x.DeviceHint.Contains(k, StringComparison.OrdinalIgnoreCase)))
+            .Where(x => keys.Match(x) is { Confidence: "High" })
             .OrderByDescending(x => x.TimestampUtc)
             .Take(10)
             .Select(x => $"{x.TimestampText} — {x.SummaryText}")

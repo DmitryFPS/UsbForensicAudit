@@ -16,7 +16,8 @@ public static class MitreMapper
 
         // T1091 — использование съёмных носителей: есть хотя бы одно принесённое
         // с собой устройство-носитель.
-        var mediaCount = result.Devices.Count(d => d.Externality == DeviceExternality.ExternalMedia);
+        var mediaCount = DeviceCountSummary.FromDevices(
+            result.Devices.Where(d => d.Externality == DeviceExternality.ExternalMedia)).PhysicalDevices;
         if (mediaCount > 0)
         {
             findings.Add(new MitreFinding
