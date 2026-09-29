@@ -186,7 +186,7 @@ internal sealed class ForensicReportContext
     public static ForensicReportContext Create(AuditResult result, ExternalUtilityReportSnapshot? externalUtilitySnapshot = null, DevicePolicy? policy = null, CaseMetadata? caseMetadata = null, IReadOnlyList<FileHashRecord>? usbExecutableHashes = null) =>
         new(result, externalUtilitySnapshot, policy, caseMetadata, usbExecutableHashes);
 
-    private readonly Dictionary<string, DeviceActivityHistory> _activityCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<UsbDeviceRecord, DeviceActivityHistory> _activityCache = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>
     /// Что делали на устройстве: какие папки открывали, какие файлы открывали и
@@ -196,14 +196,13 @@ internal sealed class ForensicReportContext
     /// </summary>
     public DeviceActivityHistory GetActivity(UsbDeviceRecord device)
     {
-        var key = device.DeviceInstanceId.Length > 0 ? device.DeviceInstanceId : device.CanonicalDeviceId;
-        if (_activityCache.TryGetValue(key, out var cached))
+        if (_activityCache.TryGetValue(device, out var cached))
         {
             return cached;
         }
 
         var history = DeviceActivityBuilder.Build(device, Result);
-        _activityCache[key] = history;
+        _activityCache[device] = history;
         return history;
     }
 
@@ -215,6 +214,10 @@ internal sealed class ForensicReportContext
             .Where(device => device.IsExternalDevice)
             .Select(device => (Device: device, History: GetActivity(device).FileActionsOnly()))
             .Where(x => !x.History.IsEmpty);
+
+    public FileActivitySummary GetFileActivitySummary() => FileActivitySummary.From(
+        ListedDevices.Where(x => x.IsExternalDevice)
+            .Select(x => (x, GetActivity(x).FileActionsOnly())));
 
     /// <summary>
     /// Одна фраза о работе с файлами для всех отчётов. Отдельно называет число
@@ -228,34 +231,22 @@ internal sealed class ForensicReportContext
         // системы (Shimcache, Jump Lists). Смешивать их в одно «X из Y»
         // нельзя: упоминаний может оказаться больше, чем «искомых» устройств,
         // и фраза выродится в бессмыслицу вроде «по 8 устройствам из 4».
-        var withActivity = DevicesWithActivity().ToArray();
+        var activity = GetFileActivitySummary();
         var external = ListedDevices.Where(x => x.IsExternalDevice).ToArray();
         var searchable = external.Count(x => GetActivity(x).CanSearchFileActivity);
-        var bySearch = withActivity.Count(x => x.History.CanSearchFileActivity);
-        var byMention = withActivity.Length - bySearch;
-        var actions = withActivity.Sum(x => x.History.Entries.Count);
         var unsearchable = external.Length - searchable;
-        var mentionTail = byMention > 0
-            ? $" Ещё по {byMention} устройствам найдены упоминания в журналах системы "
-              + "(запуски программ, открытия папок): полный поиск по ним был невозможен, "
-              + "и такие находки — примета присутствия устройства, а не восстановленная работа с файлами."
-            : "";
         var tail = unsearchable > 0
             ? $" У {unsearchable} устройств нет буквы диска, серийного номера тома или видимого имени, "
               + "поэтому следы работы с файлами по ним искать нечем."
             : "";
 
-        if (withActivity.Length == 0)
+        if (activity.DirectCount == 0 && activity.UncertainCount == 0 && activity.TruncatedDeviceCount == 0)
         {
             return $"Следов работы с файлами не найдено ни по одному из {searchable} устройств, "
                    + "по которым поиск был возможен." + tail;
         }
 
-        var lead = bySearch > 0
-            ? $"Восстановлена работа с файлами по {bySearch} устройствам из {searchable}, "
-              + "по которым поиск был возможен"
-            : $"Полноценный поиск по {searchable} устройствам работы с файлами не выявил";
-        return $"{lead}: всего {actions} действий с учётом упоминаний." + mentionTail + tail;
+        return activity.Verdict + ". " + activity.Explanation + tail;
     }
 
     /// <summary>

@@ -53,7 +53,9 @@ internal static class ManagerOnePagePdfReport
 
                     var coverage = ScanCoverageSummary.From(result);
                     if (coverage.HasLimitations)
+                    {
                         column.Item().Text(T(coverage.Summary)).FontSize(9).FontColor(Colors.Orange.Darken3);
+                    }
 
                     // Общая оценка — первое и самое крупное на странице.
                     column.Item()
@@ -112,7 +114,7 @@ internal static class ManagerOnePagePdfReport
         });
     }
 
-    private static (string Label, string Color) OverallRisk(ForensicReportContext ctx)
+    internal static (string Label, string Color) OverallRisk(ForensicReportContext ctx)
     {
         if (ctx.HighRiskCount > 0 || ctx.Exfiltration.ConfirmedCount > 0 || ctx.PolicySummary.HasViolations)
         {
@@ -120,7 +122,7 @@ internal static class ManagerOnePagePdfReport
         }
 
         if (ctx.SuspiciousCount > 0 || ctx.Exfiltration.HasAnyIndication || ctx.AttentionCount > 0
-            || ScanCoverageSummary.From(ctx.Result).HasLimitations)
+            || NeedsReview(ctx))
         {
             return ("требуется проверка", Colors.Orange.Darken3);
         }
@@ -130,6 +132,13 @@ internal static class ManagerOnePagePdfReport
 
     private static string DevicesColor(ForensicReportContext ctx) =>
         ctx.PolicySummary.HasViolations ? Colors.Red.Darken2 : Colors.Grey.Darken3;
+
+    private static bool NeedsReview(ForensicReportContext ctx)
+    {
+        var activity = ctx.GetFileActivitySummary();
+        return activity.UncertainCount > 0 || activity.TruncatedDeviceCount > 0
+            || ScanCoverageSummary.From(ctx.Result).HasLimitations;
+    }
 
     private static string DevicesAnswer(ForensicReportContext ctx)
     {
@@ -177,26 +186,14 @@ internal static class ManagerOnePagePdfReport
     // признаки выноса, когда они есть, по-прежнему поднимают цвет и текст.
     private static string FileActivityColor(ForensicReportContext ctx) =>
         ctx.Exfiltration.ConfirmedCount > 0 ? Colors.Red.Darken2
-        : ctx.Exfiltration.HasAnyIndication ? Colors.Orange.Darken3
+        : ctx.Exfiltration.HasAnyIndication || NeedsReview(ctx) ? Colors.Orange.Darken3
         : Colors.Grey.Darken3;
 
     private static string FileActivityAnswer(ForensicReportContext ctx)
     {
         var exf = ctx.Exfiltration;
-        var withActivity = ctx.DevicesWithActivity().ToArray();
-        var actions = withActivity.Sum(x => x.History.Entries.Count);
-        var lastAction = withActivity
-            .SelectMany(x => x.History.Entries)
-            .Select(x => x.TimestampUtc)
-            .OrderByDescending(x => x)
-            .Cast<DateTimeOffset?>()
-            .FirstOrDefault();
-
-        var text = withActivity.Length > 0
-            ? $"Да. Зафиксировано {actions} действие(й) с файлами и папками на {withActivity.Length} носителе(ях): "
-              + "открытия документов, просмотр папок, запуск программ."
-              + (lastAction is not null ? $" Последнее действие: {DateDisplay.FormatMoscow(lastAction.Value)}." : "")
-            : "Следов открытия файлов, просмотра папок или запуска программ с носителей не найдено.";
+        var activity = ctx.GetFileActivitySummary();
+        var text = activity.Verdict + ". " + activity.Explanation;
 
         if (exf.ConfirmedCount > 0)
         {
@@ -261,7 +258,7 @@ internal static class ManagerOnePagePdfReport
             actions.Add("Разобраться, почему подключались устройства не из списка разрешённых, и при необходимости изъять их.");
         }
 
-        if (actions.Count == 0 && (ctx.SuspiciousCount > 0 || ctx.Exfiltration.HasAnyIndication || ctx.AttentionCount > 0))
+        if (actions.Count == 0 && (ctx.SuspiciousCount > 0 || ctx.Exfiltration.HasAnyIndication || ctx.AttentionCount > 0 || NeedsReview(ctx)))
         {
             actions.Add("Поручить специалисту проверить отмеченные в полном отчёте спорные события.");
         }

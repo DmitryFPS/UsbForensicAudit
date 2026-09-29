@@ -126,7 +126,10 @@ public static class EvidencePackageBuilder
             }
             foreach (var path in new[] { snapshotPath, snapshotPath + "-wal", snapshotPath + "-shm", snapshotPath + "-journal" })
             {
-                if (File.Exists(path)) File.Delete(path);
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
             }
         }
 
@@ -142,11 +145,15 @@ public static class EvidencePackageBuilder
     {
         using var source = new SqliteConnection(new SqliteConnectionStringBuilder
         {
-            DataSource = sourcePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false
+            DataSource = sourcePath,
+            Mode = SqliteOpenMode.ReadOnly,
+            Pooling = false
         }.ToString());
         using var destination = new SqliteConnection(new SqliteConnectionStringBuilder
         {
-            DataSource = destinationPath, Mode = SqliteOpenMode.ReadWriteCreate, Pooling = false
+            DataSource = destinationPath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Pooling = false
         }.ToString());
         source.Open();
         destination.Open();

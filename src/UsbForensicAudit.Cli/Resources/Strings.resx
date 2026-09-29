@@ -92,10 +92,10 @@
     <value>  ! сессия {0}: печать в базе не совпадает с журналом.</value>
   </data>
   <data name="IntegrityIntact" xml:space="preserve">
-    <value>Целостность подтверждена: доказательная база не изменялась.</value>
+    <value>Нарушений цепочки evidence.jsonl и печатей сессий не обнаружено. Содержимое рабочих карточек SQLite не проверялось.</value>
   </data>
   <data name="IntegrityViolated" xml:space="preserve">
-    <value>ЦЕЛОСТНОСТЬ НАРУШЕНА: записи изменялись после сохранения.</value>
+    <value>Обнаружено нарушение цепочки журнала или печатей сессий. Возможны изменение, повреждение или неполное сохранение данных.</value>
   </data>
 
   <data name="OfflineStarting" xml:space="preserve">

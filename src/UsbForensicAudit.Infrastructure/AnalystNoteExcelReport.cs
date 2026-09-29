@@ -271,7 +271,7 @@ internal static class AnalystNoteExcelReport
                     DateDisplay.FormatMoscow(entry.TimestampUtc),
                     entry.KindText,
                     entry.PathText,
-                    caveat
+                    $"{caveat} Привязка: {entry.LinkText}".Trim()
                 ], highlight: caveat.Length > 0 ? CaveatColor : null);
                 activityRowCount++;
             }

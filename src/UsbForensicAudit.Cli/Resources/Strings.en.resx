@@ -89,10 +89,10 @@
     <value>  ! session {0}: the seal in the database does not match the journal.</value>
   </data>
   <data name="IntegrityIntact" xml:space="preserve">
-    <value>Integrity confirmed: the evidence base has not been modified.</value>
+    <value>No inconsistencies found in the evidence.jsonl chain and session seals. Working SQLite record contents were not verified.</value>
   </data>
   <data name="IntegrityViolated" xml:space="preserve">
-    <value>INTEGRITY VIOLATED: records were modified after being saved.</value>
+    <value>Journal chain or session seal inconsistency detected. Data may have been modified, corrupted, or incompletely saved.</value>
   </data>
 
   <data name="OfflineStarting" xml:space="preserve">

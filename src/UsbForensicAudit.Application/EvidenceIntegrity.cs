@@ -2,8 +2,8 @@ namespace UsbForensicAudit;
 
 /// <summary>
 /// Порт верификации целостности доказательной базы: hash-chain в
-/// evidence.jsonl и печати сессий в audit.sqlite. Позволяет доказать,
-/// что результаты сканирований не правились задним числом.
+/// evidence.jsonl и печати сессий в audit.sqlite. Содержимое рабочих карточек
+/// SQLite и подлинность источников этой проверкой не удостоверяются.
 /// </summary>
 public interface IEvidenceIntegrityVerifier
 {
@@ -13,6 +13,9 @@ public interface IEvidenceIntegrityVerifier
 /// <summary>Итог проверки целостности доказательной базы.</summary>
 public sealed class IntegrityReport
 {
+    public string VerificationScope => "Проверены цепочка evidence.jsonl и печати сессий. Содержимое рабочих карточек SQLite не сверялось.";
+    public bool DatabaseRecordsVerified => false;
+
     /// <summary>Всего записей в журнале доказательств.</summary>
     public int TotalRecords { get; init; }
 

@@ -32,7 +32,8 @@ public class DeviceActivityReportTests
     {
         var html = ForensicReportBuilder.BuildHtml(ResultWithActivity());
 
-        Assert.Contains("Восстановлена работа с файлами по 1 устройствам", html);
+        Assert.Contains("Возможная файловая активность:", html);
+        Assert.Contains("устройство не установлено надёжно", html);
     }
 
     [Fact]

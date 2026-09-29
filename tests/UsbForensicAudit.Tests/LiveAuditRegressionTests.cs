@@ -70,7 +70,7 @@ public sealed class LiveAuditRegressionTests
         var after = Context(result);
         var history = Assert.Single(after.DevicesWithActivity()).History;
         Assert.Equal(DeviceActivityKind.FileOpen, Assert.Single(history.Entries).Kind);
-        Assert.Contains("1 действ.(ий) на 1", KeyAnswersContent.Build(after)[1].Verdict);
+        Assert.Contains("Возможная файловая активность: 1", KeyAnswersContent.Build(after)[1].Verdict);
         Assert.True(after.GetActivity(device).Entries.Count > history.Entries.Count);
     }
 
@@ -131,7 +131,11 @@ public sealed class LiveAuditRegressionTests
         {
             var original = Path.Combine(directory, "оригинал.hiv");
             var copy = Path.Combine(directory, "копия.hiv");
-            foreach (var suffix in new[] { "", ".LOG1", ".LOG2" }) File.WriteAllText(original + suffix, "bytes" + suffix);
+            foreach (var suffix in new[] { "", ".LOG1", ".LOG2" })
+            {
+                File.WriteAllText(original + suffix, "bytes" + suffix);
+            }
+
             var outcome = LockedFileCopier.CopyHiveFamily(original, copy);
             Assert.True(outcome.Success, outcome.Error);
             foreach (var suffix in new[] { "", ".LOG1", ".LOG2" })

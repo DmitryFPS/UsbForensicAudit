@@ -68,7 +68,10 @@ public sealed class AuditOrchestrator
                 Privileges = privileges
             };
 
-            result.SourceWarnings.Add(privileges.Describe());
+            if (!privileges.CanReadProtectedRegistry)
+            {
+                result.SourceWarnings.Add(privileges.Describe());
+            }
 
             progress?.Report(_deviceCollector.ProgressMessage);
             var warningCount = result.SourceWarnings.Count;

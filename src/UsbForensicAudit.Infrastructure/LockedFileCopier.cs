@@ -31,7 +31,10 @@ public static class LockedFileCopier
         var files = new List<(string Source, string Destination)> { (sourcePath, destinationPath) };
         foreach (var suffix in new[] { ".LOG1", ".LOG2" })
         {
-            if (File.Exists(sourcePath + suffix)) files.Add((sourcePath + suffix, destinationPath + suffix));
+            if (File.Exists(sourcePath + suffix))
+            {
+                files.Add((sourcePath + suffix, destinationPath + suffix));
+            }
         }
         return CopyFiles(files);
     }
@@ -65,7 +68,10 @@ public static class LockedFileCopier
     {
         foreach (var file in files)
         {
-            if (!copy(file.Source, file.Destination, out error)) return false;
+            if (!copy(file.Source, file.Destination, out error))
+            {
+                return false;
+            }
         }
         error = "";
         return true;
@@ -165,7 +171,10 @@ public static class LockedFileCopier
             {
                 var relativePath = Path.GetFullPath(file.Source)[root.Length..];
                 var shadowPath = $@"{deviceObject}\{relativePath}";
-                if (!TryBackupSemanticsCopy(shadowPath, file.Destination, out error)) return false;
+                if (!TryBackupSemanticsCopy(shadowPath, file.Destination, out error))
+                {
+                    return false;
+                }
             }
             error = "";
             return true;

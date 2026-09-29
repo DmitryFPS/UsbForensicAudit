@@ -249,7 +249,11 @@ public partial class MainWindow : Window
             BindResult(result);
             var coverage = ScanCoverageSummary.From(result);
             completionStatus = coverage.HasLimitations ? "Завершено с ограничениями" : "Готово";
-            if (coverage.HasLimitations) AppendLog(coverage.Summary);
+            if (coverage.HasLimitations)
+            {
+                AppendLog(coverage.Summary);
+            }
+
             PdfReportButton.IsEnabled = true;
             ManagerPdfReportButton.IsEnabled = true;
             AnalystNotePdfReportButton.IsEnabled = true;

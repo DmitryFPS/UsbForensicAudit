@@ -78,6 +78,9 @@ jobs:
         run: |
           $audit = dotnet list UsbForensicAudit.sln package --vulnerable --include-transitive 2>&1
           $audit | Write-Host
+          if ($LASTEXITCODE -ne 0 -or $audit -match "NU1900") {
+            throw "Dependency vulnerability check did not complete successfully."
+          }
           if ($audit -match "following vulnerable packages") {
             throw "Vulnerable NuGet dependencies detected."
           }

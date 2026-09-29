@@ -151,7 +151,11 @@ public sealed class ExecutionArtifactCollector : IEvidenceCollector
             Directory.CreateDirectory(temp);
             var copy = Path.Combine(temp, "Amcache.hve");
             var outcome = LockedFileCopier.CopyHiveFamily(source, copy);
-            if (!outcome.Success) throw new IOException(outcome.Error);
+            if (!outcome.Success)
+            {
+                throw new IOException(outcome.Error);
+            }
+
             var sourceHash = HistoricalForensicHelpers.ComputeSha256(copy);
 
             var load = RunReg("load", $@"HKLM\{mount}", copy);

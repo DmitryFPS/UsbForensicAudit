@@ -257,7 +257,7 @@ internal static class AnalystNotePdfReport
                     ? $" ({AnalystNoteContent.PreInstallCaveat})"
                     : "";
                 column.Item().PaddingLeft(10).Text(T(
-                    $"{DateDisplay.FormatMoscow(entry.TimestampUtc)} — {entry.KindText}: {entry.PathText}{caveat}"));
+                    $"{DateDisplay.FormatMoscow(entry.TimestampUtc)} — {entry.KindText}: {entry.PathText}{caveat}. Привязка: {entry.LinkText}"));
             }
 
             if (entries.Length > MaxActivityPerDevice)

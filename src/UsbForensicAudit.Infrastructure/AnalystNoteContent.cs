@@ -70,7 +70,7 @@ internal static class AnalystNoteContent
         {
             foreach (var entry in history.Entries)
             {
-                events.Add((entry.TimestampUtc, $"{device.ModelText}: {entry.KindText} — {entry.PathText}."));
+                events.Add((entry.TimestampUtc, $"{device.ModelText}: {entry.KindText} — {entry.PathText}. Привязка: {entry.LinkText}."));
             }
         }
 

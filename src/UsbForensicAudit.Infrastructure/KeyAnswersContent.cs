@@ -64,32 +64,16 @@ internal static class KeyAnswersContent
         // программ с носителей артефакты фиксируют надёжно (LNK, Recent,
         // ShellBags, Shimcache) — об этом и спрашиваем. Признаки выноса,
         // когда они есть, по-прежнему эскалируют тон и попадают в пояснение.
-        var withActivity = ctx.DevicesWithActivity().ToArray();
-        var activityDevices = withActivity.Length;
-        var actions = withActivity.Sum(x => x.History.Entries.Count);
-        var lastAction = withActivity
-            .SelectMany(x => x.History.Entries)
-            .Select(x => x.TimestampUtc)
-            .OrderByDescending(x => x)
-            .Cast<DateTimeOffset?>()
-            .FirstOrDefault();
+        var activity = ctx.GetFileActivitySummary();
 
         var exf = ctx.Exfiltration;
         var filesTone = exf.ConfirmedCount > 0
             ? Tone.Bad
-            : exf.HasAnyIndication
+            : exf.HasAnyIndication || activity.UncertainCount > 0 || activity.TruncatedDeviceCount > 0
                 ? Tone.Attention
-                : activityDevices > 0 ? Tone.Plain : Tone.Ok;
-        var filesVerdict = activityDevices > 0
-            ? $"Да — {actions} действ.(ий) на {activityDevices} устройствах"
-            : "Следов работы с файлами не найдено";
-        var filesNote = activityDevices > 0
-            ? (lastAction is not null
-                  ? $"Последнее действие: {DateDisplay.FormatMoscow(lastAction.Value)}. "
-                  : string.Empty)
-              + ExfiltrationClause(exf)
-            : "Открытий файлов, папок и запусков программ с носителей среди артефактов нет. " + ExfiltrationClause(exf);
-        answers.Add(new Answer("Работали ли с файлами на носителях?", filesVerdict, filesNote, filesTone));
+                : activity.DirectCount > 0 ? Tone.Plain : Tone.Ok;
+        answers.Add(new Answer("Работали ли с файлами на носителях?", activity.Verdict,
+            activity.Explanation + ExfiltrationClause(exf), filesTone));
 
         // Вопрос 3: чистили ли следы.
         var cleanupTone = ctx.HighRiskCount > 0

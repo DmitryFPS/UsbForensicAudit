@@ -326,7 +326,11 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Grid VerticalAlignment="Center" Margin="0,0,12,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
                     <Border Width="88"
                             Height="88"
                             Margin="0,0,18,0"
@@ -339,7 +343,7 @@
                                Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
                     </Border>
-                    <StackPanel>
+                    <StackPanel Grid.Column="1">
                         <TextBlock FontSize="30" FontWeight="SemiBold" Margin="0,0,0,2">
                             <Run Text="Аудит " Foreground="{StaticResource TextMain}"/>
                             <Run Text="USB" Foreground="{StaticResource Accent2}" FontWeight="Bold" FontSize="32"/>
@@ -348,10 +352,10 @@
                         </TextBlock>
                         <TextBlock Text="Мониторинг подключений, история устройств и поиск следов очистки"
                                    Foreground="{StaticResource TextMuted}"
-                                   FontSize="13"
+                                   FontSize="13" TextWrapping="Wrap"
                                    Margin="0,4,0,0"/>
                     </StackPanel>
-                </StackPanel>
+                </Grid>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button x:Name="ElevateButton" Content="Запуск от администратора" Click="ElevateButton_Click"/>

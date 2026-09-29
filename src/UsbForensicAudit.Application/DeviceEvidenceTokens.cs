@@ -57,14 +57,22 @@ internal static class DeviceEvidenceTokens
 
     private static bool ContainsToken(string text, string token)
     {
-        if (token.Length == 0) return false;
+        if (token.Length == 0)
+        {
+            return false;
+        }
+
         var normalized = DevicePathNormalizer.NormalizeDeviceId(text, replaceHashes: true);
         var offset = 0;
         while ((offset = normalized.IndexOf(token, offset, StringComparison.OrdinalIgnoreCase)) >= 0)
         {
             var end = offset + token.Length;
             if ((offset == 0 || !IsIdentifierCharacter(normalized[offset - 1]))
-                && (end == normalized.Length || !IsIdentifierCharacter(normalized[end]))) return true;
+                && (end == normalized.Length || !IsIdentifierCharacter(normalized[end])))
+            {
+                return true;
+            }
+
             offset = end;
         }
         return false;

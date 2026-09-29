@@ -26,13 +26,15 @@ public sealed class OfflineWindowsAuditor : IOfflineWindowsAuditor
                 $"Каталог Windows не найден в «{root}». Укажите корень диска с папкой Windows " +
                 "или сам каталог Windows (в нём должен быть System32\\config\\SYSTEM).");
 
+        var privileges = new WindowsPrivilegeChecker().AcquireAndDescribe();
         var result = new AuditResult
         {
             SessionId = $"offline-{Guid.NewGuid():N}",
             ComputerName = "offline",
             UserName = Environment.UserName,
             WindowsVersion = "offline-источник",
-            IsAdministrator = true
+            IsAdministrator = privileges.IsAdministrator,
+            Privileges = privileges
         };
         result.SourceWarnings.Add(
             $"Офлайн-анализ: {windowsDirectory}. Журналы событий, WMI и работающие процессы " +
@@ -104,8 +106,10 @@ public sealed class OfflineWindowsAuditor : IOfflineWindowsAuditor
 
     private static void CollectFromSystemHive(MountedHive hive, AuditResult result, List<string> warnings)
     {
+        var selected = hive.ReadDword("Select", "Current");
+        var currentControlSet = selected is > 0 and <= 999 ? $"ControlSet{selected:D3}" : "ControlSet001";
         var computerName = hive.ReadString(
-            @"ControlSet001\Control\ComputerName\ComputerName", "ComputerName");
+            $@"{currentControlSet}\Control\ComputerName\ComputerName", "ComputerName");
         if (!string.IsNullOrWhiteSpace(computerName))
         {
             result.ComputerName = $"offline:{computerName}";

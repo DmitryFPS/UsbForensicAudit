@@ -250,6 +250,7 @@ public sealed class DeviceActivityHistory
     public string CanonicalDeviceId { get; set; } = "";
 
     public List<DeviceActivityEntry> Entries { get; set; } = [];
+    public int OmittedEntryCount { get; set; }
 
     public List<CopyIndication> CopyIndications { get; set; } = [];
 
@@ -300,6 +301,7 @@ public sealed class DeviceActivityHistory
         DeviceDisplayName = DeviceDisplayName,
         CanonicalDeviceId = CanonicalDeviceId,
         Entries = Entries.Where(x => DeviceActivityKind.IsFileAction(x.Kind)).ToList(),
+        OmittedEntryCount = OmittedEntryCount,
         CopyIndications = CopyIndications.ToList(),
         LinkKeys = LinkKeys.ToList(),
         CanSearchFileActivity = CanSearchFileActivity,
@@ -311,7 +313,11 @@ public sealed class DeviceActivityHistory
     /// искать было не по чему: пустая история и отсутствие признаков поиска —
     /// разные вещи, и путать их нельзя.
     /// </summary>
-    public string Verdict()
+    public string Verdict() => DescribeActivity() + (OmittedEntryCount > 0
+        ? $" История ограничена: ещё {OmittedEntryCount} записей не показано. Вывод относится только к показанной части."
+        : "");
+
+    private string DescribeActivity()
     {
         if (LinkKeys.Count == 0 || !CanSearchFileActivity)
         {
@@ -357,7 +363,10 @@ public sealed class DeviceActivityHistory
                    + "проводника не сохранили обращений к этому устройству либо были очищены.";
         }
 
-        return $"Найдено {Entries.Count} действий: {string.Join(", ", parts)}. "
+        var fileEntries = Entries.Where(x => DeviceActivityKind.IsFileAction(x.Kind)).ToArray();
+        var uncertain = fileEntries.Count(x => !x.LinkConfidence.Equals("High", StringComparison.OrdinalIgnoreCase));
+        return $"Найдено {fileEntries.Length} следов файловой активности: {string.Join(", ", parts)}. "
+               + (uncertain > 0 ? $"У {uncertain} записей привязка к устройству косвенная или неоднозначная; действия на нём не подтверждены этими записями. " : "")
                + $"Искали по признакам: {string.Join("; ", LinkKeys)}.";
     }
 

@@ -39,7 +39,7 @@ public sealed class FleetAnalyzerTests
         Assert.Equal(3, summary.MachineCount);
         Assert.True(summary.HasCrossMachineDevices);
         var moved = Assert.Single(summary.CrossMachineDevices);
-        Assert.Equal("SN:SN-COMMON", moved.IdentityKey);
+        Assert.Equal("SN:0951:1666:SN-COMMON", moved.IdentityKey);
         Assert.Equal(2, moved.MachineCount);
         Assert.Contains("PC-1", moved.Machines);
         Assert.Contains("PC-2", moved.Machines);

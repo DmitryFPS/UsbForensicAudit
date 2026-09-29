@@ -21,7 +21,7 @@ public static class FleetAnalyzer
 
             foreach (var device in result.Devices)
             {
-                var key = IdentityKey(device);
+                var key = IdentityKey(device, machine);
                 if (key is null)
                 {
                     continue;
@@ -64,20 +64,27 @@ public static class FleetAnalyzer
     /// иначе — VID:PID. Устройства без серийника и без VID/PID (хабы, части шины)
     /// в кросс-машинный анализ не берём: их «совпадение» ничего не значит.
     /// </summary>
-    private static string? IdentityKey(UsbDeviceRecord device)
+    private static string? IdentityKey(UsbDeviceRecord device, string machine)
     {
-        if (!string.IsNullOrWhiteSpace(device.Serial) && device.Serial.Trim().Length > 1)
+        var vid = device.Vid.Trim().ToUpperInvariant();
+        var pid = device.Pid.Trim().ToUpperInvariant();
+        var hasModel = IsUsbCode(vid) && IsUsbCode(pid);
+        if (DeviceIdentityGraph.IsHardwareSerial(device.Serial))
         {
-            return "SN:" + device.Serial.Trim().ToUpperInvariant();
+            var serial = DeviceIdentityGraph.NormalizeSerial(device.Serial);
+            // Без модели совпадение серийника не переносим между компьютерами.
+            return hasModel ? $"SN:{vid}:{pid}:{serial}" : $"LOCAL:{machine.ToUpperInvariant()}:{serial}";
         }
 
-        if (!string.IsNullOrWhiteSpace(device.Vid) && !string.IsNullOrWhiteSpace(device.Pid))
+        if (hasModel)
         {
-            return $"VIDPID:{device.Vid.Trim().ToUpperInvariant()}:{device.Pid.Trim().ToUpperInvariant()}";
+            return $"VIDPID:{vid}:{pid}";
         }
 
         return null;
     }
+
+    private static bool IsUsbCode(string value) => value.Length == 4 && value.All(Uri.IsHexDigit);
 
     private sealed class Accumulator
     {

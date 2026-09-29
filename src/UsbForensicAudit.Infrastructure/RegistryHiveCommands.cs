@@ -12,28 +12,63 @@ internal static class RegistryHiveCommands
         var parts = key.Split('\\');
         if (parts.Length != 2 || !parts[1].StartsWith("UFA_", StringComparison.Ordinal)
             || (parts[0] != "HKU" && parts[0] != "HKLM") || (action != "load" && action != "unload"))
+        {
             throw new ArgumentException("Допустима только временная точка загрузки UFA_ в HKU/HKLM.");
+        }
 
         var root = new IntPtr(parts[0] == "HKU" ? unchecked((int)0x80000003) : unchecked((int)0x80000002));
         int error;
         if (action == "load")
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(hive);
-            if (!File.Exists(hive)) return (2, $"Файл копии куста не найден: {hive} (Win32 2)");
+            if (!File.Exists(hive))
+            {
+                return (2, $"Файл копии куста не найден: {hive} (Win32 2)");
+            }
+
+            var privilegeError = EnableHivePrivileges();
+            if (privilegeError.Length > 0)
+            {
+                return (1314, privilegeError);
+            }
             // reg.exe ограничивает путь к файлу; Unicode API принимает расширенный путь.
             error = RegLoadKey(root, parts[1], ExtendedPath(hive));
         }
         else
         {
+            var privilegeError = EnableHivePrivileges();
+            if (privilegeError.Length > 0)
+            {
+                return (1314, privilegeError);
+            }
+
             error = RegUnLoadKey(root, parts[1]);
         }
         return (error, error == 0 ? "" : $"{new Win32Exception(error).Message} (Win32 {error}; {action} {key})");
     }
 
+    private static string EnableHivePrivileges()
+    {
+        var errors = new List<string>();
+        foreach (var privilege in new[] { WindowsPrivileges.Backup, WindowsPrivileges.Restore })
+        {
+            if (!WindowsPrivileges.TryEnable(privilege, out var error))
+            {
+                errors.Add($"{privilege}: {error}");
+            }
+        }
+
+        return errors.Count == 0 ? "" : $"Не включены привилегии загрузки куста (Win32 1314): {string.Join("; ", errors)}";
+    }
+
     internal static string ExtendedPath(string path)
     {
         var full = Path.GetFullPath(path);
-        if (full.StartsWith(@"\\?\", StringComparison.Ordinal)) return full;
+        if (full.StartsWith(@"\\?\", StringComparison.Ordinal))
+        {
+            return full;
+        }
+
         return full.StartsWith(@"\\", StringComparison.Ordinal)
             ? @"\\?\UNC\" + full[2..] : @"\\?\" + full;
     }

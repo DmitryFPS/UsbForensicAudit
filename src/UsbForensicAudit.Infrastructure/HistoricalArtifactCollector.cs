@@ -705,7 +705,11 @@ public sealed partial class HistoricalArtifactCollector : IHistoricalArtifactCol
                 var outcome = LockedFileCopier.Copy(log, destination);
                 if (!outcome.Success)
                 {
-                    if (File.Exists(destination)) File.Delete(destination);
+                    if (File.Exists(destination))
+                    {
+                        File.Delete(destination);
+                    }
+
                     throw new IOException(outcome.Error);
                 }
                 var copiedHash = HistoricalForensicHelpers.ComputeSha256(destination);
@@ -884,7 +888,10 @@ public sealed partial class HistoricalArtifactCollector : IHistoricalArtifactCol
     {
         var destinationHive = Path.Combine(destinationDirectory, Path.GetFileName(sourceHive));
         var outcome = LockedFileCopier.CopyHiveFamily(sourceHive, destinationHive);
-        if (!outcome.Success) throw new IOException(outcome.Error);
+        if (!outcome.Success)
+        {
+            throw new IOException(outcome.Error);
+        }
 
         return destinationHive;
     }

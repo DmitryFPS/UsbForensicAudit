@@ -82,10 +82,9 @@ public static partial class DeviceActivityBuilder
             });
         }
 
-        history.Entries = Deduplicate(entries)
-            .OrderByDescending(x => x.TimestampUtc)
-            .Take(MaxEntries)
-            .ToList();
+        var distinct = Deduplicate(entries).OrderByDescending(x => x.TimestampUtc).ToList();
+        history.OmittedEntryCount = Math.Max(0, distinct.Count - MaxEntries);
+        history.Entries = distinct.Take(MaxEntries).ToList();
         history.CopyIndications = MergeCopyIndications(device, history.Entries, keys, evidence);
         return history;
     }
@@ -125,7 +124,7 @@ public static partial class DeviceActivityBuilder
     /// </summary>
     private static IEnumerable<DeviceActivityEntry> Deduplicate(IEnumerable<DeviceActivityEntry> entries) =>
         entries
-            .GroupBy(x => (x.Kind, Path: x.Path.ToUpperInvariant(), Minute: Truncate(x.TimestampUtc)))
+            .GroupBy(x => (x.Kind, Path: x.Path.ToUpperInvariant(), User: x.UserSid.ToUpperInvariant(), Minute: Truncate(x.TimestampUtc)))
             .Select(group => group.OrderByDescending(x => ConfidenceRank(x.LinkConfidence)).First());
 
     private static DateTimeOffset Truncate(DateTimeOffset value) =>
