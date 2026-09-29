@@ -90,7 +90,8 @@ public sealed partial class WindowsDeviceRemovalPlatform : IDeviceRemovalPlatfor
     }
 
     public bool IsPresent(string instanceId) => _present(instanceId);
-    private static bool NativeIsPresent(string instanceId) => PresenceFromResult(CM_Locate_DevNodeW(out _, instanceId, 0));
+    private static bool NativeIsPresent(string instanceId) => BluetoothConnectionState.Resolve(instanceId,
+        PresenceFromResult(CM_Locate_DevNodeW(out _, instanceId, 0)), BluetoothConnectionState.Read);
 
     public static bool PresenceFromResult(uint result) => result switch
     {

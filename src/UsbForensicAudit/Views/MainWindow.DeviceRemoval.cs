@@ -95,6 +95,11 @@ public partial class MainWindow
             var service = new DeviceRemovalService(new WindowsDeviceRemovalPlatform(_vm.Storage.DataDirectory), _vm.Storage);
             StatusText.Text = "Проверка выбранных экземпляров Windows...";
             var plan = await Task.Run(() => service.Preview(source, selected), _lifetimeCancellation.Token);
+            AppendLog($"Проверка удаления: доступно {plan.RemovableCount}, заблокировано {plan.ProtectedCount}.");
+            foreach (var blocked in plan.Items.Where(item => !item.CanRemove))
+            {
+                AppendLog($"Удаление недоступно: {blocked.InstanceId}: {blocked.Reason}");
+            }
             var preview = new DeviceRemovalPreviewWindow(plan) { Owner = this };
             if (preview.ShowDialog() != true)
             {
