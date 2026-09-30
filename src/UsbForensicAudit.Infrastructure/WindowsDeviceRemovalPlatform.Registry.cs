@@ -86,6 +86,12 @@ public sealed partial class WindowsDeviceRemovalPlatform
             throw new InvalidOperationException(reason);
         }
 
+        if (BluetoothCacheIdentity.AddressFromPath(path) is { Length: > 0 } address
+            && ReadInventory().Any(node => BluetoothEnumeratorId.DeviceAddress(node.InstanceId) == address))
+        {
+            throw new InvalidOperationException("Кэш Bluetooth нельзя удалять до удаления PnP-компонентов устройства.");
+        }
+
         var current = ReadTraceFingerprint(path);
         if (current is null)
         {

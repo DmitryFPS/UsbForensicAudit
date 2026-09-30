@@ -68,6 +68,15 @@ public static partial class DeviceTransportClassifier
         var id = device.DeviceInstanceId;
 
         Reset(device);
+        if (BluetoothCacheIdentity.AddressFromPath(id).Length > 0)
+        {
+            SetTransport(device, "Bluetooth", "High", "Addressed BTHPORT device cache");
+            SetConnection(device, "Bluetooth", "High", "BTHPORT device cache");
+            SetClassification(device, "External", "High", "Remote Bluetooth address");
+            device.VisualCategory = "HistoricalResidual";
+            device.DeviceKind = DeviceKindResolver.RegistryTrace;
+            return;
+        }
         if (DeviceComposition.IsVolumeMetadata(device))
         {
             device.VisualCategory = "SupportArtifact";
@@ -318,15 +327,17 @@ public static partial class DeviceTransportClassifier
         {
             SetTransport(device, "UASP/SCSI", "Medium", "hardware/compatible ID contains UASP marker");
         }
+        else if (device.Service.Equals("USBSTOR", StringComparison.OrdinalIgnoreCase)
+                 || id.StartsWith(@"USBSTOR\", StringComparison.OrdinalIgnoreCase)
+                 || ContainsAny(device.HardwareIds, "USBSTOR")
+                 || Regex.IsMatch(device.CompatibleIds, @"USB\\Class_08(?:&|;|\s|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            SetTransport(device, "MSC/USBSTOR", "High", "USB storage service, instance or compatible class");
+        }
         else if (StartsWithAny(id, @"SWD\WPDBUSENUM\")
                  || DeviceMarkerText.ContainsAnyMarker(text, "WPDBUSENUM", "MTP", "PTP"))
         {
             SetTransport(device, "MTP/PTP/WPD", "High", "WPD/MTP/PTP PnP evidence");
-        }
-        else if (id.StartsWith(@"USBSTOR\", StringComparison.OrdinalIgnoreCase)
-                 || ContainsAny(device.HardwareIds, "USBSTOR"))
-        {
-            SetTransport(device, "MSC/USBSTOR", "High", "USBSTOR instance/hardware ID");
         }
         else if (id.StartsWith(@"SCSI\", StringComparison.OrdinalIgnoreCase)
                  && ScsiHasExternalBusEvidence(text, id))

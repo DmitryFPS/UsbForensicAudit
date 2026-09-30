@@ -12,6 +12,50 @@ namespace UsbForensicAudit.Tests;
 public sealed class NativeDeletionIntegrationTests
 {
     [Theory]
+    [InlineData("ControlSet001")]
+    [InlineData("ControlSet002")]
+    public void Bluetooth_cache_deletion_preserves_other_addresses_and_authentication_keys(string controlSet)
+    {
+        using var fixture = new Fixture();
+        var root = $@"SYSTEM\{controlSet}\Services\BTHPORT\Parameters";
+        var selected = root + @"\Devices\887598c2f5f2";
+        var sibling = root + @"\Devices\112233445566";
+        var authentication = root + @"\Keys\112233445566";
+        foreach (var path in new[] { selected + @"\CachedServices", sibling, authentication })
+        {
+            using var key = fixture.Root.CreateSubKey(path);
+            key.SetValue("keep", "sample");
+        }
+        var source = @"HKLM\" + selected;
+        Assert.NotNull(DeviceTracePolicy.NormalizePath(source));
+        var fingerprint = RegistryTraceAccess.ReadFingerprint(fixture.Root, selected, source)!;
+        RegistryTraceAccess.DeleteTree(fixture.Root, selected, source, fingerprint);
+        Assert.Null(fixture.Root.OpenSubKey(selected));
+        using var siblingKey = fixture.Root.OpenSubKey(sibling);
+        using var authenticationKey = fixture.Root.OpenSubKey(authentication);
+        Assert.Equal("sample", siblingKey!.GetValue("keep"));
+        Assert.Equal("sample", authenticationKey!.GetValue("keep"));
+    }
+
+    [Fact]
+    public void Native_registry_preserves_slashes_inside_key_names_during_targeted_deletion()
+    {
+        using var fixture = new Fixture();
+        const string subkey = @"USBSTOR\Disk&Ven_Kingston&Prod_SNA-DC/U&Rev_1.08\SERIAL-TEST&0";
+        const string source = @"HKLM\SYSTEM\ControlSet002\Enum\" + subkey;
+        using (var key = fixture.Root.CreateSubKey(subkey))
+        {
+            key.SetValue("FriendlyName", "Disk with slash in model");
+        }
+        var fingerprint = RegistryTraceAccess.ReadFingerprint(fixture.Root, subkey, source);
+        Assert.NotNull(fingerprint);
+        RegistryTraceAccess.DeleteTree(fixture.Root, subkey, source, fingerprint!);
+        Assert.Null(fixture.Root.OpenSubKey(subkey));
+        using var sibling = fixture.Root.OpenSubKey("unrelated");
+        Assert.Equal("yes", sibling!.GetValue("keep"));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Native_deletion_and_database_agree_even_if_protocol_storage_fails(bool failProtocol)

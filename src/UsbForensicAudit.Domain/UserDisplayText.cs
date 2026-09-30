@@ -14,6 +14,10 @@ public static class UserDisplayText
     // не требуется переписывать ради исправления подписи в таблице и отчёте.
     public static string DeviceCategory(UsbDeviceRecord device)
     {
+        if (BluetoothCacheIdentity.AddressFromPath(device.DeviceInstanceId).Length > 0)
+        {
+            return "Историческая запись Bluetooth";
+        }
         if (BluetoothEnumeratorId.IsPairedDeviceRecord(device.DeviceInstanceId))
         {
             return "Сопряжённое Bluetooth-устройство";
@@ -307,6 +311,10 @@ public static class UserDisplayText
 
     public static string DeviceInstanceSummary(UsbDeviceRecord record)
     {
+        if (BluetoothCacheIdentity.AddressFromPath(record.DeviceInstanceId).Length > 0)
+        {
+            return "Кэш Bluetooth · " + record.DeviceInstanceId.Split('\\')[2];
+        }
         var address = BluetoothEnumeratorId.DeviceAddress(record.DeviceInstanceId);
         if (address.Length > 0)
         {
@@ -473,6 +481,7 @@ public static class UserDisplayText
                 $"{DateDisplay.FormatMoscow(disconnectedUtc.Value)} (ориентир — последняя активность)",
             "ConnectedNow" => ConnectedNow,
             "NotConnectedUnknown" => NotConnectedUnknown,
+            "PreviousSession" => "Последнее отключение неизвестно (было новое подключение)",
             "NotApplicable" => NotApplicableDisconnect,
             _ => NoDisconnectEvent
         };
@@ -495,11 +504,17 @@ public static class UserDisplayText
 
     public static string Serial(string? serial)
     {
-        return string.IsNullOrWhiteSpace(serial) ? "не указан" : serial;
+        if (string.IsNullOrWhiteSpace(serial))
+        {
+            return "не указан";
+        }
+        return serial.IndexOfAny(['#', '\\', '{', '}']) >= 0 || Guid.TryParse(serial, out _)
+            ? "не указан (ID Windows)" : serial;
     }
 
     public static string DeviceType(string? value) => value switch
     {
+        "BluetoothCache" => "Кэш Bluetooth",
         "USBSTOR" => "USB-накопитель",
         "USB" => "USB-устройство",
         "HID" => "Мышь, клавиатура и т.п.",

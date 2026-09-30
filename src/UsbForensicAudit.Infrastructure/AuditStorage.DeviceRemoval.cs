@@ -40,6 +40,27 @@ public sealed partial class AuditStorage
                 return;
             }
 
+            var cacheAddresses = selected.Select(BluetoothCacheIdentity.AddressFromPath).Where(x => x.Length > 0).ToHashSet();
+            var networkRows = new List<(long Id, string Json)>();
+            if (cacheAddresses.Count > 0)
+            {
+                using var readNetwork = connection.CreateCommand();
+                readNetwork.Transaction = transaction;
+                readNetwork.CommandText = "SELECT id, record_json FROM network_connections WHERE session_id=$session;";
+                readNetwork.Parameters.AddWithValue("$session", sessionId);
+                using var reader = readNetwork.ExecuteReader();
+                while (reader.Read())
+                {
+                    var json = reader.GetString(1);
+                    var record = JsonSerializer.Deserialize<NetworkConnectionRecord>(json, JsonOptions);
+                    if (record?.Kind == NetworkConnectionKind.Bluetooth
+                        && cacheAddresses.Contains(BluetoothCacheIdentity.AddressFromPath(record.Provenance)))
+                    {
+                        networkRows.Add((reader.GetInt64(0), json));
+                    }
+                }
+            }
+
             var backup = Path.Combine(DataDirectory, "database-removal", $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}");
             Directory.CreateDirectory(backup);
             var file = Path.Combine(backup, "devices.json");
@@ -47,6 +68,7 @@ public sealed partial class AuditStorage
             {
                 SessionId = sessionId,
                 Records = rows.Select(x => JsonSerializer.Deserialize<JsonElement>(x.Json)),
+                NetworkRecords = networkRows.Select(x => JsonSerializer.Deserialize<JsonElement>(x.Json)),
                 Note = "Удаление карточек из рабочей базы. Архив evidence.jsonl, события и готовые отчёты сохраняются."
             }));
             using (var stream = File.OpenRead(file))
@@ -66,8 +88,17 @@ public sealed partial class AuditStorage
                     throw new IOException("Список записей изменился. Удаление отменено.");
                 }
             }
+            foreach (var row in networkRows)
+            {
+                using var delete = connection.CreateCommand();
+                delete.Transaction = transaction;
+                delete.CommandText = "DELETE FROM network_connections WHERE id=$id AND session_id=$session;";
+                delete.Parameters.AddWithValue("$id", row.Id);
+                delete.Parameters.AddWithValue("$session", sessionId);
+                if (delete.ExecuteNonQuery() != 1) { throw new IOException("Сетевые записи изменились. Удаление отменено."); }
+            }
             transaction.Commit();
-            result = new(rows.Count, backup);
+            result = new(rows.Count, backup, networkRows.Count);
         });
         return result;
     }

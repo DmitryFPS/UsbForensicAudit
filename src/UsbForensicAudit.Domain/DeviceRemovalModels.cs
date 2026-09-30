@@ -19,7 +19,7 @@ public sealed record DeviceRegistryTrace(string RegistryPath, string Fingerprint
     IReadOnlyList<string> DeviceIds, string Vid = "", string Pid = "", string VolumeCacheSnapshotFingerprint = "",
     string MountedValueSnapshot = "", string UsbAncestorInstanceId = "");
 
-public sealed record DatabaseDeviceRemovalResult(int RemovedCount, string BackupDirectory);
+public sealed record DatabaseDeviceRemovalResult(int RemovedCount, string BackupDirectory, int NetworkRemovedCount = 0);
 
 public sealed record DeviceRemovalDatabaseRecord(string DeviceInstanceId, IReadOnlyList<string> TargetIds);
 
@@ -49,6 +49,7 @@ public sealed record DeviceRemovalResult(string BackupDirectory, IReadOnlyList<D
         + $" Пропущено при проверке: {SkippedCount}."
         + (FailedCount > 0 || SkippedCount > 0 ? " Очистка выполнена не полностью." : "")
         + (DatabaseRemoval is null ? "" : $" Удалено карточек из базы: {DatabaseRemoval.RemovedCount}.")
+        + (DatabaseRemoval is { NetworkRemovedCount: > 0 } ? $" Удалено связанных сетевых записей: {DatabaseRemoval.NetworkRemovedCount}." : "")
         + (DatabaseError.Length == 0 ? "" : $" Не удалось обновить базу: {DatabaseError}")
         + (ProtocolError.Length == 0 ? "" : $" Не удалось сохранить протокол: {ProtocolError}");
 }

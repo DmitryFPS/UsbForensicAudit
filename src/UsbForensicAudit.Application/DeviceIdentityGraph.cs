@@ -118,7 +118,7 @@ public static class DeviceIdentityGraph
     public static bool IsHardwareSerial(string? value)
     {
         var serial = NormalizeSerial(value ?? "");
-        if (serial.Length < 4 || GeneratedInstanceRegex.IsMatch(serial)
+        if (serial.Length < 4 || serial.IndexOfAny(['#', '\\', '{', '}']) >= 0 || GeneratedInstanceRegex.IsMatch(serial)
             || DeviceIdentityTrust.IsWindowsGeneratedSerial(serial)
             || DeviceIdentityTrust.IsRepeatedCharacterSerial(serial)
             || DeviceIdentityTrust.IsPlaceholderSerial(serial))

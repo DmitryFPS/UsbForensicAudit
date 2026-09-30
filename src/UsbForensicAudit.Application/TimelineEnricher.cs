@@ -41,6 +41,13 @@ public sealed class TimelineEnricher
         foreach (var device in result.Devices)
         {
             EnrichDevice(device, result.Evidence, connectedDevices, scanStartedUtc);
+            if (!device.IsCurrentlyConnected && device.LastDisconnectedUtc is { } previousDisconnect
+                && device.Sessions.Any(session => session.StartUtc > previousDisconnect))
+            {
+                device.DisconnectDisplayKind = "PreviousSession";
+                device.DateConfidence = AppendConfidence(device.DateConfidence,
+                    "После последнего известного отключения было новое подключение; время последующего отключения не установлено.");
+            }
         }
 
         for (var i = 0; i < result.SourceWarnings.Count; i++)

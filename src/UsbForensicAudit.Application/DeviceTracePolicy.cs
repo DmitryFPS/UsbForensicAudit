@@ -19,13 +19,13 @@ public static partial class DeviceTracePolicy
         }
         var relative = path.StartsWith(@"HKLM\", StringComparison.OrdinalIgnoreCase) ? path[5..]
             : path.StartsWith(@"HKEY_LOCAL_MACHINE\", StringComparison.OrdinalIgnoreCase) ? path[19..] : "";
-        if (relative.Length == 0 || relative.Any(c => char.IsControl(c) || c is '*' or '/' or '"')
+        if (relative.Length == 0 || relative.Any(c => char.IsControl(c) || c is '*' or '"')
             || relative.Split('\\').Any(x => x is "" or "." or ".."))
         {
             return null;
         }
 
-        if (SystemTrace.IsMatch(relative)
+        if (SystemTrace.IsMatch(relative) || BluetoothCacheIdentity.AddressFromPath(path).Length > 0
             || IsLeaf(relative, Portable) || IsLeaf(relative, ReadyBoost) || IsVolumeCacheRelativePath(relative)
             || EnumInstanceId(relative) is not null)
         {
@@ -173,6 +173,11 @@ public static partial class DeviceTracePolicy
         {
             return null;
         }
+        if (BluetoothCacheIdentity.AddressFromPath(normalized) is { Length: > 0 } address)
+        {
+            return address.Equals(BluetoothEnumeratorId.DeviceAddress(record.DeviceInstanceId), StringComparison.OrdinalIgnoreCase)
+                ? new(normalized, fingerprint, [record.DeviceInstanceId]) : null;
+        }
         if (IsVolumeCachePath(normalized))
         {
             return BindVolumeCache(normalized, record, fingerprint);
@@ -201,8 +206,14 @@ public static partial class DeviceTracePolicy
         }
         var owners = new[] { record.DeviceInstanceId }.Concat(record.IdentityAliases).SelectMany(PhysicalIds)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var ids = PhysicalIds(EnumInstanceId(normalized) ?? normalized[(normalized.LastIndexOf('\\') + 1)..])
-            .Where(owners.Contains).Distinct().ToArray();
+        var sourceLeaf = EnumInstanceId(normalized) ?? normalized[(normalized.LastIndexOf('\\') + 1)..];
+        var interfaceOwners = owners.Where(id => DeviceInterfacePath.Matches(sourceLeaf, id)).ToArray();
+        if (interfaceOwners.Length > 1)
+        {
+            return null;
+        }
+        var ids = interfaceOwners.Length == 1 ? interfaceOwners
+            : PhysicalIds(sourceLeaf).Where(owners.Contains).Distinct().ToArray();
         return ids.Length == 0 ? null : new(normalized, fingerprint, ids,
             UsbAncestorInstanceId: ids.All(id => SetupApiDeviceRelations.IsStorageUsbParent(id, record.ParentDeviceInstanceId))
                 ? record.ParentDeviceInstanceId : "");
@@ -213,6 +224,23 @@ public static partial class DeviceTracePolicy
         if (NormalizePath(trace.RegistryPath) is null)
         {
             return "Неподдерживаемый путь реестра.";
+        }
+        if (BluetoothCacheIdentity.AddressFromPath(trace.RegistryPath) is { Length: > 0 } address)
+        {
+            if (trace.DeviceIds.Count == 0 || trace.DeviceIds.Any(id => BluetoothEnumeratorId.DeviceAddress(id) != address)
+                || trace.Vid.Length > 0 || trace.Pid.Length > 0)
+            {
+                return "Адрес кэша Bluetooth не соответствует выбранному устройству.";
+            }
+            foreach (var node in inventory.Where(node => BluetoothEnumeratorId.DeviceAddress(node.InstanceId) == address))
+            {
+                var family = DeviceRemovalPolicy.Related(node, inventory);
+                var reason = DeviceRemovalPolicy.ProtectionReason(node, family);
+                if (reason.Length > 0) { return reason; }
+                if (family.Any(member => isPresent(member.InstanceId))) { return "Bluetooth-устройство сейчас подключено."; }
+            }
+            return trace.DeviceIds.Where(DeviceRemovalPolicy.IsInstanceId).Any(isPresent)
+                ? "Bluetooth-устройство сейчас подключено." : "";
         }
 
         if (IsVolumeCachePath(trace.RegistryPath))
@@ -233,6 +261,12 @@ public static partial class DeviceTracePolicy
         }
 
         var leaf = EnumInstanceId(trace.RegistryPath) ?? trace.RegistryPath[(trace.RegistryPath.LastIndexOf('\\') + 1)..];
+        if (inventory.Select(node => node.InstanceId).Concat(trace.DeviceIds)
+            .Where(id => DeviceInterfacePath.Matches(leaf, id))
+            .Distinct(StringComparer.OrdinalIgnoreCase).Take(2).Count() > 1)
+        {
+            return "Символическая ссылка соответствует нескольким экземплярам устройства.";
+        }
         if (modelCache)
         {
             if (!trace.RegistryPath.Contains(@"\Control\usbflags\", StringComparison.OrdinalIgnoreCase)
@@ -241,7 +275,8 @@ public static partial class DeviceTracePolicy
                 return "Кэш не соответствует выбранной модели.";
             }
         }
-        else if (trace.DeviceIds.Any(id => !PhysicalIds(leaf).Contains(id, StringComparer.OrdinalIgnoreCase)))
+        else if (trace.DeviceIds.Any(id => !PhysicalIds(leaf).Contains(id, StringComparer.OrdinalIgnoreCase)
+                     && !DeviceInterfacePath.Matches(leaf, id)))
         {
             return "Запись не соответствует выбранному экземпляру.";
         }

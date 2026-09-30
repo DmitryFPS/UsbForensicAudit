@@ -88,6 +88,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         CollectReadyBoostVolumeHistory(records, warnings);
         CollectVolumeLabelCache(records, warnings);
         CollectDeviceInterfaceArrivals(controlSets, records, warnings);
+        BluetoothCacheCollector.Collect(controlSets, records, warnings);
         records = DeduplicateEnumRecords(records);
         CorrelatePortableDevices(records);
         CollectUsbFlags(records, warnings);
@@ -264,6 +265,8 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
     private static void CollectDeviceInterfaceArrivals(
         IReadOnlyList<string> controlSets, List<UsbDeviceRecord> records, List<string> warnings)
     {
+        var knownInstanceIds = records.Where(x => !x.DeviceType.Equals("DeviceInterface", StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.DeviceInstanceId).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         foreach (var controlSet in controlSets)
         {
             var rootPath = $@"SYSTEM\{controlSet}\Control\DeviceClasses";
@@ -285,7 +288,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
 
                     foreach (var symbolicLink in classKey.GetSubKeyNames().Take(4096))
                     {
-                        var identity = UsbRegistryForensicHelpers.ParseWpdIdentity(symbolicLink);
+                        var identity = UsbRegistryForensicHelpers.ParseWpdIdentity(symbolicLink, knownInstanceIds);
                         if (string.IsNullOrWhiteSpace(identity.DeviceInstanceId)
                             || !LooksLikeRemovableInterface(identity.DeviceInstanceId))
                         {

@@ -13,7 +13,7 @@ public static class DeviceRemovalPolicy
                    || BluetoothEnumeratorId.DeviceAddress(id).Length > 0
                    || (parts[0].Equals("BTHHFENUM", StringComparison.OrdinalIgnoreCase)
                        && parts[1].Equals("BthHFPAudio", StringComparison.OrdinalIgnoreCase)))
-               && !id.Any(c => char.IsControl(c) || c is '"' or '/' or '*')
+               && !id.Any(c => char.IsControl(c) || c is '"' or '*')
                && (!id.Contains('?') || id.StartsWith(@"SWD\WPDBUSENUM\", StringComparison.OrdinalIgnoreCase)
                    || IsUsbVolume(id))
                && (!parts[0].Equals("SWD", StringComparison.OrdinalIgnoreCase)

@@ -141,7 +141,7 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
             var inventory = DeviceRemovalSelection.WithHistoricalParents(platform.ReadInventory(), targets.Where(x => x.Identity is not null).Select(x => x.Identity!));
             // История SCSI и дочерние PnP-узлы подтверждают связь с USB через родителей.
             // Обрабатываем их, пока родитель ещё существует и доступен повторной проверке.
-            targets = targets.OrderBy(x => x.Trace is null ? 1 : 0)
+            targets = targets.OrderBy(x => BluetoothCacheIdentity.AddressFromPath(x.Trace?.RegistryPath ?? "").Length > 0 ? 2 : x.Trace is null ? 1 : 0)
                 .ThenBy(x => x.Identity is { } node && DeviceRemovalPolicy.HasUsbEvidence(node) ? 1 : 0)
                 .ThenBy(x => x.Identity is { } node && BluetoothEnumeratorId.IsClassicPairingTarget(node.InstanceId) ? 1 : 0)
                 .ThenByDescending(x => x.Identity is { } node ? ParentDepth(node, inventory, []) : 0).ToArray();
@@ -173,7 +173,13 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
                 DeviceRemovalOutcome outcome;
                 try
                 {
-                    var error = ValidateCurrent(target, platform.ReadInventory());
+                    var currentInventory = platform.ReadInventory();
+                    var error = ValidateCurrent(target, currentInventory);
+                    if (error.Length == 0 && BluetoothCacheIdentity.AddressFromPath(target.Trace?.RegistryPath ?? "") is { Length: > 0 } address
+                        && currentInventory.Any(node => BluetoothEnumeratorId.DeviceAddress(node.InstanceId) == address) && !IsAbsent(target))
+                    {
+                        error = "Кэш Bluetooth сохранён: остались PnP-компоненты устройства. Сначала завершите их удаление.";
+                    }
                     if (error.Length > 0)
                     {
                         outcome = new(target.InstanceId, target.Name, "Blocked", error);
@@ -302,7 +308,11 @@ public sealed class DeviceRemovalService(IDeviceRemovalPlatform platform, IAudit
             return 0;
         }
         var parents = inventory.Where(other => !other.InstanceId.Equals(node.InstanceId, StringComparison.OrdinalIgnoreCase)
-            && DeviceRemovalPolicy.IsChild(other, node)).ToArray();
+            && !DeviceRemovalPolicy.IsInfrastructure(other)
+            // Точный PnP-родитель задаёт порядок и для USBSTOR/WPD/томов.
+            // Это не расширяет план удаления и не ослабляет повторную проверку ID.
+            && (other.InstanceId.Equals(node.ParentDeviceInstanceId, StringComparison.OrdinalIgnoreCase)
+                || DeviceRemovalPolicy.IsChild(other, node))).ToArray();
         var depth = parents.Length == 0 ? 0 : 1 + parents.Max(parent => ParentDepth(parent, inventory, ancestors));
         ancestors.Remove(node.InstanceId);
         return depth;

@@ -22,8 +22,12 @@ internal static class DeviceRemovalSelection
 
     public static DeviceRemovalNode[] Nodes(IEnumerable<UsbDeviceRecord> sources, IReadOnlyList<DeviceRemovalNode> inventory)
     {
-        var identifiers = Identities(sources);
+        var sourceRecords = sources.ToArray();
+        var identifiers = Identities(sourceRecords);
+        var bluetoothAddresses = sourceRecords.Select(x => BluetoothEnumeratorId.DeviceAddress(x.DeviceInstanceId))
+            .Where(x => x.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
         return inventory.Where(node => identifiers.Contains(DeviceRemovalPolicy.NormalizeInstanceId(node.InstanceId))
+                || bluetoothAddresses.Contains(BluetoothEnumeratorId.DeviceAddress(node.InstanceId))
                 || (node.AuditInstanceId.Length > 0 && identifiers.Contains(DeviceRemovalPolicy.NormalizeInstanceId(node.AuditInstanceId)))
                 || ((DeviceRemovalPolicy.IsUsbVolume(node.InstanceId)
                         || node.InstanceId.StartsWith(@"SWD\WPDBUSENUM\", StringComparison.OrdinalIgnoreCase))

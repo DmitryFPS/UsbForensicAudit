@@ -268,8 +268,22 @@ internal static class UsbRegistryForensicHelpers
         return true;
     }
 
-    internal static WpdIdentity ParseWpdIdentity(string keyName)
+    internal static WpdIdentity ParseWpdIdentity(string keyName, IEnumerable<string>? knownInstanceIds = null)
     {
+        var known = (knownInstanceIds ?? []).Where(id => DeviceInterfacePath.Matches(keyName, id))
+            .Distinct(StringComparer.OrdinalIgnoreCase).Take(2).ToArray();
+        if (known.Length > 1)
+        {
+            return new WpdIdentity("", "", "");
+        }
+        if (known.Length == 1)
+        {
+            var id = known[0];
+            var knownParts = id.Split('\\', StringSplitOptions.RemoveEmptyEntries).ToList();
+            return new WpdIdentity(id, NormalizeInstanceSuffix(knownParts[^1],
+                knownParts.Any(x => StripDevicePathEscape(x).Equals("USBSTOR", StringComparison.OrdinalIgnoreCase))),
+                FindBackingInstanceId(knownParts));
+        }
         var decoded = Uri.UnescapeDataString(keyName).Replace('#', '\\').Trim('\\');
         var parts = decoded.Split('\\', StringSplitOptions.RemoveEmptyEntries).ToList();
 

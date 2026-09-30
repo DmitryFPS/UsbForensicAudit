@@ -133,7 +133,9 @@ public sealed class UsbDeviceRecord
     public string LastSeenText => DateDisplay.FormatMoscowOr(LastSeenUtc, UserDisplayText.NoLastSeenEvent);
 
     [JsonIgnore]
-    public string LastDisconnectedText => UserDisplayText.DisconnectText(DisconnectDisplayKind, LastDisconnectedUtc, IsCurrentlyConnected);
+    public string LastDisconnectedText => BluetoothCacheIdentity.AddressFromPath(DeviceInstanceId).Length > 0
+        ? "По записи кэша неизвестно"
+        : UserDisplayText.DisconnectText(DisconnectDisplayKind, LastDisconnectedUtc, IsCurrentlyConnected);
 
     [JsonIgnore]
     public string CategoryText => UserDisplayText.DeviceCategory(this);

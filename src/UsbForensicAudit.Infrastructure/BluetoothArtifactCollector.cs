@@ -19,7 +19,7 @@ internal sealed class BluetoothArtifactCollector : INetworkArtifactCollector
     private const string DevicesPath = @"SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices";
     private const string ClassicEnumPath = @"SYSTEM\CurrentControlSet\Enum\BTHENUM";
     private const string LowEnergyEnumPath = @"SYSTEM\CurrentControlSet\Enum\BTHLE";
-    private const string SourceName = "Реестр Windows — сопряжения Bluetooth";
+    private const string SourceName = "Реестр Windows — история устройств Bluetooth";
 
     /// <summary>Пометка услуги, через которую данные могут уйти с машины или прийти на неё.</summary>
     private const string NotableMark = "!";
@@ -64,9 +64,8 @@ internal sealed class BluetoothArtifactCollector : INetworkArtifactCollector
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            warnings.Add($"Сопряжения Bluetooth прочитаны не полностью: {exception.Message}. "
-                         + "Ветка сопряжений закрыта от чтения всем, кроме системы: без прав системы "
-                         + "перечень сопряжённых устройств остаётся неизвестным.");
+            warnings.Add($"История Bluetooth прочитана не полностью: {exception.Message}. "
+                         + "Отсутствующие записи при ошибке чтения не подтверждают отсутствие устройств или сопряжений.");
         }
 
         return new NetworkArtifactSet(connections, evidence);
@@ -157,7 +156,7 @@ internal sealed class BluetoothArtifactCollector : INetworkArtifactCollector
     {
         var parts = new List<string>
         {
-            "Устройство записано в списке сопряжённых устройств Bluetooth этой машины"
+            "Устройство сохранилось в кэше Bluetooth этой машины. Запись может оставаться после отмены сопряжения и не подтверждает его текущее состояние"
         };
 
         if (deviceClass.Length > 0)
@@ -223,12 +222,12 @@ internal sealed class BluetoothArtifactCollector : INetworkArtifactCollector
             var protectedFromInterception = child.GetValue("SSP MITM Protected") as int? ?? 0;
             return secure != 0
                 ? protectedFromInterception != 0
-                    ? "Сопряжение с защитой от перехвата (Secure Simple Pairing с подтверждением)"
-                    : "Сопряжение по Secure Simple Pairing без подтверждения на устройстве"
-                : "Сопряжение состоялось; способ подтверждения Windows не записала";
+                      ? "В кэше: Secure Simple Pairing с подтверждением; текущее сопряжение не проверено"
+                      : "В кэше: Secure Simple Pairing без подтверждения; текущее сопряжение не проверено"
+                  : "Текущее сопряжение не проверено; в кэше нет способа подтверждения";
         }
 
-        return "Сопряжение состоялось; способ подтверждения Windows не записала";
+        return "Текущее сопряжение не проверено; в кэше нет способа подтверждения";
     }
 
     /// <summary>
@@ -392,7 +391,7 @@ internal sealed class BluetoothArtifactCollector : INetworkArtifactCollector
     /// байтов в кодировке UTF-8: имя «Galaxy S9+ пользователя Дмитрий» при
     /// чтении как строки превращалось в набор иероглифов.
     /// </summary>
-    private static string ReadBinaryName(RegistryKey key)
+    internal static string ReadBinaryName(RegistryKey key)
     {
         if (key.GetValue("Name") is not byte[] bytes || bytes.Length == 0)
         {

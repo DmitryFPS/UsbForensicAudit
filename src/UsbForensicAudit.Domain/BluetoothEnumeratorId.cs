@@ -25,6 +25,10 @@ public static class BluetoothEnumeratorId
     /// <summary>Адрес удалённого устройства, а не общий префикс Bluetooth-адаптера.</summary>
     public static string DeviceAddress(string deviceInstanceId)
     {
+        if (BluetoothCacheIdentity.AddressFromPath(deviceInstanceId) is { Length: > 0 } cachedAddress)
+        {
+            return cachedAddress;
+        }
         var parts = DevicePathNormalizer.CanonicalDeviceId(deviceInstanceId, replaceHashes: true).Split('\\');
         if (parts.Length != 3 || parts[0] is not ("BTHENUM" or "BTHLEDEVICE" or "BTHLE"))
         {

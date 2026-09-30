@@ -90,7 +90,7 @@ public static class DeviceKindResolver
             return Infrastructure;
         }
 
-        if (DeviceComposition.IsWpdUsbStorage(device))
+        if (DeviceComposition.IsWpdUsbStorage(device) || device.Transport == "MSC/USBSTOR")
         {
             return Storage;
         }
