@@ -90,6 +90,12 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
         CollectVolumeLabelCache(records, warnings);
         CollectDeviceInterfaceArrivals(controlSets, records, warnings);
         BluetoothCacheCollector.Collect(controlSets, records, warnings);
+        if (records.Any(record => record.DeviceInstanceId.StartsWith(@"BTHENUM\", StringComparison.OrdinalIgnoreCase)))
+        {
+            var classic = ClassicBluetoothSnapshot.Capture();
+            classic.Enrich(records);
+            if (classic.Error.Length > 0) { warnings.Add(classic.Error); }
+        }
         records = DeduplicateEnumRecords(records);
         CorrelatePortableDevices(records);
         CollectUsbFlags(records, warnings);

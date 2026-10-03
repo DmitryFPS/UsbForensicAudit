@@ -7,7 +7,14 @@ namespace UsbForensicAudit;
 /// <summary>Read-only, present-only enumeration. A failed probe is never an empty successful scan.</summary>
 internal sealed record WindowsPnpSnapshot(IReadOnlyDictionary<string, bool?> States, bool Complete, string Error)
 {
-    internal static WindowsPnpSnapshot Capture() => Capture(WindowsPnpProperties.PresentIds, WmiIds, BluetoothConnectionState.Read);
+    internal ClassicBluetoothSnapshot? ClassicBluetooth { get; init; }
+    internal static WindowsPnpSnapshot Capture()
+    {
+        var classic = new Lazy<ClassicBluetoothSnapshot>(ClassicBluetoothSnapshot.Capture);
+        var snapshot = Capture(WindowsPnpProperties.PresentIds, WmiIds,
+            id => BluetoothConnectionState.Read(id, () => classic.Value, BluetoothConnectionState.ReadContainerForInstance));
+        return snapshot with { ClassicBluetooth = classic.IsValueCreated ? classic.Value : null };
+    }
 
     internal static WindowsPnpSnapshot Capture(Func<string[]> nativeIds, Func<string[]> fallbackIds, Func<string, bool?> bluetooth)
     {

@@ -53,6 +53,8 @@ internal static class LivePnpCollector
             }
             records.Add(record);
         }
+        snapshot.ClassicBluetooth?.Enrich(records);
+        DeviceTransportClassifier.ClassifyAll(records);
         return records;
     }
 }

@@ -24,6 +24,23 @@ internal static class BluetoothConnectionState
 
     internal static bool? Read(string instanceId)
     {
+        return Read(instanceId, ClassicBluetoothSnapshot.Capture, ReadContainerForInstance);
+    }
+
+    internal static bool? Read(string instanceId, Func<ClassicBluetoothSnapshot> classic, Func<string, bool?> container)
+    {
+        if (instanceId.StartsWith(@"BTHENUM\", StringComparison.OrdinalIgnoreCase))
+        {
+            var address = BluetoothEnumeratorId.DeviceAddress(instanceId);
+            // A remembered container can remain IsConnected after the phone turns its radio off.
+            // Do not fall back to that stale value when Classic state is unavailable.
+            return address.Length > 0 ? classic().Connection(address) : null;
+        }
+        return container(instanceId);
+    }
+
+    internal static bool? ReadContainerForInstance(string instanceId)
+    {
         using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
         using var instance = machine.OpenSubKey(@"SYSTEM\CurrentControlSet\Enum\" + instanceId);
         var container = instance?.GetValue("ContainerID") as string ?? "";
@@ -37,7 +54,7 @@ internal static class BluetoothConnectionState
     internal static bool? ReadContainer(Guid container)
     {
         // DEVPKEY_DeviceContainer_IsConnected, DevObjectTypeDeviceContainer.
-        // Работает для Classic и LE; запрос конкретного контейнера не запускает поиск устройств.
+        // Container metadata is retained for LE; Classic connection state uses Bluetooth API.
         var requested = new CompositeKey { Format = ContainerProperties, Id = 55 };
         var result = DevGetObjectProperties(2, container.ToString("B"), 0, 1, ref requested,
             out var count, out var properties);
