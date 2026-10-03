@@ -46,7 +46,7 @@ internal static class DeviceCardModel
         new("Пояснение по датам", device.DateConfidenceText),
         new("Расположение", device.LocationDisplayText),
         new("Буквы дисков", device.DriveLetters),
-        new("Подключено сейчас", device.IsCurrentlyConnected ? "да" : "нет"),
+        new("Подключено сейчас", device.CurrentConnectionText),
         new("Системный ID", device.DeviceInstanceId)
     ];
 

@@ -6,7 +6,10 @@ internal static class DeviceEvidenceTokens
     {
         var tokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        Add(tokens, device.Serial, guidAllowed: false);
+        if (DeviceIdentityGraph.IsHardwareSerial(device.Serial))
+        {
+            Add(tokens, device.Serial, guidAllowed: false);
+        }
         Add(tokens, device.ParentIdPrefix, guidAllowed: false);
         Add(tokens, device.DeviceInstanceId, guidAllowed: false);
         Add(tokens, device.ContainerId, guidAllowed: true);
@@ -50,6 +53,12 @@ internal static class DeviceEvidenceTokens
     public static bool Contains(EvidenceRecord evidence, string token)
     {
         var normalizedToken = DevicePathNormalizer.NormalizeDeviceId(token, replaceHashes: true);
+        var hint = DeviceLiveMatcher.NormalizePnpId(evidence.DeviceHint);
+        // A named instance wins over a serial or an unrelated ID in the event body.
+        if (DeviceRemovalPolicy.IsInstanceId(hint))
+        {
+            return DeviceLiveMatcher.PnpIdsMatch(hint, normalizedToken);
+        }
         return ContainsToken(evidence.DeviceHint, normalizedToken)
                || ContainsToken(evidence.Summary, normalizedToken)
                || ContainsToken(evidence.RawText, normalizedToken);

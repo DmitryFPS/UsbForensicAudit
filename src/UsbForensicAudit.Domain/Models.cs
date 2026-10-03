@@ -108,6 +108,14 @@ public sealed class UsbDeviceRecord
     public string GroupDisplayName { get; set; } = "";
 
     public bool IsCurrentlyConnected { get; set; }
+    public string CurrentConnectionState { get; set; } = "Unknown";
+    [JsonIgnore]
+    public string CurrentConnectionText => IsCurrentlyConnected ? "Подключено"
+        : CurrentConnectionState == "Disconnected" ? "Не подключено" : "Не удалось проверить";
+    /// <summary>Only an observed USB port is classified; historical records retain Unknown.</summary>
+    public string ConnectorType { get; set; } = "Unknown";
+    public string ConnectorProvenance { get; set; } = "";
+    public int? BluetoothClassOfDevice { get; set; }
     public string ConnectionDisplayKind { get; set; } = "";
     public string DisconnectDisplayKind { get; set; } = "";
     public DateTimeOffset CollectedAtUtc { get; set; } = DateTimeOffset.UtcNow;
@@ -209,7 +217,8 @@ public sealed class UsbDeviceRecord
         IdentityTrustFindings.Any(x => x.Severity.Equals("High", StringComparison.OrdinalIgnoreCase));
 
     [JsonIgnore]
-    public string TransportDisplayText => DeviceKindResolver.DescribeTransport(Transport, Connection);
+    public string TransportDisplayText => DeviceKindResolver.DescribeTransport(Transport, Connection)
+        + (Connection == "USB" ? ConnectorType == "Type-C" ? "; порт Type-C (наблюдение при сканировании)" : "; тип разъёма не установлен" : "");
 
     [JsonIgnore]
     public string OriginDisplayText => DeviceKindResolver.DescribeOrigin(Classification);
@@ -229,6 +238,7 @@ public sealed class UsbDeviceRecord
     [JsonIgnore]
     public string ClassificationEvidenceText => string.Join("; ",
         TransportProvenance.Concat(ConnectionProvenance).Concat(ClassificationProvenance)
+            .Append(ConnectorProvenance).Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase));
 }
 

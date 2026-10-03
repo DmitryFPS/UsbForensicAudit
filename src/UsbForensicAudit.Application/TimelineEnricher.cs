@@ -17,6 +17,10 @@ public sealed class TimelineEnricher
     public void Enrich(AuditResult result)
     {
         var connectedDevices = _connectedDeviceProbe.Capture();
+        if (connectedDevices.Error.Length > 0)
+        {
+            result.SourceWarnings.Add(connectedDevices.Error);
+        }
         var scanStartedUtc = result.StartedAtUtc;
 
         foreach (var evidence in result.Evidence)
@@ -104,7 +108,9 @@ public sealed class TimelineEnricher
             return;
         }
 
-        device.IsCurrentlyConnected = connectedDevices.IsConnected(device) || device.IsCurrentlyConnected;
+        var currentConnection = connectedDevices.GetConnectionState(device);
+        device.IsCurrentlyConnected = currentConnection == true;
+        device.CurrentConnectionState = currentConnection switch { true => "Connected", false => "Disconnected", _ => "Unknown" };
 
         var tokens = BuildTokens(device).ToArray();
         var timelineMatches = FindTimelineMatches(evidence, tokens);
@@ -192,6 +198,12 @@ public sealed class TimelineEnricher
 
         if (device.LastSeenUtc.HasValue)
         {
+            if (!currentConnection.HasValue)
+            {
+                device.DisconnectDisplayKind = "ConnectionUnknown";
+                device.DateConfidence = AppendConfidence(device.DateConfidence, "Текущее подключение не проверено; последняя активность не доказывает отключение.");
+                return;
+            }
             device.LastDisconnectedUtc = device.LastSeenUtc;
             device.DisconnectDisplayKind = "LastActivityEstimate";
             device.LastDisconnectedProvenance = string.IsNullOrWhiteSpace(device.LastSeenProvenance)
@@ -203,6 +215,12 @@ public sealed class TimelineEnricher
             return;
         }
 
+        if (!currentConnection.HasValue)
+        {
+            device.DisconnectDisplayKind = "ConnectionUnknown";
+            device.DateConfidence = AppendConfidence(device.DateConfidence, "Текущее подключение не проверено.");
+            return;
+        }
         device.DisconnectDisplayKind = "NotConnectedUnknown";
         device.DateConfidence = string.IsNullOrWhiteSpace(device.DateConfidence)
             ? "Устройство сейчас не подключено, но точное время отключения не найдено."
@@ -375,6 +393,10 @@ public sealed class TimelineEnricher
 
     private static bool IsDisconnectEvidence(EvidenceRecord evidence)
     {
+        if (evidence.Provider.Equals("SetupAPI", StringComparison.OrdinalIgnoreCase))
+        {
+            return evidence.EvidenceCategory.Contains("Отключение", StringComparison.OrdinalIgnoreCase);
+        }
         return evidence.EvidenceCategory.Contains("Отключение", StringComparison.OrdinalIgnoreCase)
                || evidence.EvidenceCategory.StartsWith(EndpointProtectionCategories.Disconnect, StringComparison.OrdinalIgnoreCase)
                || HasDisconnectWording(evidence.Summary)

@@ -16,12 +16,15 @@ internal static class LiveDeviceIdentity
         if (!string.IsNullOrWhiteSpace(vid) && !string.IsNullOrWhiteSpace(pid))
         {
             var serial = ExtractSerial(deviceId);
-            if (!string.IsNullOrWhiteSpace(serial) && !IsGenericSerial(serial))
+            if (!string.IsNullOrWhiteSpace(serial) && !IsGenericSerial(serial)
+                && !DeviceIdentityTrust.IsWindowsGeneratedSerial(serial)
+                && !DeviceIdentityTrust.IsRepeatedCharacterSerial(serial)
+                && !DeviceIdentityTrust.IsPlaceholderSerial(serial))
             {
                 return $"{vid}:{pid}:{serial}".ToUpperInvariant();
             }
 
-            return $"{vid}:{pid}".ToUpperInvariant();
+            return NormalizeDeviceId(deviceId);
         }
 
         return NormalizeDeviceId(deviceId);

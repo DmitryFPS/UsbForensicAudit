@@ -29,21 +29,20 @@ public static partial class DeviceTransportClassifier
         foreach (var scsi in records.Where(x =>
                      x.DeviceInstanceId.StartsWith(@"SCSI\", StringComparison.OrdinalIgnoreCase)))
         {
-            if (IsInternalFixedStorage(scsi) || IsInternalNvmeStorage(scsi))
-            {
-                continue;
-            }
-
-            var bridge = records.FirstOrDefault(usb =>
+            var bridges = records.Where(usb =>
                 !ReferenceEquals(usb, scsi)
                 && usb.DeviceInstanceId.StartsWith(@"USB\", StringComparison.OrdinalIgnoreCase)
-                && IsSameTopology(scsi, usb));
-            if (bridge is null)
+                && usb.Classification is not "Hub" and not "Virtual"
+                && (scsi.Classification != "BuiltIn" || usb.Transport is "MSC/USBSTOR" or "UASP/SCSI"
+                    || DeviceLiveMatcher.PnpIdsMatch(scsi.ParentDeviceInstanceId, usb.DeviceInstanceId))
+                && IsSameTopology(scsi, usb)).DistinctBy(x => x.DeviceInstanceId, StringComparer.OrdinalIgnoreCase).ToArray();
+            if (bridges.Length != 1)
             {
                 continue;
             }
+            var bridge = bridges[0];
 
-            if (scsi.Transport == "Unknown")
+            if (scsi.Transport is "Unknown" or "Internal Disk" or "Internal NVMe")
             {
                 SetTransport(scsi, "UASP/SCSI", "Medium",
                     $"SCSI topology links to USB bridge {bridge.DeviceInstanceId}");
@@ -53,7 +52,7 @@ public static partial class DeviceTransportClassifier
                 SetConnection(scsi, "USB", "Medium",
                     $"linked USB bridge {bridge.DeviceInstanceId}");
             }
-            if (scsi.Classification == "Unknown")
+            if (scsi.Classification is "Unknown" or "BuiltIn")
             {
                 SetClassification(scsi, "External", "Medium",
                     "SCSI instance linked to a USB bridge by container/parent/topology");
@@ -141,6 +140,10 @@ public static partial class DeviceTransportClassifier
         string mediaType = "")
     {
         var text = Join(pnpId, service, hardwareIds, compatibleIds, locationPaths, name, mediaType);
+        if (BluetoothEnumeratorId.DeviceAddress(pnpId).Length > 0)
+        {
+            return true;
+        }
         if (StartsWithAny(pnpId, @"USB\", @"USBSTOR\", @"SWD\WPDBUSENUM\", @"USB4\"))
         {
             return true;
@@ -358,7 +361,13 @@ public static partial class DeviceTransportClassifier
 
     private static void ClassifyConnection(UsbDeviceRecord device, string text, string id)
     {
-        if (device.Transport == "Bluetooth")
+        var usbNode = StartsWithAny(id, @"USB\", @"USBSTOR\") || DeviceComposition.IsWpdUsbStorage(device);
+        var usbParent = StartsWithAny(device.ParentDeviceInstanceId, @"USB\", @"USBSTOR\");
+        var bluetoothParent = BluetoothEnumeratorId.DeviceAddress(device.ParentDeviceInstanceId).Length > 0;
+        var usbAlias = device.IdentityAliases.Any(alias => StartsWithAny(alias, @"USB\", @"USBSTOR\"));
+        var bluetoothAlias = device.IdentityAliases.Any(alias => BluetoothEnumeratorId.DeviceAddress(alias).Length > 0);
+        if (device.Transport == "Bluetooth"
+            || (!usbNode && !usbParent && (bluetoothParent || (bluetoothAlias && !usbAlias))))
         {
             SetConnection(device, "Bluetooth", "High", "Bluetooth enumerator instance ID");
         }
@@ -375,7 +384,7 @@ public static partial class DeviceTransportClassifier
             SetConnection(device, "USB4/Thunderbolt", "High",
                 "USB4/Thunderbolt router/device evidence");
         }
-        else if (StartsWithAny(id, @"USB\", @"USBSTOR\", @"SWD\WPDBUSENUM\")
+        else if (usbNode || usbParent || (usbAlias && !bluetoothAlias)
                  || device.Service.Equals("uaspstor", StringComparison.OrdinalIgnoreCase)
                  || ContainsAny(device.LocationPaths, "USBROOT", "USB("))
         {
@@ -385,6 +394,11 @@ public static partial class DeviceTransportClassifier
 
     private static void ClassifyRole(UsbDeviceRecord device, string text, string id)
     {
+        if (device.Service.Equals("nhi", StringComparison.OrdinalIgnoreCase))
+        {
+            SetClassification(device, "Hub", "High", "Thunderbolt host controller service=nhi");
+            return;
+        }
         if (ContainsAny(text, VirtualMarkers))
         {
             SetClassification(device, "Virtual", "High", "virtualization vendor/bus marker");
@@ -413,7 +427,7 @@ public static partial class DeviceTransportClassifier
             return;
         }
 
-        if (ContainsAny(text, "INTEGRATED", "BUILT-IN", "BUILT IN", "INTERNAL CAMERA", "WEBCAM")
+        if (ContainsAny(text, "INTEGRATED", "BUILT-IN", "BUILT IN", "INTERNAL CAMERA")
             && !ContainsAny(text, "EXTERNAL"))
         {
             SetClassification(device, "BuiltIn", "Medium", "integrated/built-in device marker");
@@ -511,8 +525,8 @@ public static partial class DeviceTransportClassifier
 
     private static bool IsSameTopology(UsbDeviceRecord left, UsbDeviceRecord right)
     {
-        if (!string.IsNullOrWhiteSpace(left.ContainerId)
-            && left.ContainerId.Equals(right.ContainerId, StringComparison.OrdinalIgnoreCase))
+        if (DeviceLiveMatcher.PnpIdsMatch(left.ParentDeviceInstanceId, right.DeviceInstanceId)) { return true; }
+        if (DeviceRemovalPolicy.SameContainer(left.ContainerId, right.ContainerId))
         {
             return true;
         }
@@ -524,14 +538,8 @@ public static partial class DeviceTransportClassifier
             return true;
         }
 
-        var leftPath = left.LocationPaths.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .FirstOrDefault();
-        var rightPath = right.LocationPaths.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .FirstOrDefault();
-        return !string.IsNullOrWhiteSpace(leftPath)
-               && !string.IsNullOrWhiteSpace(rightPath)
-               && (leftPath.Contains(rightPath, StringComparison.OrdinalIgnoreCase)
-                   || rightPath.Contains(leftPath, StringComparison.OrdinalIgnoreCase));
+        // A historical port path can be reused by unrelated devices.
+        return false;
     }
 
     private static string Join(params string?[] values) =>

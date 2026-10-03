@@ -40,7 +40,8 @@ public class DateProvenanceTests
             LastSeenProvenance = "Microsoft-Windows-Partition/Diagnostic | событие 1006"
         });
 
-        new TimelineEnricher().Enrich(result);
+        // The estimate requires a successful presence check; an unavailable probe is Unknown.
+        new TimelineEnricher(new AbsentProbe()).Enrich(result);
         var device = result.Devices[0];
 
         Assert.Equal("LastActivityEstimate", device.DisconnectDisplayKind);
@@ -82,6 +83,11 @@ public class DateProvenanceTests
         {
             Assert.False(string.IsNullOrWhiteSpace(provenance), $"У даты «{label}» не указан источник.");
         }
+    }
+
+    private sealed class AbsentProbe : IConnectedDeviceProbe
+    {
+        public ConnectedDeviceIndex Capture() => ConnectedDeviceIndex.Build([], []);
     }
 
     private static AuditResult BuildResult(params UsbDeviceRecord[] devices)

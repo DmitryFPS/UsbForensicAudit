@@ -324,6 +324,7 @@ public partial class MainWindow
                 if (IsActiveDevicesWindowOpen())
                 {
                     _activeDevicesWindow!.UpdateDevices(devices);
+                    _activeDevicesWindow.ShowSnapshotWarning(_liveUsbSnapshotService.LastWarning);
                 }
 
                 CheckForUnknownDevices(devices);
@@ -336,7 +337,14 @@ public partial class MainWindow
         catch (Exception ex)
         {
             AppLog.Error(ex, "Active USB snapshot failed");
-            await Dispatcher.InvokeAsync(() => AppendLog($"Не удалось обновить окно текущих USB: {ex.Message}"));
+            await Dispatcher.InvokeAsync(() =>
+            {
+                AppendLog($"Не удалось обновить окно текущих USB: {ex.Message}");
+                if (IsActiveDevicesWindowOpen())
+                {
+                    _activeDevicesWindow!.ShowSnapshotWarning("Обновление не удалось. Показан предыдущий снимок; текущее состояние не подтверждено. " + ex.Message);
+                }
+            });
         }
         finally
         {

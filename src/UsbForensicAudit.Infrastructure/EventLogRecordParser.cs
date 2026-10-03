@@ -25,6 +25,7 @@ internal static class EventLogRecordParser
     private static readonly string[] DeviceMarkers =
     [
         @"USBSTOR\", @"USB\", "VID_", "PID_", @"SCSI\", @"STORAGE\", @"SWD\", @"USB4\",
+        @"BTHENUM\", @"BTHLE\", @"BTHLEDEVICE\",
         "WPDBUSENUM", "WPD", "MTP", "PTP", "UASP", "UASPSTOR", "THUNDERBOLT", "PCIe-tunneled"
     ];
 
@@ -248,6 +249,10 @@ internal static class EventLogEventClassifier
 
     public static string Classify(ParsedEventLogRecord record)
     {
+        if (IsBluetoothDeviceEvent(record))
+        {
+            return "Установка/конфигурация Bluetooth-устройства";
+        }
         if (Is(record, "Microsoft-Windows-Eventlog", 104)
             || Is(record, "Microsoft-Windows-Security-Auditing", 1102))
         {
@@ -292,6 +297,7 @@ internal static class EventLogEventClassifier
 
     public static bool CanEstablishConnectionDate(ParsedEventLogRecord record)
     {
+        if (IsBluetoothDeviceEvent(record)) { return false; }
         if (Is(record, "Microsoft-Windows-Security-Auditing", 6416)
             || Is(record, "Microsoft-Windows-Partition", 1006))
         {
@@ -341,6 +347,11 @@ internal static class EventLogEventClassifier
 
     private static bool Is(ParsedEventLogRecord record, string provider, int eventId)
         => IsProvider(record, provider) && record.EventId == eventId;
+
+    private static bool IsBluetoothDeviceEvent(ParsedEventLogRecord record) => record.Fields.Values.Any(value =>
+        value.StartsWith(@"BTHENUM\", StringComparison.OrdinalIgnoreCase)
+        || value.StartsWith(@"BTHLE\", StringComparison.OrdinalIgnoreCase)
+        || value.StartsWith(@"BTHLEDEVICE\", StringComparison.OrdinalIgnoreCase));
 
     private static bool IsProvider(ParsedEventLogRecord record, string provider)
         => record.Provider.Equals(provider, StringComparison.OrdinalIgnoreCase);

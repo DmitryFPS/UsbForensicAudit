@@ -108,10 +108,10 @@ internal sealed class BluetoothArtifactCollector : INetworkArtifactCollector
                                   + "последнее соединение и последнее обнаружение. Здесь стоит ранняя из "
                                   + "этих двух дат, и первым подключением она не является",
             LastSeenUtc = Later(lastConnected, lastSeen),
-            LastSeenProvenance = (lastConnected is not null
+            LastSeenProvenance = (lastConnected is not null && (lastSeen is null || lastConnected >= lastSeen)
                                      ? $@"LastConnected в HKLM\{DevicesPath}\{address}"
                                      : $@"LastSeen в HKLM\{DevicesPath}\{address}")
-                                 + "; значение записано в местном времени машины и приведено к UTC",
+                                 + "; реестровая дата интерпретирована как местное время машины и приведена к UTC",
             Source = SourceName,
             Provenance = $@"HKLM\{DevicesPath}\{address}",
             Details = BuildDetails(deviceClass, abilities, deviceServices, lowEnergy.Contains(address))
@@ -472,9 +472,8 @@ internal sealed class BluetoothArtifactCollector : INetworkArtifactCollector
         Confidence = "High",
         CanEstablishConnectionDate = false,
         Summary = "Ветки сопряжений Bluetooth в реестре нет.",
-        UserExplanation = "Ветка появляется вместе с радиомодулем Bluetooth. Её отсутствие означает, "
-                          + "что радиомодуля на машине нет или его драйвер никогда не устанавливался, "
-                          + "а значит, сопряжений быть не могло.",
+        UserExplanation = "Источник истории Bluetooth отсутствует. Это не доказывает отсутствие "
+                          + "радиомодуля или прежних сопряжений: записи могли быть удалены или сброшены.",
         Provenance = $@"HKLM\{DevicesPath}"
     };
 
@@ -486,7 +485,7 @@ internal sealed class BluetoothArtifactCollector : INetworkArtifactCollector
         EvidenceStrength = "Context",
         Confidence = "High",
         CanEstablishConnectionDate = false,
-        Summary = "Радиомодуль Bluetooth есть, сопряжённых устройств не записано.",
+        Summary = "История Bluetooth не содержит записей об устройствах.",
         UserExplanation = "Записи о сопряжениях хранятся до их удаления вручную или сброса Bluetooth. "
                           + "Пустой список означает, что сопряжений не было либо их удалили; сама "
                           + "ветка при удалении сопряжения остаётся.",

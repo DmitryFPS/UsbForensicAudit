@@ -84,6 +84,12 @@ public sealed class WmiUsbMonitor : IDisposable
             _watcher = new ManagementEventWatcher(query);
             _watcher.EventArrived += OnEventArrived;
             _watcher.Start();
+            // Bluetooth can connect/disconnect without adding/removing its paired PnP node.
+            lock (_timerSync)
+            {
+                _pollingTimer = new System.Threading.Timer(
+                    _ => RequestRefresh("Проверка соединений USB/Bluetooth"), null, PollingInterval, PollingInterval);
+            }
         }
         catch (Exception exception)
         {

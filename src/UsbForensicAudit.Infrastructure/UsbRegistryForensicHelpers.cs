@@ -173,6 +173,7 @@ internal static class UsbRegistryForensicHelpers
         target.ContainerId = Prefer(target.ContainerId, candidate.ContainerId);
         target.ParentIdPrefix = Prefer(target.ParentIdPrefix, candidate.ParentIdPrefix);
         target.ParentDeviceInstanceId = Prefer(target.ParentDeviceInstanceId, candidate.ParentDeviceInstanceId);
+        target.BluetoothClassOfDevice ??= candidate.BluetoothClassOfDevice;
         target.LocationInformation = Prefer(target.LocationInformation, candidate.LocationInformation);
         target.LocationPaths = Prefer(target.LocationPaths, candidate.LocationPaths);
         target.DriveLetters = MergeText(target.DriveLetters, candidate.DriveLetters);
@@ -210,7 +211,7 @@ internal static class UsbRegistryForensicHelpers
     private static readonly string[] EnumeratorNames =
     [
         "USBSTOR", "USB4", "USBSER", "USB", "SWD", "SCSI", "HID", "PCI",
-        "BTHENUM", "BTHLEDEVICE", "BTH", "SDBUS", "SD", "STORAGE", "ACPI"
+        "BTHENUM", "BTHLEDEVICE", "BTHLE", "BTH", "SDBUS", "SD", "STORAGE", "ACPI"
     ];
 
     /// <summary>

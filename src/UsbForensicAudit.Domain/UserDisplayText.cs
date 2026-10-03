@@ -480,6 +480,7 @@ public static class UserDisplayText
             "LastActivityEstimate" when disconnectedUtc.HasValue =>
                 $"{DateDisplay.FormatMoscow(disconnectedUtc.Value)} (ориентир — последняя активность)",
             "ConnectedNow" => ConnectedNow,
+            "ConnectionUnknown" => "Текущее подключение не удалось проверить; время отключения неизвестно",
             "NotConnectedUnknown" => NotConnectedUnknown,
             "PreviousSession" => "Последнее отключение неизвестно (было новое подключение)",
             "NotApplicable" => NotApplicableDisconnect,

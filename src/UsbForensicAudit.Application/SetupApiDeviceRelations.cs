@@ -137,7 +137,7 @@ public static partial class SetupApiDeviceRelations
                && DeviceRemovalPolicy.IsInstanceId(child) && DeviceRemovalPolicy.IsInstanceId(parent);
     }
 
-    [GeneratedRegex(@"^>>>\s+\[Device Install(?:\s+\([^\]\r\n]*\))?\s+-\s+(?<id>USB\\[^\]\r\n]+)\]\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^>>>\s+\[Device Install(?:\s+\([^\]\r\n]*\))?\s+-\s+(?<id>(?:USB|SCSI)\\[^\]\r\n]+)\]\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SectionDeviceRegex();
 
     [GeneratedRegex(@"^\s*dvi:\s*\{(?:Install|Configure) Device\s+-\s+(?<id>[^}\r\n]+)\}(?:\s+[0-9:.]+)?\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

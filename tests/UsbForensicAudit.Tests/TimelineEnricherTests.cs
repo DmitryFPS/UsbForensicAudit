@@ -51,6 +51,7 @@ public class TimelineEnricherTests
         {
             DeviceInstanceId = @"USBSTOR\Disk&Ven_General&Prod_UDisk&Rev_5.00\2412242109410569603146&0",
             Serial = "2412242109410569603146",
+            IdentityAliases = [@"USB\VID_ABCD&PID_1234\2412242109410569603146"],
             VisualCategory = "RealUsb"
         };
         var result = new AuditResult

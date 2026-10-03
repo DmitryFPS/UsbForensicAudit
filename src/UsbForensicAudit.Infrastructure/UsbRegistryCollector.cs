@@ -65,6 +65,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
                      ("SD", "Registry: SD-карты"),
                      ("SDBUS", "Registry: SD-карты"),
                      ("BTHENUM", "Registry: Bluetooth"),
+                     ("BTHLE", "Registry: Bluetooth LE"),
                      ("BTHLEDEVICE", "Registry: Bluetooth LE"),
                      ("USBSER", "Registry: USB COM-порт"),
                      ("USBPRINT", "Registry: USB-принтер")
@@ -349,7 +350,7 @@ public sealed class UsbRegistryCollector : IUsbDeviceCollector
     private static readonly string[] RemovableInterfacePrefixes =
     [
         @"USBSTOR\", @"USB\", @"USB4\", @"SWD\WPDBUSENUM\",
-        @"SD\", @"SDBUS\", @"BTHENUM\", @"BTHLEDEVICE\"
+        @"SD\", @"SDBUS\", @"BTHENUM\", @"BTHLE\", @"BTHLEDEVICE\"
     ];
 
     internal static bool LooksLikeRemovableInterface(string instanceId) =>

@@ -1,16 +1,14 @@
 using System.Management;
-using System.Text.RegularExpressions;
 
 namespace UsbForensicAudit;
 
 public sealed class LiveDeviceMerger : ILiveDeviceMerger
 {
-    private static readonly Regex VidPidRegex = new(@"VID_([0-9A-F]{4})&PID_([0-9A-F]{4})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public void Merge(AuditResult result)
     {
         var existing = result.Devices.ToList();
-        var liveRecords = CollectLiveRecords(result.StartedAtUtc);
+        var liveRecords = CollectLiveRecords(result.StartedAtUtc, result.SourceWarnings);
 
         foreach (var live in liveRecords)
         {
@@ -52,7 +50,14 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
             match.CompatibleIds = FirstNotEmpty(match.CompatibleIds, live.CompatibleIds);
             match.LocationInformation = FirstNotEmpty(match.LocationInformation, live.LocationInformation);
             match.LocationPaths = FirstNotEmpty(match.LocationPaths, live.LocationPaths);
-            ApplyLiveConnectionState(match, live, result.StartedAtUtc);
+            match.ParentDeviceInstanceId = FirstNotEmpty(live.ParentDeviceInstanceId, match.ParentDeviceInstanceId);
+            match.ContainerId = FirstNotEmpty(live.ContainerId, match.ContainerId);
+            match.ClassGuid = FirstNotEmpty(live.ClassGuid, match.ClassGuid);
+            match.ConnectorType = live.ConnectorType;
+            match.ConnectorProvenance = live.ConnectorProvenance;
+            match.CurrentConnectionState = live.CurrentConnectionState;
+            match.IsCurrentlyConnected = live.IsCurrentlyConnected;
+            if (live.IsCurrentlyConnected) { ApplyLiveConnectionState(match, live, result.StartedAtUtc); }
             foreach (var volume in live.Volumes)
             {
                 if (!match.Volumes.Any(x => x.DriveLetter.Equals(volume.DriveLetter, StringComparison.OrdinalIgnoreCase)
@@ -68,65 +73,15 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
         DeviceIdentityGraph.Process(result.Devices);
     }
 
-    private static List<UsbDeviceRecord> CollectLiveRecords(DateTimeOffset scanTime)
+    private static List<UsbDeviceRecord> CollectLiveRecords(DateTimeOffset scanTime, List<string> warnings)
     {
-        var records = new List<UsbDeviceRecord>();
-
-        try
-        {
-            using var searcher = new ManagementObjectSearcher(
-                "SELECT PNPDeviceID, Name, Caption, Description, Service, PNPClass FROM Win32_PnPEntity " +
-                "WHERE PNPDeviceID LIKE 'USB%' OR PNPDeviceID LIKE 'USBSTOR%' OR PNPDeviceID LIKE 'SCSI%' " +
-                "OR PNPDeviceID LIKE 'SWD%' OR PNPDeviceID LIKE 'USB4%' OR PNPDeviceID LIKE 'PCI%' " +
-                "OR Service='uaspstor' OR Service='Usb4HostRouter' OR Service='Usb4DeviceRouter' OR Service='Usb4P2PNetAdapter'");
-
-            foreach (ManagementObject item in searcher.Get())
-            {
-                var pnpId = item["PNPDeviceID"]?.ToString();
-                var metadata = LiveDeviceMetadataReader.Read(pnpId ?? "");
-                if (!DeviceTransportClassifier.IsRelevantLiveCandidate(
-                        pnpId ?? "", Read(item, "Service"), metadata.HardwareIds, metadata.CompatibleIds,
-                        metadata.LocationPaths, FirstNotEmpty(Read(item, "Name"), Read(item, "Caption"), Read(item, "Description")))
-                    && !DeviceTransportClassifier.IsBuiltinStorageLiveCandidate(
-                        pnpId ?? "", Read(item, "Service"), metadata.HardwareIds, metadata.CompatibleIds,
-                        metadata.LocationPaths, FirstNotEmpty(Read(item, "Name"), Read(item, "Caption"), Read(item, "Description"))))
-                {
-                    continue;
-                }
-                AddLiveRecord(records, pnpId, Read(item, "Name"), Read(item, "Caption"), Read(item, "Description"), scanTime);
-            }
-
-            using var diskSearcher = new ManagementObjectSearcher(
-                "SELECT PNPDeviceID, Model, Caption, InterfaceType, MediaType FROM Win32_DiskDrive " +
-                "WHERE InterfaceType='USB' OR MediaType='Removable Media' OR MediaType='External hard disk media' OR PNPDeviceID LIKE 'SCSI%'");
-
-            foreach (ManagementObject disk in diskSearcher.Get())
-            {
-                var pnpId = disk["PNPDeviceID"]?.ToString() ?? "";
-                var mediaType = disk["MediaType"]?.ToString() ?? "";
-                var metadata = LiveDeviceMetadataReader.Read(pnpId);
-                if (!DeviceTransportClassifier.IsRelevantLiveCandidate(
-                        pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds, metadata.LocationPaths,
-                        FirstNotEmpty(Read(disk, "Model"), Read(disk, "Caption")), mediaType)
-                    && !DeviceTransportClassifier.IsBuiltinStorageLiveCandidate(
-                        pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds, metadata.LocationPaths,
-                        FirstNotEmpty(Read(disk, "Model"), Read(disk, "Caption")), mediaType))
-                {
-                    continue;
-                }
-                AddLiveRecord(records, pnpId, Read(disk, "Model"), Read(disk, "Caption"), Read(disk, "MediaType"), scanTime);
-            }
-
-            AddLiveVolumes(records);
-        }
-        catch
-        {
-            // Слияние с live-данными выполняется по возможности (без гарантий).
-        }
-
+        var snapshot = WindowsPnpSnapshot.Capture();
+        if (snapshot.Error.Length > 0) { warnings.Add(snapshot.Error); }
+        var records = LivePnpCollector.Collect(snapshot, DateTimeOffset.UtcNow);
+        try { AddLiveVolumes(records); }
+        catch (Exception ex) { warnings.Add("Текущие тома WMI не прочитаны: " + ex.Message); }
         return records;
     }
-
     private static void AddLiveVolumes(List<UsbDeviceRecord> records)
     {
         using var volumeSearcher = new ManagementObjectSearcher(
@@ -186,67 +141,6 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
         return "";
     }
 
-    private static void AddLiveRecord(List<UsbDeviceRecord> records, string? pnpId, string name, string caption, string description, DateTimeOffset scanTime)
-    {
-        if (string.IsNullOrWhiteSpace(pnpId))
-        {
-            return;
-        }
-
-        if (records.Any(x => x.DeviceInstanceId.Equals(pnpId, StringComparison.OrdinalIgnoreCase)))
-        {
-            return;
-        }
-
-        var metadata = LiveDeviceMetadataReader.Read(pnpId);
-        var vidPid = VidPidRegex.Match(pnpId);
-        var record = new UsbDeviceRecord
-        {
-            Source = "Live: WMI",
-            VisualCategory = pnpId.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase) ? "RealUsb" : "RealUsb",
-            UserMeaning = pnpId.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase)
-                ? "Реальное USB Mass Storage устройство: флешка, внешний диск или кардридер."
-                : "Реальное USB/Type-C устройство, видимое системой прямо сейчас.",
-            DeviceInstanceId = pnpId,
-            DeviceType = pnpId.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase) ? "USBSTOR" : "USB",
-            Serial = ExtractSerial(pnpId),
-            FriendlyName = TextSanitizer.Clean(FirstNotEmpty(name, caption, description), 260),
-            Manufacturer = metadata.Manufacturer,
-            Product = metadata.Product,
-            Revision = metadata.Revision,
-            Service = metadata.Service,
-            HardwareIds = metadata.HardwareIds,
-            CompatibleIds = metadata.CompatibleIds,
-            LocationInformation = metadata.LocationInformation,
-            LocationPaths = metadata.LocationPaths,
-            IsCurrentlyConnected = true,
-            FirstConnectedUtc = scanTime,
-            LastSeenUtc = scanTime,
-            ConnectionDisplayKind = "LiveAtScan",
-            DisconnectDisplayKind = "ConnectedNow",
-            FirstConnectedProvenance = ScanProvenance(scanTime),
-            LastSeenProvenance = ScanProvenance(scanTime),
-            DateConfidence = "Устройство обнаружено через WMI во время сканирования. Показано время сканирования: "
-                             + "оно доказывает, что устройство было подключено в этот момент, но не говорит, когда его подключили. "
-                             + "DLP может блокировать обычные журналы Windows.",
-            CollectedAtUtc = scanTime
-        };
-
-        if (vidPid.Success)
-        {
-            record.Vid = vidPid.Groups[1].Value.ToUpperInvariant();
-            record.Pid = vidPid.Groups[2].Value.ToUpperInvariant();
-        }
-
-        DeviceTransportClassifier.Classify(record);
-        if (record.Classification == "BuiltIn" && record.Transport is "Internal NVMe" or "Internal Disk")
-        {
-            record.VisualCategory = "RelatedStorage";
-        }
-
-        records.Add(record);
-    }
-
     internal static void ApplyLiveConnectionState(UsbDeviceRecord match, UsbDeviceRecord live, DateTimeOffset scanTime)
     {
         match.IsCurrentlyConnected = true;
@@ -282,7 +176,7 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
         {
             match.DateConfidence = !string.IsNullOrWhiteSpace(live.DateConfidence)
                 ? live.DateConfidence
-                : "Внутренний диск обнаружен через WMI во время сканирования.";
+                : "Устройство обнаружено при текущем опросе Windows; время начала подключения неизвестно.";
         }
     }
 
@@ -300,20 +194,15 @@ public sealed class LiveDeviceMerger : ILiveDeviceMerger
     {
         foreach (var device in existing)
         {
-            if (DeviceLiveMatcher.AreLikelySameDevice(device, live))
+            // A shared physical container may contain separate USB and Bluetooth functions.
+            // Refresh only the exact node; DeviceIdentityGraph handles physical grouping later.
+            if (DeviceLiveMatcher.PnpIdsMatch(device.DeviceInstanceId, live.DeviceInstanceId))
             {
                 return device;
             }
         }
 
         return null;
-    }
-
-    private static string ExtractSerial(string pnpId)
-    {
-        var lastSlash = pnpId.LastIndexOf('\\');
-        var serial = lastSlash >= 0 ? pnpId[(lastSlash + 1)..] : pnpId;
-        return serial.EndsWith("&0", StringComparison.OrdinalIgnoreCase) ? serial[..^2] : serial;
     }
 
     private static string Read(ManagementBaseObject item, string property)

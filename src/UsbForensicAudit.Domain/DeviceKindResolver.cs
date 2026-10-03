@@ -95,6 +95,11 @@ public static class DeviceKindResolver
             return Storage;
         }
 
+        if (device.Transport == "Bluetooth" && device.BluetoothClassOfDevice is { } cod && ((cod >> 8) & 0x1f) == 2)
+        {
+            return PortableDevice;
+        }
+
         if (ServiceKinds.TryGetValue(device.Service.Trim(), out var byService))
         {
             return byService;
@@ -165,7 +170,13 @@ public static class DeviceKindResolver
     {
         "MSC/USBSTOR" => "По USB как обычный диск",
         "UASP/SCSI" => "По USB в скоростном режиме UASP",
-        "MTP/PTP/WPD" => "По USB в режиме передачи файлов (MTP/PTP), как телефон или камера",
+        "MTP/PTP/WPD" => connection switch
+        {
+            "USB" => "По USB в режиме передачи файлов (MTP/PTP), как телефон или камера",
+            "Bluetooth" => "MTP/PTP/WPD по Bluetooth",
+            "IP" => "MTP/PTP/WPD по сети",
+            _ => "MTP/PTP/WPD; физический способ подключения не установлен"
+        },
         "USB" => "По USB",
         "Bluetooth" => "По Bluetooth",
         "USB4/Thunderbolt/PCIe-tunneled candidate" => "По USB4 или Thunderbolt",

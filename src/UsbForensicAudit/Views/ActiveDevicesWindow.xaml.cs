@@ -67,6 +67,8 @@ public partial class ActiveDevicesWindow : Window
         RestoreSelection(selectedKey);
     }
 
+    public void ShowSnapshotWarning(string warning) => SnapshotWarning.Text = warning;
+
     private void RestoreSelection(string? selectedKey)
     {
         if (string.IsNullOrWhiteSpace(selectedKey))

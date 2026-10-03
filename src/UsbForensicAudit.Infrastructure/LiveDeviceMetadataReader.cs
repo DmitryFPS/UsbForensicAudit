@@ -4,6 +4,18 @@ namespace UsbForensicAudit;
 
 internal static class LiveDeviceMetadataReader
 {
+    internal static (string Parent, string Container, string ClassGuid, string Name) ReadIdentity(string id)
+    {
+        var parent = WindowsPnpProperties.Parent(id);
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Enum\" + id);
+            return (parent, key?.GetValue("ContainerID") as string ?? "",
+                key?.GetValue("ClassGUID") as string ?? "", Clean(key?.GetValue("FriendlyName") as string));
+        }
+        catch (Exception) { return (parent, "", "", ""); }
+    }
+
     public static (
         string Manufacturer,
         string Product,

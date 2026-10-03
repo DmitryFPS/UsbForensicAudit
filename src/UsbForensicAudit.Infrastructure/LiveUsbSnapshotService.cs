@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Management;
 using System.Text.RegularExpressions;
 
 namespace UsbForensicAudit;
@@ -9,192 +8,25 @@ public sealed class LiveUsbSnapshotService
     private static readonly Regex VidPidRegex = new(@"VID_([0-9A-F]{4})&PID_([0-9A-F]{4})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private readonly ConcurrentDictionary<string, DateTimeOffset> _firstSeenByStableKey = new(StringComparer.OrdinalIgnoreCase);
 
+    public string LastWarning { get; private set; } = "";
+
     public IReadOnlyList<LiveUsbDevice> GetCurrentDevices()
     {
+        var snapshot = WindowsPnpSnapshot.Capture();
+        LastWarning = snapshot.Error;
+        if (!snapshot.Complete) { throw new InvalidOperationException(snapshot.Error); }
         var devicesByStableKey = new Dictionary<string, LiveUsbDevice>(StringComparer.OrdinalIgnoreCase);
-        var vidPidResolver = UsbVidPidResolver.Build();
-
-        try
+        var resolver = UsbVidPidResolver.Build();
+        foreach (var record in LivePnpCollector.Collect(snapshot, DateTimeOffset.UtcNow)
+                     .Where(x => x.IsCurrentlyConnected && (DeviceTransportClassifier.IsReportable(x) || x.Transport == "Bluetooth")))
         {
-            using var searcher = new ManagementObjectSearcher(
-                "SELECT DeviceID, Name, Caption, PNPDeviceID, Status, Description, Service FROM Win32_PnPEntity " +
-                "WHERE Present = TRUE AND (PNPDeviceID LIKE 'USB%' OR PNPDeviceID LIKE 'USBSTOR%' OR PNPDeviceID LIKE 'SCSI%' " +
-                "OR PNPDeviceID LIKE 'SWD%' OR PNPDeviceID LIKE 'USB4%' OR PNPDeviceID LIKE 'PCI%' " +
-                "OR Service='uaspstor' OR Service='Usb4HostRouter' OR Service='Usb4DeviceRouter' OR Service='Usb4P2PNetAdapter')");
-
-            foreach (ManagementObject item in searcher.Get())
-            {
-                var pnpId = Read(item, "PNPDeviceID");
-                if (string.IsNullOrWhiteSpace(pnpId))
-                {
-                    continue;
-                }
-
-                var metadata = LiveDeviceMetadataReader.Read(pnpId);
-                if (!DeviceTransportClassifier.IsRelevantLiveCandidate(
-                        pnpId, Read(item, "Service"), metadata.HardwareIds, metadata.CompatibleIds,
-                        metadata.LocationPaths, FirstNotEmpty(Read(item, "Name"), Read(item, "Caption"), Read(item, "Description"))))
-                {
-                    continue;
-                }
-
-                AddOrUpdate(devicesByStableKey, CreateDevice(
-                    pnpId,
-                    FirstNotEmpty(Read(item, "Name"), Read(item, "Caption"), Read(item, "Description"), pnpId),
-                    ExtractLocation(pnpId),
-                    Read(item, "Status"),
-                    vidPidResolver));
-            }
-
-            AddUsbDisks(devicesByStableKey, vidPidResolver);
-            AddRemovableVolumes(devicesByStableKey, vidPidResolver);
-
-            if (EndpointProtectionEnvironment.IsInstalled)
-            {
-                AddEndpointProtectionFilteredDevices(devicesByStableKey, vidPidResolver);
-            }
+            AddOrUpdate(devicesByStableKey, CreateDevice(record.DeviceInstanceId,
+                FirstNotEmpty(record.FriendlyName, record.Product, record.DeviceInstanceId),
+                record.TransportDisplayText, "Подключено", resolver));
         }
-        catch (Exception exception)
-        {
-            AppLog.Error(exception, "Live USB snapshot failed");
-            throw new InvalidOperationException("Не удалось получить текущий список USB-устройств.", exception);
-        }
-
         RemoveMissingDevices(devicesByStableKey.Keys);
-        return devicesByStableKey.Values
-            .OrderBy(x => x.DeviceName)
-            .ThenBy(x => x.DeviceId)
-            .ToArray();
+        return devicesByStableKey.Values.OrderBy(x => x.DeviceName).ThenBy(x => x.DeviceId).ToArray();
     }
-
-    private void AddUsbDisks(Dictionary<string, LiveUsbDevice> devicesByStableKey, UsbVidPidResolver vidPidResolver)
-    {
-        using var diskSearcher = new ManagementObjectSearcher(
-            "SELECT DeviceID, Model, Caption, PNPDeviceID, Status, InterfaceType, MediaType FROM Win32_DiskDrive " +
-            "WHERE InterfaceType='USB' OR MediaType='Removable Media' OR MediaType='External hard disk media' OR PNPDeviceID LIKE 'SCSI%'");
-
-        foreach (ManagementObject disk in diskSearcher.Get())
-        {
-            var pnpId = Read(disk, "PNPDeviceID");
-            if (string.IsNullOrWhiteSpace(pnpId))
-            {
-                continue;
-            }
-
-            var metadata = LiveDeviceMetadataReader.Read(pnpId);
-            if (!DeviceTransportClassifier.IsRelevantLiveCandidate(
-                    pnpId, metadata.Service, metadata.HardwareIds, metadata.CompatibleIds,
-                    metadata.LocationPaths, FirstNotEmpty(Read(disk, "Model"), Read(disk, "Caption")), Read(disk, "MediaType")))
-            {
-                continue;
-            }
-
-            AddOrUpdate(devicesByStableKey, CreateDevice(
-                pnpId,
-                FirstNotEmpty(Read(disk, "Model"), Read(disk, "Caption"), "USB Mass Storage"),
-                "USB Mass Storage / Flash drive",
-                Read(disk, "Status"),
-                vidPidResolver));
-        }
-    }
-
-    private void AddEndpointProtectionFilteredDevices(Dictionary<string, LiveUsbDevice> devicesByStableKey, UsbVidPidResolver vidPidResolver)
-    {
-        using var searcher = new ManagementObjectSearcher(
-            "SELECT PNPDeviceID, Name, Caption, Status, Description, Service, PNPClass FROM Win32_PnPEntity WHERE Present = TRUE AND (PNPClass='DiskDrive' OR PNPClass='USB' OR Service LIKE 'Sn%' OR Name LIKE '%USB%' OR Caption LIKE '%USB%')");
-
-        foreach (ManagementObject item in searcher.Get())
-        {
-            var pnpId = Read(item, "PNPDeviceID");
-            if (string.IsNullOrWhiteSpace(pnpId))
-            {
-                continue;
-            }
-
-            AddOrUpdate(devicesByStableKey, CreateDevice(
-                pnpId,
-                FirstNotEmpty(Read(item, "Name"), Read(item, "Caption"), Read(item, "Description"), pnpId),
-                ExtractLocation(pnpId),
-                Read(item, "Status"),
-                vidPidResolver));
-        }
-
-        using var removableSearcher = new ManagementObjectSearcher(
-            "SELECT PNPDeviceID, Model, Caption, Status, InterfaceType, MediaType FROM Win32_DiskDrive WHERE MediaType='Removable Media' OR MediaType='External hard disk media'");
-
-        foreach (ManagementObject disk in removableSearcher.Get())
-        {
-            var pnpId = Read(disk, "PNPDeviceID");
-            if (string.IsNullOrWhiteSpace(pnpId))
-            {
-                continue;
-            }
-
-            AddOrUpdate(devicesByStableKey, CreateDevice(
-                pnpId,
-                FirstNotEmpty(Read(disk, "Model"), Read(disk, "Caption"), "Съёмный накопитель"),
-                "Съёмный накопитель",
-                Read(disk, "Status"),
-                vidPidResolver));
-        }
-    }
-
-    private void AddRemovableVolumes(Dictionary<string, LiveUsbDevice> devicesByStableKey, UsbVidPidResolver vidPidResolver)
-    {
-        using var volumeSearcher = new ManagementObjectSearcher(
-            "SELECT DeviceID, VolumeName, Description, DriveType FROM Win32_LogicalDisk WHERE DriveType = 2");
-
-        foreach (ManagementObject volume in volumeSearcher.Get())
-        {
-            var driveLetter = Read(volume, "DeviceID");
-            if (string.IsNullOrWhiteSpace(driveLetter))
-            {
-                continue;
-            }
-
-            var pnpId = ResolveVolumePnpId(driveLetter) ?? $@"REMOVABLE\{driveLetter}";
-            var deviceName = FirstNotEmpty(Read(volume, "VolumeName"), Read(volume, "Description"), $"Съёмный диск {driveLetter}");
-            AddOrUpdate(devicesByStableKey, CreateDevice(
-                pnpId,
-                deviceName,
-                $"Съёмный том {driveLetter}",
-                "OK",
-                vidPidResolver));
-        }
-    }
-
-    private static string? ResolveVolumePnpId(string driveLetter)
-    {
-        try
-        {
-            var escapedDriveLetter = EscapeWqlValue(driveLetter);
-            using var searcher = new ManagementObjectSearcher(
-                $"ASSOCIATORS OF {{Win32_LogicalDisk.DeviceID='{escapedDriveLetter}'}} WHERE AssocClass=Win32_LogicalDiskToPartition");
-
-            foreach (ManagementObject partition in searcher.Get())
-            {
-                var partitionId = EscapeWqlValue(partition["DeviceID"]?.ToString() ?? "");
-                using var diskSearcher = new ManagementObjectSearcher(
-                    $"ASSOCIATORS OF {{Win32_DiskPartition.DeviceID='{partitionId}'}} WHERE AssocClass=Win32_DiskDriveToDiskPartition");
-
-                foreach (ManagementObject disk in diskSearcher.Get())
-                {
-                    var pnpId = disk["PNPDeviceID"]?.ToString();
-                    if (!string.IsNullOrWhiteSpace(pnpId))
-                    {
-                        return pnpId;
-                    }
-                }
-            }
-        }
-        catch
-        {
-            // Игнорируем ошибки сопоставления под DLP-фильтрами.
-        }
-
-        return null;
-    }
-
     private LiveUsbDevice CreateDevice(string pnpId, string deviceName, string location, string status, UsbVidPidResolver vidPidResolver)
     {
         var vidPid = ResolveVidPid(pnpId, vidPidResolver);
@@ -283,53 +115,9 @@ public sealed class LiveUsbSnapshotService
         }
     }
 
-    private static string EscapeWqlValue(string value) =>
-        value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("'", "\\'", StringComparison.Ordinal);
-
-    private static string Read(ManagementBaseObject item, string property)
-    {
-        return item.Properties[property]?.Value?.ToString() ?? "";
-    }
-
     private static string FirstNotEmpty(params string[] values)
     {
         return values.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "";
-    }
-
-    private static string ExtractLocation(string pnpId)
-    {
-        if (pnpId.StartsWith(@"USBSTOR\", StringComparison.OrdinalIgnoreCase))
-        {
-            return "USB Mass Storage";
-        }
-
-        if (pnpId.StartsWith(@"USB\", StringComparison.OrdinalIgnoreCase))
-        {
-            return "USB/Type-C через Windows PnP";
-        }
-
-        if (pnpId.StartsWith(@"REMOVABLE\", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Съёмный том";
-        }
-
-        if (pnpId.StartsWith(@"SWD\WPDBUSENUM\", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Portable device / MTP / WPD";
-        }
-
-        if (pnpId.StartsWith(@"USB4\", StringComparison.OrdinalIgnoreCase)
-            || pnpId.StartsWith(@"PCI\", StringComparison.OrdinalIgnoreCase))
-        {
-            return "USB4/Thunderbolt topology candidate";
-        }
-
-        if (pnpId.StartsWith(@"SCSI\", StringComparison.OrdinalIgnoreCase))
-        {
-            return "SCSI/UASP external candidate";
-        }
-
-        return "";
     }
 
     private static (string Vid, string Pid) ResolveVidPid(string pnpId, UsbVidPidResolver resolver)
@@ -451,7 +239,14 @@ public sealed class LiveUsbSnapshotService
                 return;
             }
 
-            map[key.Trim().Trim('{', '}')] = value;
+            var normalized = key.Trim().Trim('{', '}');
+            // A conflicting historical key must remain unresolved, never last-writer-wins.
+            if (map.TryGetValue(normalized, out var previous) && previous != value)
+            {
+                map[normalized] = ("", "");
+                return;
+            }
+            map[normalized] = value;
         }
 
         private static string LastSegment(string value)

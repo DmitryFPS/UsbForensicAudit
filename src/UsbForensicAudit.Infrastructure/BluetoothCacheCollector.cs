@@ -20,12 +20,19 @@ internal static class BluetoothCacheCollector
                     using var key = root!.OpenSubKey(name);
                     if (key is null) { continue; }
                     var display = BluetoothArtifactCollector.ReadBinaryName(key);
+                    var cod = key.GetValue("COD") as int?;
+                    foreach (var device in records.Where(x => BluetoothEnumeratorId.DeviceAddress(x.DeviceInstanceId)
+                                 .Equals(name, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        device.BluetoothClassOfDevice = cod;
+                    }
                     records.Add(new UsbDeviceRecord
                     {
                         DeviceInstanceId = source,
                         DeviceType = "BluetoothCache",
                         Source = "Registry: Bluetooth device cache",
                         FriendlyName = display.Length > 0 ? display : "Bluetooth-устройство " + name,
+                        BluetoothClassOfDevice = cod,
                         RegistryLastWriteUtc = RegistryKeyTimestamps.GetLastWriteUtc(key),
                         UserMeaning = "Сохранённая запись Bluetooth. Может оставаться после отмены сопряжения; текущее соединение ею не подтверждается.",
                         RawJson = JsonSerializer.Serialize(new { RegistryPath = source })

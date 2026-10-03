@@ -84,6 +84,8 @@
                     <TextBlock Text="Evidence классификации" Style="{StaticResource FieldLabel}"/>
                     <TextBox Text="{Binding ClassificationEvidenceText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
 
+                    <TextBlock Text="Подключено сейчас" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding CurrentConnectionText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
                     <TextBlock Text="Когда подключали" Style="{StaticResource FieldLabel}"/>
                     <TextBox Text="{Binding FirstConnectedText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
 

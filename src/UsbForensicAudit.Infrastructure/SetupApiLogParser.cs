@@ -9,6 +9,7 @@ internal static partial class SetupApiLogParser
     private static readonly string[] DeviceMarkers =
     [
         @"USBSTOR\", @"USB\", @"SCSI\", @"STORAGE\", @"SWD\", @"USB4\",
+        @"BTHENUM\", @"BTHLE\", @"BTHLEDEVICE\",
         "VID_", "PID_", "WPDBUSENUM", "WPD", "MTP", "PTP", "UASP", "UASPSTOR",
         "THUNDERBOLT", "Usb4HostRouter", "Usb4DeviceRouter", "Usb4P2PNetAdapter"
     ];
@@ -33,7 +34,8 @@ internal static partial class SetupApiLogParser
             if (timestamp.HasValue && ContainsDeviceMarker(rawText))
             {
                 var deviceHint = ExtractDeviceHint(rawText);
-                var isRemoval = LooksLikeRemoval(title) || LooksLikeRemoval(rawText);
+                var isRemoval = LooksLikeRemoval(title);
+                var isBluetooth = deviceHint.StartsWith("BTH", StringComparison.OrdinalIgnoreCase);
                 result.Add(new EvidenceRecord
                 {
                     TimestampUtc = timestamp.Value,
@@ -57,7 +59,7 @@ internal static partial class SetupApiLogParser
                         $"SetupAPI section: file={sourcePath}; section={sectionNumber}; timestamp={timestamp.Value:O}",
                     EvidenceStrength = "Direct",
                     Confidence = "High",
-                    CanEstablishConnectionDate = true
+                    CanEstablishConnectionDate = !isBluetooth
                 });
             }
 
@@ -135,11 +137,11 @@ internal static partial class SetupApiLogParser
 
     private static bool LooksLikeRemoval(string value)
     {
-        return value.Contains("remove", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("uninstall", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("disable", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("surprise", StringComparison.OrdinalIgnoreCase)
-               || value.Contains("stop", StringComparison.OrdinalIgnoreCase);
+        // Only the operation preceding the instance ID is authoritative. Paths,
+        // driver names and incidental queue-cleanup messages are not removals.
+        var operation = value.Split(" - ", 2, StringSplitOptions.None)[0];
+        return Regex.IsMatch(operation, @"\b(?:remove|removal|uninstall|disable|stop|surprise removal)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
     private static string Truncate(string value, int length) => value.Length <= length ? value : value[..length];
@@ -150,6 +152,6 @@ internal static partial class SetupApiLogParser
     [GeneratedRegex(@"^>>>\s+Section start\s+(?<time>.+?)\s*$", RegexOptions.Compiled)]
     private static partial Regex SectionTimeRegex();
 
-    [GeneratedRegex(@"(?i)(?:USBSTOR|USB|SCSI|STORAGE|SWD|USB4)\\[^\s\]\r\n]+")]
+    [GeneratedRegex(@"(?i)(?:USBSTOR|USB|SCSI|STORAGE|SWD|USB4|BTHENUM|BTHLEDEVICE|BTHLE)\\[^\s\]\r\n]+")]
     private static partial Regex DevicePathRegex();
 }

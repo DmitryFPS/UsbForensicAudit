@@ -1,7 +1,7 @@
 <Window x:Class="UsbForensicAudit.ActiveDevicesWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Сейчас подключено USB/Type-C"
+        Title="Сейчас подключено USB / Bluetooth"
         Height="480"
         Width="1100"
         MinHeight="360"
@@ -51,11 +51,12 @@
                 <Ellipse Width="42" Height="42" Fill="#0F2B45" Stroke="#4C8DFF" StrokeThickness="1.5"/>
                 <Path Grid.Column="0" Stroke="#4C8DFF" StrokeThickness="2.2" Data="M12,21 L30,21 M21,12 L21,30" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <StackPanel Grid.Column="1" Margin="14,0,0,0">
-                    <TextBlock Text="Сейчас подключено USB / Type-C" Foreground="#E6EDF7" FontSize="18" FontWeight="SemiBold"/>
+                    <TextBlock Text="Сейчас подключено USB / Bluetooth" Foreground="#E6EDF7" FontSize="18" FontWeight="SemiBold"/>
                     <TextBlock Text="Показывает только устройства, которые подключены прямо сейчас. После отключения строка исчезает, но история остаётся во вкладке «USB устройства»."
                                Foreground="#8B98B8"
                                TextWrapping="Wrap"
                                Margin="0,3,0,0"/>
+                    <TextBlock x:Name="SnapshotWarning" Foreground="#F3C77B" TextWrapping="Wrap" Margin="0,4,0,0"/>
                 </StackPanel>
             </Grid>
         </Border>

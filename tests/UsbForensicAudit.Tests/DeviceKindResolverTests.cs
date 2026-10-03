@@ -68,7 +68,7 @@ public class DeviceKindResolverTests
         device.DeviceKind = DeviceKindResolver.Resolve(device);
 
         Assert.Equal("Носитель информации", device.DeviceKindText);
-        Assert.Equal("По USB как обычный диск", device.TransportDisplayText);
+        Assert.Equal("По USB как обычный диск; тип разъёма не установлен", device.TransportDisplayText);
         Assert.Equal("Внешнее, принесённое устройство", device.OriginDisplayText);
         Assert.DoesNotContain("USBSTOR", device.ClassificationDisplayText, StringComparison.Ordinal);
         Assert.Contains("transport=MSC/USBSTOR", device.ClassificationCodesText, StringComparison.Ordinal);
