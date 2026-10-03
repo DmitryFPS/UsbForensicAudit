@@ -49,6 +49,7 @@ public sealed class LiveUsbSnapshotService
             Pid = vidPid.Pid,
             Manufacturer = metadata.Manufacturer,
             Product = metadata.Product,
+            HardwareIds = metadata.HardwareIds,
             Revision = metadata.Revision,
             Location = location,
             Status = status

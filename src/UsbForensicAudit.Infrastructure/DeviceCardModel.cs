@@ -34,6 +34,7 @@ internal static class DeviceCardModel
         new("Технические коды классификации", device.ClassificationCodesText, InCompactCard: false),
         new("Производитель", device.ManufacturerText),
         new("Модель", device.ModelText),
+        new("Распознавание по справочнику", device.RecognitionEvidenceText),
         new("VID/PID", device.VidPidText),
         new("Серийный номер", device.SerialText),
         new("Доверие к идентификаторам", device.IdentityTrustText, InCompactCard: false),

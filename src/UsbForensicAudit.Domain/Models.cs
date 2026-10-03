@@ -123,7 +123,7 @@ public sealed class UsbDeviceRecord
 
     [JsonIgnore]
     public string DisplayName => string.IsNullOrWhiteSpace(GroupDisplayName)
-        ? OwnDisplayName
+        ? UsbDeviceRecognition.DisplayName(this)
         : GroupDisplayName;
 
     /// <summary>Имя из значений самой записи, без заимствования у соседей.</summary>
@@ -158,10 +158,13 @@ public sealed class UsbDeviceRecord
     public string LocationDisplayText => UserDisplayText.Location(LocationInformation, LocationPaths);
 
     [JsonIgnore]
-    public string ManufacturerText => UserDisplayText.ManufacturerName(Manufacturer, FriendlyName, Vid);
+    public string ManufacturerText => UsbDeviceRecognition.Manufacturer(this);
 
     [JsonIgnore]
-    public string ModelText => UserDisplayText.ModelName(Product, FriendlyName, Revision, Pid);
+    public string ModelText => UsbDeviceRecognition.Model(this);
+
+    [JsonIgnore]
+    public string RecognitionEvidenceText => UsbDeviceRecognition.Evidence(this);
 
     [JsonIgnore]
     public string VidPidText => UserDisplayText.VidPidCodes(Vid, Pid);

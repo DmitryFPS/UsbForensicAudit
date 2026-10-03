@@ -50,6 +50,8 @@ internal static class UsbVendorDatabaseParser
             var productMatch = ProductLineRegex.Match(line);
             if (!productMatch.Success)
             {
+                // Class/HID/etc. sections are not products of the last vendor.
+                if (!char.IsWhiteSpace(line[0])) { currentVid = null; }
                 continue;
             }
 
@@ -94,7 +96,7 @@ internal static class UsbVendorDatabaseParser
         }
     }
 
-    public static void Merge(UsbVendorDatabaseData target, UsbVendorDatabaseData source, bool sourceWinsOnConflict)
+    public static void Merge(UsbVendorDatabaseData target, UsbVendorDatabaseData source, bool sourceWinsOnConflict, bool additionsOnly = false)
     {
         foreach (var (vid, vendorName) in source.Vendors)
         {
@@ -102,6 +104,7 @@ internal static class UsbVendorDatabaseParser
             {
                 target.Vendors[vid] = vendorName;
             }
+            else if (additionsOnly) { continue; }
             else if (sourceWinsOnConflict)
             {
                 target.Vendors[vid] = ChooseBetterName(existingVendor, vendorName, preferSecond: true);
@@ -126,6 +129,7 @@ internal static class UsbVendorDatabaseParser
                 {
                     targetProducts[pid] = productName;
                 }
+                else if (additionsOnly) { continue; }
                 else if (sourceWinsOnConflict)
                 {
                     targetProducts[pid] = ChooseBetterName(existingProduct, productName, preferSecond: true);

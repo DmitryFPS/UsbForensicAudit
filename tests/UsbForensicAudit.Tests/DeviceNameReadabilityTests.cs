@@ -89,9 +89,12 @@ public class DeviceNameReadabilityTests
             Product = @"@usb.inf,%usb\composite.devicedesc%;USB Composite Device"
         };
 
-        Assert.Equal("USB Composite Device", device.DisplayName);
+        Assert.Equal("USB Composite Device", device.OwnDisplayName);
+        Assert.Contains("по VID/PID", device.DisplayName);
+        Assert.DoesNotContain("@usb.inf", device.DisplayName);
         Assert.Equal("Стандартный USB хост-контроллер", device.ManufacturerText);
-        Assert.Equal("USB Composite Device", device.ModelText);
+        Assert.Contains("по VID/PID", device.ModelText);
+        Assert.Equal(@"@usb.inf,%usb\composite.devicedesc%;USB Composite Device", device.Product);
     }
 
     /// <summary>

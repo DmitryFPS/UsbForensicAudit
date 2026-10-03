@@ -11304,6 +11304,7 @@
 	4500  LV-20 Digital Camera
 	6101  fx-9750gII
 	6102  fx-CP400
+	6103  fx-CG50
 	6801  PL-40R
 	6802  MIDI Keyboard
 	6803  CTK-3500 (MIDI keyboard)
@@ -23978,3 +23979,8 @@ fc08  Conrad Electronic SE
 ff00  Power Delivery
 ffee  FNK Tech
 	0100  Card Reader Controller RTS5101/RTS5111/RTS5116
+# Upstream: https://raw.githubusercontent.com/usbids/usbids/master/usb.ids
+# Version: 2026.06.26
+# Date:    2026-06-26 20:34:02
+# Upstream SHA256: F5A48B0CC8DAE1607C2F0BAE6B8DC13F2ECEF69DBEAEAF34B4BE8E280D34DBA4
+# Update policy: add missing VID/PID only; preserve existing names.

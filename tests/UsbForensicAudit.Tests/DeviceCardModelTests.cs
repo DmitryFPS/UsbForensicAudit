@@ -20,7 +20,8 @@ public sealed class DeviceCardModelTests
     {
         var fields = DeviceCardModel.FieldsOf(CreateDevice());
 
-        Assert.Equal(26, fields.Count);
+        Assert.Equal(27, fields.Count);
+        Assert.Contains(fields, f => f.Label == "Распознавание по справочнику" && f.Value!.Contains("0951"));
         Assert.Equal("Тип", fields[0].Label);
         Assert.Equal("Системный ID", fields[^1].Label);
         Assert.Contains(fields, f => f.Label == "VID/PID");
@@ -32,7 +33,7 @@ public sealed class DeviceCardModelTests
     {
         var compact = DeviceCardModel.CompactFieldsOf(CreateDevice());
 
-        Assert.Equal(16, compact.Count);
+        Assert.Equal(17, compact.Count);
         Assert.Equal("Назначение", compact[0].Key);
         Assert.Equal("Системный ID", compact[^1].Key);
 

@@ -94,6 +94,8 @@
 
                     <TextBlock Text="Модель" Style="{StaticResource FieldLabel}"/>
                     <TextBox Text="{Binding ModelText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
+                    <TextBlock Text="Распознавание по справочнику" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding RecognitionEvidenceText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>
 
                     <TextBlock Text="PID / VID" Style="{StaticResource FieldLabel}"/>
                     <TextBox Text="{Binding VidPidText, Mode=OneWay}" Style="{StaticResource FieldValue}"/>

@@ -68,7 +68,7 @@
                   ItemsSource="{Binding ActiveDevices}">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Когда заметили" Binding="{Binding ConnectedAtText}" Width="185"/>
-                <DataGridTextColumn Header="Что подключено" Binding="{Binding DeviceName}" Width="290"/>
+                <DataGridTextColumn Header="Что подключено" Binding="{Binding DisplayName}" Width="290"/>
                 <DataGridTextColumn Header="Расположение" Binding="{Binding LocationText}" Width="170"/>
                 <DataGridTextColumn Header="Производитель" Binding="{Binding ManufacturerText}" Width="130"/>
                 <DataGridTextColumn Header="Модель" Binding="{Binding ModelText}" Width="150"/>

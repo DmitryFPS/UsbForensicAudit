@@ -13,10 +13,19 @@ public sealed class LiveUsbDevice
     public string Manufacturer { get; set; } = "";
     public string Product { get; set; } = "";
     public string Revision { get; set; } = "";
+    public string HardwareIds { get; set; } = "";
 
-    public string ManufacturerText => UserDisplayText.ManufacturerName(Manufacturer, DeviceName, Vid);
+    private UsbDeviceRecord RecognitionRecord => new()
+    {
+        DeviceInstanceId = DeviceId, Vid = Vid, Pid = Pid, HardwareIds = HardwareIds,
+        FriendlyName = DeviceName, Manufacturer = Manufacturer, Product = Product, Revision = Revision
+    };
 
-    public string ModelText => UserDisplayText.ModelName(Product, DeviceName, Revision, Pid);
+    public string DisplayName => UsbDeviceRecognition.DisplayName(RecognitionRecord);
+
+    public string ManufacturerText => UsbDeviceRecognition.Manufacturer(RecognitionRecord);
+
+    public string ModelText => UsbDeviceRecognition.Model(RecognitionRecord);
 
     public string VidPidText => UserDisplayText.VidPidCodes(Vid, Pid);
 
